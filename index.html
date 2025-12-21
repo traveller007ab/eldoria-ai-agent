@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eldoria AI IDE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    :root {
+      --glow-color: #06b6d4;
+      /* cyan-500 */
+      --glow-spread: 6px;
+    }
+
+    body {
+      font-family: 'Share Tech Mono', monospace;
+      background-color: #0c1a3e;
+      /* Deep navy blue */
+      color: #e0f2fe;
+      /* light cyan/sky */
+      overflow: hidden;
+    }
+
+    @keyframes blueprint-scroll {
+      0% {
+        background-position: 0 0;
+      }
+
+      100% {
+        background-position: -1024px 1024px;
+      }
+    }
+
+    .animated-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      background-image:
+        linear-gradient(rgba(12, 26, 62, 0.95), rgba(12, 26, 62, 0.95)),
+        url(https://i.imgur.com/V9nB3tV.png);
+      background-repeat: repeat;
+      background-size: 1024px auto;
+      animation: blueprint-scroll 60s linear infinite;
+      opacity: 0.3;
+    }
+
+    /* Basic layout styles for IDE */
+    .ide-layout {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .main-content {
+      flex-grow: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .panel {
+      height: 100%;
+      overflow-y: auto;
+      background-color: rgba(14, 38, 82, 0.6);
+      /* Transparent panel bg */
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      box-shadow: 0 0 var(--glow-spread) rgba(6, 182, 212, 0.1);
+    }
+
+    /* Global Modern Scrollbar Overlay */
+    *::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    *::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background: rgba(34, 211, 238, 0.3);
+      /* cyan-400 with low opacity */
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+      background: rgba(34, 211, 238, 0.6);
+      box-shadow: 0 0 10px var(--glow-color);
+    }
+
+    /* Glowing Text Effect */
+    .text-glow {
+      text-shadow: 0 0 8px var(--glow-color);
+    }
+
+    /* Pulsing effect for buttons */
+    @keyframes pulse-glow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 10px var(--glow-color);
+      }
+
+      50% {
+        box-shadow: 0 0 20px var(--glow-color);
+      }
+    }
+
+    .animate-pulse-glow {
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+
+    /* Slide-in animation for SAF log entries */
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* Inline Action Toolbar */
+    .inline-action-toolbar {
+      position: absolute;
+      z-index: 50;
+      background-color: rgba(14, 38, 82, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      border-radius: 8px;
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+      padding: 6px;
+      display: flex;
+      gap: 4px;
+      transform: translateY(-110%);
+      transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.19.0",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.45.0",
+    "react-markdown": "https://aistudiocdn.com/react-markdown@^9.0.1",
+    "remark-gfm": "https://aistudiocdn.com/remark-gfm@^4.0.0",
+    "react-syntax-highlighter": "https://aistudiocdn.com/react-syntax-highlighter@^15.5.0",
+    "react-syntax-highlighter/": "https://aistudiocdn.com/react-syntax-highlighter@^15.5.0/"
+  }
+}
+</script>
+  <link rel="stylesheet" href="/index.css">
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>

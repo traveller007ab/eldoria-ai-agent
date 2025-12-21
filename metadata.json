@@ -1,0 +1,7 @@
+{
+  "name": "Eldoria AI Agent",
+  "description": "A powerful AI agent interface built with React and Gemini, featuring a conceptual architecture for memory (EmeraldMind) and logic (SAF). Includes placeholders for Supabase integration.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
