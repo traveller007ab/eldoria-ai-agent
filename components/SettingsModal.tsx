@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Zap, Coffee, ShieldCheck, Cpu, Key, Save, Check } from 'lucide-react';
+import { X, Settings, Zap, Coffee, ShieldCheck, Cpu, Key, Save, Check, Info } from 'lucide-react';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 interface SettingsModalProps {
     onClose: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
+    const { resetOnboarding, isLowPerfMode, setLowPerfMode } = useWorkspace();
     const [settings, setSettings] = useState({
         witLevel: 50,
         reverence: 70,
@@ -130,6 +132,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                                 className={`w-10 h-5 rounded-full transition-all relative ${settings.proactiveAudit ? 'bg-cyan-500/40' : 'bg-white/5'}`}
                             >
                                 <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${settings.proactiveAudit ? 'right-1 bg-cyan-400' : 'left-1 bg-white/20'}`}></div>
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-cyan-500/5">
+                            <div>
+                                <h4 className="text-[11px] font-bold text-cyan-100 uppercase tracking-tight">Low-Performance Mode</h4>
+                                <p className="text-[9px] text-cyan-500/40 uppercase font-medium">Optimized for low-spec devices / tablets</p>
+                            </div>
+                            <button
+                                onClick={() => setLowPerfMode(!isLowPerfMode)}
+                                className={`w-10 h-5 rounded-full transition-all relative ${isLowPerfMode ? 'bg-amber-500/40' : 'bg-white/5'}`}
+                            >
+                                <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${isLowPerfMode ? 'right-1 bg-amber-400' : 'left-1 bg-white/20'}`}></div>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Help & Learning Section */}
+                    <div className="space-y-4 pt-4 border-t border-cyan-500/10">
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-cyan-400 uppercase tracking-[0.2em] mb-4">
+                            <Info className="w-3.5 h-3.5" />
+                            Help & Learning
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-cyan-500/5 hover:border-cyan-500/20 transition-all group">
+                            <div>
+                                <h4 className="text-[11px] font-bold text-cyan-100 uppercase tracking-tight">Onboarding Tour</h4>
+                                <p className="text-[9px] text-cyan-500/40 uppercase font-medium">Re-awaken the Eldoria sentient guide</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    resetOnboarding();
+                                    onClose();
+                                }}
+                                className="px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-400/20 text-cyan-400 border border-cyan-500/30 rounded-lg text-[8px] font-bold uppercase tracking-widest transition-all"
+                            >
+                                Retake Tour
                             </button>
                         </div>
                     </div>

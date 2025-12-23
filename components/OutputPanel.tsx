@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { TaskPanel } from './TaskPanel';
 import { ChatPanel } from './ChatPanel';
-import { InsightsPanel } from './InsightsPanel';
+const InsightsPanel = lazy(() => import('./InsightsPanel').then(m => ({ default: m.InsightsPanel })));
 import { useWorkspace } from '../context/WorkspaceContext';
 import { Source } from '../types';
+import { ChevronDown, Send } from 'lucide-react';
 
 const LoadingIndicator = () => (
     <div className="flex items-center justify-center h-full text-cyan-400">
@@ -51,13 +52,15 @@ const TabButton: React.FC<{
     label: string;
     isActive: boolean;
     onClick: () => void;
-}> = ({ label, isActive, onClick }) => {
+    id?: string;
+}> = ({ label, isActive, onClick, id }) => {
     return (
         <button
+            id={id}
             onClick={onClick}
             className={`px-4 py-2 text-sm font-medium transition-all duration-300 border-b-2 ${isActive
-                    ? 'text-cyan-300 border-cyan-400 text-glow'
-                    : 'text-cyan-400/60 border-transparent hover:bg-cyan-500/10 hover:text-cyan-300'
+                ? 'text-cyan-300 border-cyan-400 text-glow'
+                : 'text-cyan-400/60 border-transparent hover:bg-cyan-500/10 hover:text-cyan-300'
                 }`}
         >
             {label}
@@ -71,10 +74,13 @@ export const OutputPanel: React.FC = () => {
         activeCanvas,
         isLoading,
         acceptOutput,
-        appendOutput
+        appendOutput,
+        academicProjects,
+        publishToAcademicHub
     } = useWorkspace();
 
     const [activeTab, setActiveTab] = useState<Tab>('output');
+    const [isPublishDropdownOpen, setIsPublishDropdownOpen] = useState(false);
 
     const hasOutput = !!activeCanvas?.output?.trim();
     const hasSources = !!activeCanvas?.output_sources && activeCanvas.output_sources.length > 0;
@@ -86,7 +92,7 @@ export const OutputPanel: React.FC = () => {
                 <div className="flex items-center gap-2">
                     <TabButton label="Output" isActive={activeTab === 'output'} onClick={() => setActiveTab('output')} />
                     <TabButton label="Task Log" isActive={activeTab === 'task'} onClick={() => setActiveTab('task')} />
-                    <TabButton label="Chat" isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
+                    <TabButton id="panel-chat" label="Chat" isActive={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
                     <TabButton label="Insights" isActive={activeTab === 'insights'} onClick={() => setActiveTab('insights')} />
                 </div>
                 {hasOutput && !isLoading && activeTab === 'output' && (
@@ -105,6 +111,42 @@ export const OutputPanel: React.FC = () => {
                         >
                             Accept & Replace
                         </button>
+                        {academicProjects.length > 0 && (
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsPublishDropdownOpen(!isPublishDropdownOpen)}
+                                    className="text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 px-3 py-1 rounded-md transition-all border border-emerald-500/30 flex items-center gap-2"
+                                    title="Publish this strategic output to the Academic Hub"
+                                >
+                                    Publish to Hub
+                                    <ChevronDown className={`w-3 h-3 transition-transform ${isPublishDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {isPublishDropdownOpen && (
+                                    <div className="absolute top-full right-0 mt-2 w-64 bg-[#0a0a0a] border border-emerald-500/30 rounded-xl shadow-[0_10px_30px_rgba(16,185,129,0.2)] z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="p-2 border-b border-emerald-500/10 text-[10px] uppercase font-bold text-emerald-500/60 transition-all tracking-widest px-4">Select Target Project</div>
+                                        <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                                            {academicProjects.map(proj => (
+                                                <button
+                                                    key={proj.id}
+                                                    onClick={() => {
+                                                        const timestamp = new Date().toISOString().split('T')[0];
+                                                        publishToAcademicHub(proj.id, `Strategic_Brief_${timestamp}.md`, activeCanvas?.output || '');
+                                                        setIsPublishDropdownOpen(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 hover:bg-emerald-500/10 transition-colors group flex items-center justify-between"
+                                                >
+                                                    <span className="text-[11px] text-emerald-100/60 group-hover:text-emerald-300 truncate font-sans">
+                                                        {proj.name || proj.wizard_state.basics.title || "Untitled Project"}
+                                                    </span>
+                                                    <Send className="w-3 h-3 text-emerald-500/20 group-hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -132,7 +174,11 @@ export const OutputPanel: React.FC = () => {
                     />
                 )}
                 {activeTab === 'chat' && <ChatPanel />}
-                {activeTab === 'insights' && <InsightsPanel />}
+                {activeTab === 'insights' && (
+                    <Suspense fallback={<div className="h-full flex items-center justify-center text-[10px] text-cyan-500/20 uppercase tracking-widest animate-pulse font-bold">Awakening Insights Panel...</div>}>
+                        <InsightsPanel />
+                    </Suspense>
+                )}
             </div>
         </div>
     );

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, Loader2 } from 'lucide-react';
 import { AcademicDashboard } from './AcademicDashboard';
 import { AcademicWizard } from './AcademicWizard';
@@ -6,6 +7,11 @@ import { ComplianceSidebar } from './ComplianceSidebar';
 import { AcademicProject } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { generateDefenseDeck } from '../services/DefenseDeckGenerator';
+import { FormulaEditor } from '../components/FormulaEditor';
+import { DefenseDeckUI } from './DefenseDeckUI';
+import { runAutonomousResearch, DeepResearchResult } from '../services/AutonomousResearcher';
+import { Sigma, X, Microscope, Info, Terminal, Link, Zap, HardDrive } from 'lucide-react';
+import { ProjectResources } from './ProjectResources';
 
 export const AcademicHub: React.FC = () => {
     const { addAcademicProject, updateAcademicProject } = useWorkspace();
@@ -13,6 +19,10 @@ export const AcademicHub: React.FC = () => {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isGeneratingDeck, setIsGeneratingDeck] = useState(false);
+    const [deckMarkdown, setDeckMarkdown] = useState<string | null>(null);
+    const [isFormulaEditorOpen, setIsFormulaEditorOpen] = useState(false);
+    const [isResearching, setIsResearching] = useState(false);
+    const [researchResult, setResearchResult] = useState<DeepResearchResult | null>(null);
 
     const handleUpdateDraft = (chapter: string, content: string) => {
         if (!selectedProject) return;
@@ -22,24 +32,29 @@ export const AcademicHub: React.FC = () => {
         updateAcademicProject(updatedProject);
     };
 
-    const handleExportDeck = async () => {
+    const handleGenerateDeckPreview = async () => {
         if (!selectedProject) return;
         setIsGeneratingDeck(true);
         try {
             const deck = await generateDefenseDeck(selectedProject);
-            const blob = new Blob([deck], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Defense_Deck_${selectedProject.wizard_state.basics.title.replace(/\s+/g, '_')}.md`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            setDeckMarkdown(deck);
         } catch (e) {
-            console.error("Deck export failed", e);
+            console.error("Deck generation failed", e);
         } finally {
             setIsGeneratingDeck(false);
+        }
+    };
+
+    const handleDeepResearch = async () => {
+        if (!selectedProject) return;
+        setIsResearching(true);
+        try {
+            const result = await runAutonomousResearch(selectedProject);
+            setResearchResult(result);
+        } catch (e) {
+            console.error("Research failed", e);
+        } finally {
+            setIsResearching(false);
         }
     };
 
@@ -57,10 +72,12 @@ export const AcademicHub: React.FC = () => {
                 literature: { keywords: [], searchQueries: [] },
                 methodology: { materials: [], methods: '', costs: '', results_data: '' },
                 finishing: { dedication: '', acknowledgements: '', preface: '' },
-                compliance: { plagiarismChecked: false, wordCountValid: false, abstractReady: false }
+                compliance: { plagiarismChecked: false, wordCountValid: false, abstractReady: false },
+                generationConfig: { targetPageCount: 80, depth: 'standard' }
             },
             draft_content: {},
-            references: []
+            references: [],
+            resources: []
         };
         addAcademicProject(newProject);
         setSelectedProject(newProject);
@@ -98,21 +115,40 @@ export const AcademicHub: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <button
+                                        onClick={handleDeepResearch}
+                                        disabled={isResearching}
+                                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isResearching ? 'bg-purple-500/20 text-purple-200 border-purple-500/40 animate-pulse' : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'}`}
+                                    >
+                                        {isResearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Microscope className="w-3.5 h-3.5" />}
+                                        {isResearching ? 'Researching...' : 'Deep Research'}
+                                    </button>
+                                    <button
                                         onClick={() => setIsEditing(!isEditing)}
                                         className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isEditing ? 'bg-emerald-500/20 text-emerald-100 border-emerald-500/40' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'}`}
                                     >
-                                        {isEditing ? <><Check className="w-3.5 h-3.5" /> Stop Editing</> : <><Edit3 className="w-3.5 h-3.5" /> Interactive Mode</>}
+                                        {isEditing ? <Check className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+                                        {isEditing ? 'Stop Editing' : 'Interactive Mode'}
                                     </button>
                                     <button
-                                        onClick={handleExportDeck}
+                                        onClick={handleGenerateDeckPreview}
                                         disabled={isGeneratingDeck}
                                         className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/20 transition-all disabled:opacity-50"
                                     >
                                         {isGeneratingDeck ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Presentation className="w-3.5 h-3.5" />}
                                         {isGeneratingDeck ? 'Synthesizing...' : 'Defense Deck'}
                                     </button>
+                                    <NavLink to="/" className="px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20 transition-all flex items-center gap-2">
+                                        <Layout className="w-3.5 h-3.5" />
+                                        Warp to Workspace
+                                    </NavLink>
                                     <button onClick={() => setIsWizardOpen(true)} className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/40 transition-all">Setup Wizard</button>
-                                    <button className="p-1.5 hover:bg-cyan-500/10 text-cyan-400 rounded-md transition-colors"><FileDown className="w-4 h-4" /></button>
+                                    <button
+                                        onClick={() => setIsFormulaEditorOpen(!isFormulaEditorOpen)}
+                                        className={`p-1.5 rounded-md transition-colors ${isFormulaEditorOpen ? 'bg-cyan-500/20 text-cyan-200' : 'hover:bg-cyan-500/10 text-cyan-400'}`}
+                                        title="Formula Bridge"
+                                    >
+                                        <Sigma className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
                             <div className="flex-grow overflow-y-auto custom-scrollbar p-12">
@@ -217,12 +253,108 @@ export const AcademicHub: React.FC = () => {
                             </button>
                         </div>
                     )}
+
+                    {/* Formula Editor Modal/Overlay */}
+                    {isFormulaEditorOpen && (
+                        <div className="absolute top-20 right-6 z-50 w-96 animate-in slide-in-from-right duration-300">
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsFormulaEditorOpen(false)}
+                                    className="absolute top-3 right-3 p-1.5 hover:bg-white/10 rounded-full text-cyan-500/40 hover:text-cyan-100 transition-colors z-[60]"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                                <FormulaEditor />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Defense Deck Modal */}
+                    {deckMarkdown && (
+                        <DefenseDeckUI
+                            markdown={deckMarkdown}
+                            onClose={() => setDeckMarkdown(null)}
+                        />
+                    )}
+
+                    {/* Deep Research Results Modal */}
+                    {researchResult && (
+                        <div className="fixed inset-0 z-[110] bg-[#0c1a3e]/95 backdrop-blur-xl flex items-center justify-center p-12 overflow-y-auto custom-scrollbar">
+                            <div className="w-full max-w-4xl bg-black/40 border border-cyan-500/20 rounded-[2rem] p-12 relative animate-in zoom-in-95 duration-500">
+                                <button onClick={() => setResearchResult(null)} className="absolute top-8 right-8 p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 text-white/40 hover:text-white transition-all">
+                                    <X className="w-5 h-5" />
+                                </button>
+
+                                <div className="flex items-center gap-6 mb-12">
+                                    <div className="p-4 bg-purple-500/20 rounded-2xl border border-purple-500/30">
+                                        <Microscope className="w-8 h-8 text-purple-400" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-black text-white uppercase tracking-[0.3em]">Autonomous Research Synthesis</h2>
+                                        <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mt-1">Llama 3.3 Versatile • Recursive Evidence Chain Active</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-12">
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-4 text-cyan-400">
+                                            <Info className="w-4 h-4" />
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest">Heuristic Analysis</h4>
+                                        </div>
+                                        <p className="text-[13px] text-cyan-100/70 leading-relaxed font-serif text-justify">{researchResult.analysis}</p>
+                                    </section>
+
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-6 text-purple-400">
+                                            <Terminal className="w-4 h-4" />
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest">Evidence Chain</h4>
+                                        </div>
+                                        <div className="grid gap-4">
+                                            {researchResult.evidenceChain.map((ev, i) => (
+                                                <div key={i} className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
+                                                    <div className="text-[9px] font-black text-purple-400 uppercase tracking-widest mb-2">Query: {ev.query}</div>
+                                                    <p className="text-[11px] text-white/60 leading-relaxed italic mb-4">"{ev.findings}"</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {ev.sources.map((src, j) => (
+                                                            <a key={j} href={src.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[9px] text-cyan-400 transition-all flex items-center gap-2">
+                                                                <Link className="w-2.5 h-2.5" />
+                                                                {src.title}
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-4 text-emerald-400">
+                                            <Zap className="w-4 h-4" />
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest">Suggested Thesis Updates</h4>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {researchResult.suggestedUpdates.map((upd, i) => (
+                                                <div key={i} className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl text-[10px] text-emerald-100/60 leading-relaxed italic">
+                                                    {upd}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Right Sidebar: Compliance & Suggestions */}
+            {/* Right Sidebar: Compliance & Resources */}
             <div className="w-80 shrink-0 flex flex-col gap-4 overflow-hidden">
                 <ComplianceSidebar project={selectedProject} />
+                {selectedProject && (
+                    <div className="h-1/2 flex flex-col overflow-hidden">
+                        <ProjectResources project={selectedProject} />
+                    </div>
+                )}
             </div>
         </div>
     );

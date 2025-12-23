@@ -256,9 +256,11 @@ export async function* runGenerateStream(
 export async function* runConversationStream(
   canvasContent: CanvasPart[],
   chatHistory: ChatMessage[],
-  newMessage: string
+  newMessage: string,
+  metaContext?: string
 ): AsyncGenerator<{ textChunk?: string; error?: string }> {
   try {
+    const fullSystemInstruction = getDynamicSystemInstruction(chatSystemInstruction) + (metaContext ? `\n\n--- ADDITIONAL CONTEXT ---\n${metaContext}` : "");
     // FIX: Changed `GeminiChatMessage[]` to `Content[]` to match the correct type from the `@google/genai` library.
     const history: Content[] = chatHistory.map(msg => ({
       role: msg.sender === 'user' ? 'user' : 'model',

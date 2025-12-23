@@ -40,9 +40,16 @@ export interface EldoriaCore {
   vision: string;
 }
 
+export interface Attachment {
+  name: string;
+  path: string;
+  content?: string;
+}
+
 export interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
+  attachments?: Attachment[];
 }
 
 export interface Source {
@@ -155,6 +162,10 @@ export interface AcademicWizardState {
     wordCountValid: boolean;
     abstractReady: boolean;
   };
+  generationConfig: {
+    targetPageCount: number;
+    depth: 'standard' | 'deep' | 'exhaustive';
+  };
 }
 
 export interface AcademicProject {
@@ -165,4 +176,5 @@ export interface AcademicProject {
   wizard_state: AcademicWizardState;
   draft_content: Record<string, string>; // Chapter -> Markdown
   references: Reference[];
+  resources?: string[]; // List of file paths
 }

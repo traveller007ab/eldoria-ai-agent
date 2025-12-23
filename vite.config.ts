@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => {
   // Support multiple env var names for flexibility
   const apiKey = env.VITE_API_KEY || env.GEMINI_API_KEY || env.API_KEY;
   return {
+    base: './', // CRITICAL: Ensure relative paths for Electron file:// protocol
     define: {
       'process.env.API_KEY': JSON.stringify(apiKey),
       'process.env.GEMINI_API_KEY': JSON.stringify(apiKey),
@@ -15,6 +16,11 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+      }
+    },
+    server: {
+      watch: {
+        ignored: ['**/android/**', '**/ios/**', '**/release/**']
       }
     }
   };

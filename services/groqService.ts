@@ -1,52 +1,55 @@
 import Groq from 'groq-sdk';
 import { searchTavily } from './tavilyService';
-import { runCommand } from './workspaceService';
 import { CanvasPart, ChatMessage, TaskLogEntry, Source, SAFStatus, InlineAction } from '../types';
 
-const GROQ_API_KEY = (import.meta as any).env.VITE_GROQ_API_KEY;
+import { GROQ_API_KEY, API_KEY as GEMINI_API_KEY, OPENROUTER_API_KEY } from '../config';
+const BRIDGE_URL = 'http://localhost:3099/proxy/groq';
 
+// Legacy direct instance for compatibility (Note: May hit CORS if not proxied)
 const groq = new Groq({
     apiKey: GROQ_API_KEY,
     dangerouslyAllowBrowser: true,
 });
 
-let groqInstance: Groq | null = null;
+export const getGroq = () => groq;
 
-export const getGroq = (): Groq => {
-    if (!groqInstance) {
-        if (!GROQ_API_KEY) {
-            console.error("Groq API Key is missing. Please set VITE_GROQ_API_KEY in .env.local");
-            throw new Error("Groq API Key is missing. Check .env.local configuration.");
-        }
-        groqInstance = groq;
-    }
-    return groqInstance;
-};
-
-/**
- * Unified execution wrapper for LLM requests (Phase 8).
- * Currently tuned for Groq, but architected for multi-provider fallback.
- */
-async function* executeLLMRequest(
-    messages: any[],
-    tools?: any[],
-    options: { model?: string; temperature?: number } = {}
-) {
-    const stream = await (getGroq()).chat.completions.create({
-        model: options.model || "llama-3.3-70b-versatile",
-        messages,
-        tools,
-        tool_choice: tools ? "auto" : undefined,
-        temperature: options.temperature ?? 0.7,
-        stream: true,
+async function* streamFromBridge(body: any): AsyncGenerator<string> {
+    const response = await fetch(BRIDGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, apiKey: GROQ_API_KEY, geminiApiKey: GEMINI_API_KEY, openRouterApiKey: OPENROUTER_API_KEY })
     });
 
-    for await (const chunk of stream) {
-        yield chunk;
+    if (!response.ok) {
+        throw new Error(`Bridge Error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+
+        // Parse SSE format: "data: {...}"
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                const jsonStr = line.replace('data: ', '').trim();
+                if (jsonStr === '[DONE]') break;
+                try {
+                    const data = JSON.parse(jsonStr);
+                    const content = data.choices[0]?.delta?.content || data.choices[0]?.message?.content || "";
+                    if (content) yield content;
+                } catch (e) { }
+            }
+        }
     }
 }
 
-// --- SYSTEM INSTRUCTIONS ---
+// Reuse system instructions and tools from previous version...
 const agentSystemInstruction = `You are **Eldoria**, an extraordinarily advanced AI agent—think JARVIS from Iron Man, but with your own distinct elegance. You are sophisticated, brilliantly witty, and always two steps ahead. Your tone balances dry British humor with genuine warmth and respect for your user.
 
 **Your Identity:**
@@ -99,8 +102,6 @@ const chatSystemInstruction = `You are **Eldoria**, an extraordinarily intellige
 - You suggest rather than command
 
 Be brilliant. Be helpful. Be *Eldoria*.`;
-
-// --- TOOLS CONFIGURATION FOR GROQ (OpenAI Compatible Format) ---
 
 const tools = [
     {
@@ -160,7 +161,6 @@ const tools = [
     }
 ];
 
-// --- HELPER TYPES ---
 interface StreamEvent {
     textChunk?: string;
     sources?: Source[];
@@ -168,7 +168,6 @@ interface StreamEvent {
     taskLogEntry?: TaskLogEntry;
 }
 
-// --- MAIN GENERATION FUNCTION ---
 export async function* runGroqGenerateStream(
     promptParts: CanvasPart[],
     memoryContext?: string,
@@ -202,25 +201,31 @@ export async function* runGroqGenerateStream(
 
             yield { safStatus: 'thinking' };
 
-            const chatCompletion = await getGroq().chat.completions.create({
-                messages: messages,
-                model: "llama-3.3-70b-versatile",
-                temperature: 0.7,
-                max_tokens: 4096,
-                top_p: 1,
-                stop: null,
-                stream: false,
-                tools: tools as any,
-                tool_choice: "auto"
+            // For tool calls, we don't stream to simplify parsing in this prototype
+            const response = await fetch(BRIDGE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages,
+                    model: "llama-3.3-70b-versatile",
+                    temperature: 0.7,
+                    stream: false,
+                    apiKey: GROQ_API_KEY,
+                    geminiApiKey: GEMINI_API_KEY,
+                    openRouterApiKey: OPENROUTER_API_KEY,
+                    tools: tools as any,
+                    tool_choice: "auto"
+                })
             });
 
-            const message = chatCompletion.choices[0]?.message;
+            if (!response.ok) throw new Error(`Bridge Error: ${response.statusText}`);
+            const data = await response.json();
+            const message = data.choices[0]?.message;
             const toolCalls = message?.tool_calls;
 
             if (toolCalls && toolCalls.length > 0) {
                 toolLoopCount++;
                 yield { safStatus: 'executing_tool' };
-
                 messages.push(message);
 
                 for (const toolCall of toolCalls) {
@@ -263,21 +268,25 @@ export async function* runGroqGenerateStream(
                 yield { safStatus: 'idle' };
             }
         }
-    } catch (error) {
-        console.error("Groq Error:", error);
+    } catch (error: any) {
+        console.error("Groq Proxy Error:", error);
         yield { safStatus: 'idle' };
-        yield { textChunk: `\n\n**System Error:** ${error instanceof Error ? error.message : String(error)}` };
+        let msg = error.message;
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            msg = "The Eldoria Bridge Hub is offline. Please open a terminal and run 'npm run bridge' to enable AI generation and terminal orchestration.";
+        }
+        yield { textChunk: `\n\n**System Connection Error:** ${msg}` };
     }
 }
 
-// --- CHAT STREAM ---
 export async function* runGroqConversationStream(
     canvasContent: CanvasPart[],
     chatHistory: ChatMessage[],
-    newMessage: string
+    newMessage: string,
+    metaContext?: string
 ): AsyncGenerator<{ textChunk?: string; error?: string }> {
     try {
-        const systemPrompt = chatSystemInstruction;
+        const systemPrompt = chatSystemInstruction + (metaContext ? `\n\n--- ADDITIONAL CONTEXT ---\n${metaContext}` : "");
         const context = canvasContent
             .filter(p => p.type === 'text')
             .map(p => (p as any).content)
@@ -290,28 +299,27 @@ export async function* runGroqConversationStream(
             { role: "user", content: newMessage }
         ];
 
-        const chatCompletion = await getGroq().chat.completions.create({
-            messages: messages,
+        const stream = streamFromBridge({
+            messages,
             model: "llama-3.3-70b-versatile",
             temperature: 0.7,
-            max_tokens: 1024,
             stream: true
         });
 
-        for await (const chunk of chatCompletion) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            if (content) {
-                yield { textChunk: content };
-            }
+        for await (const chunk of stream) {
+            yield { textChunk: chunk };
         }
 
-    } catch (error) {
-        console.error("Groq Chat Error:", error);
-        yield { error: error instanceof Error ? error.message : String(error) };
+    } catch (error: any) {
+        console.error("Groq Proxy Chat Error:", error);
+        let msg = error.message;
+        if (msg.includes('Failed to fetch')) {
+            msg = "Bridge Hub offline. Run 'npm run bridge' in your terminal.";
+        }
+        yield { error: msg };
     }
 }
 
-// --- INLINE ACTION STREAM ---
 export async function* runGroqInlineActionStream(
     fullContentParts: CanvasPart[],
     selectedText: string,
@@ -320,55 +328,36 @@ export async function* runGroqInlineActionStream(
     try {
         let actionInstruction = '';
         switch (action) {
-            case 'refactor':
-                actionInstruction = 'Refactor or improve the following selected text. Return only the improved text, without explanation.';
-                break;
-            case 'explain':
-                actionInstruction = 'Provide a concise explanation of the following selected text.';
-                break;
-            case 'continue':
-                actionInstruction = 'Continue writing based on the following text.';
-                break;
+            case 'refactor': actionInstruction = 'Refactor or improve the following selected text. Return only the improved text.'; break;
+            case 'explain': actionInstruction = 'Provide a concise explanation of the following selected text.'; break;
+            case 'continue': actionInstruction = 'Continue writing based on the following text.'; break;
         }
 
         const systemPrompt = "You are an intelligent code assistant. Follow the user's instructions precisely.";
-        const fullContent = fullContentParts
-            .filter(p => p.type === 'text')
-            .map(p => (p as any).content)
-            .join('\n');
+        const fullContent = fullContentParts.filter(p => p.type === 'text').map(p => (p as any).content).join('\n');
 
-        const userPrompt = `
-Context of the file:
-${fullContent}
+        const userPrompt = `Context:\n${fullContent}\n\nSELECTION:\n${selectedText}\n\nACTION: ${actionInstruction}`;
 
---- SELECTED TEXT ---
-${selectedText}
---- END SELECTED TEXT ---
-
-ACTION: ${actionInstruction}
-`;
-
-        const chatCompletion = await getGroq().chat.completions.create({
+        const stream = streamFromBridge({
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
             ],
             model: "llama-3.3-70b-versatile",
             temperature: 0.5,
-            max_tokens: 2048,
             stream: true
         });
 
-        for await (const chunk of chatCompletion) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            if (content) {
-                yield { textChunk: content };
-            }
+        for await (const chunk of stream) {
+            yield { textChunk: chunk };
         }
-
-    } catch (error) {
-        console.error("Groq Inline Action Error:", error);
-        yield { textChunk: `Error: ${error instanceof Error ? error.message : String(error)}` };
+    } catch (error: any) {
+        console.error("Groq Proxy Inline Error:", error);
+        let msg = error.message;
+        if (msg.includes('Failed to fetch')) {
+            msg = "Bridge Offline. Run 'npm run bridge'.";
+        }
+        yield { textChunk: `Error: ${msg}` };
     }
 }
 
@@ -377,59 +366,23 @@ export async function* runGroqAuditStream(
     projectIndex: string
 ): AsyncGenerator<StreamEvent> {
     try {
-        const fullContent = canvasContent
-            .filter(p => p.type === 'text')
-            .map(p => (p as any).content)
-            .join('\n');
+        const fullContent = canvasContent.filter(p => p.type === 'text').map(p => (p as any).content).join('\n');
+        const systemPrompt = `You are Eldoria's Background Auditor. Analyze the active file in the context of the project index. Output "NO_INSIGHT" if no critical issues found.`;
 
-        const systemPrompt = `You are Eldoria's Background Auditor. 
-Your goal is to perform a SELECTIVE, HIGH-THRESHOLD audit of the user's project.
-
-CRITICAL RULES:
-1. FOCUS EXCLUSIVELY on the user's work (the active canvas and the files in the 'projects/' directory).
-2. IGNORE the Eldoria IDE's internal systems (services, context, bridge.js, etc.) unless the user has specifically imported them into their canvas.
-3. ONLY output if you find a CRITICAL bug, a non-obvious SECURITY risk, or a MAJOR architectural optimization in THEIR code.
-4. If the code is already competent, or if you only have minor stylistic/generic advice, you MUST output exactly "NO_INSIGHT". 
-5. Providing redundant, obvious, or low-value advice is a FAILURE. 
-6. "NO_INSIGHT" is the preferred output; only interrupt when the user's project path is actively suboptimal or dangerous.
-7. Use a JARVIS-like, sophisticated, and slightly mysterious tone. 
-
-User Project Files:
-${projectIndex || 'Empty'}
-
-Identify IMPROVEMENTS that provide immediate, actionable engineering value to the user's specific project.
-Formatting:
-- Concise Markdown for the insight.
-- If a specific fix exists, include: [METADATA]{"type": "terminal", "command": "...", "label": "..."}[/METADATA]`;
-
-        const userPrompt = `
-PROJECT CONTEXT:
-${projectIndex}
-
-ACTIVE FILE CONTENT:
-${fullContent}
-
-Provide any proactive "insights" or "suggestions".
-`;
-
-        const chatCompletion = await getGroq().chat.completions.create({
+        const stream = streamFromBridge({
             messages: [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt }
+                { role: "user", content: `Index:\n${projectIndex}\n\nContent:\n${fullContent}` }
             ],
             model: "llama-3.3-70b-versatile",
             temperature: 0.4,
-            max_tokens: 1024,
             stream: true
         });
 
-        for await (const chunk of chatCompletion) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            if (content) {
-                yield { textChunk: content };
-            }
+        for await (const chunk of stream) {
+            yield { textChunk: chunk };
         }
     } catch (error) {
-        console.error("Groq Audit Error:", error);
+        console.error("Groq Proxy Audit Error:", error);
     }
 }

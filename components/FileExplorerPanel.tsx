@@ -21,7 +21,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, canvases, folders, expa
     <div>
       <div
         onClick={() => toggleFolder(folder.id)}
-        className="flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer text-cyan-200/70 hover:bg-cyan-500/10 transition-all"
+        className="flex items-center gap-2 px-3 py-3 rounded-md cursor-pointer text-cyan-200/70 hover:bg-cyan-500/10 transition-all min-h-[44px]"
       >
         <ChevronRightIcon className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
         <FolderIcon className="w-4 h-4 text-cyan-400" />
@@ -103,7 +103,7 @@ const CanvasItem: React.FC<CanvasItemProps> = ({ canvas, isActive }) => {
     initiateDelete(canvas.id);
   };
 
-  const baseClasses = `flex justify-between items-center px-3 py-2 rounded-md cursor-pointer group transition-all duration-300 relative border`;
+  const baseClasses = `flex justify-between items-center px-3 py-3 rounded-md cursor-pointer group transition-all duration-300 relative border min-h-[44px]`;
   const activeClasses = `bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-[0_0_15px_var(--glow-color)]`;
   const inactiveClasses = `text-cyan-200/70 border-transparent hover:bg-cyan-500/10`;
   const pendingDeleteClasses = `bg-red-500/20 border-red-500/50 text-red-300`;
@@ -211,13 +211,13 @@ export const FileExplorerPanel: React.FC = () => {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => createCanvas()}
-          className="flex-1 text-center bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-medium py-2 px-3 rounded-md transition-all text-xs"
+          className="flex-1 text-center bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-medium py-3 px-3 rounded-md transition-all text-xs min-h-[44px]"
         >
           + File
         </button>
         <button
           onClick={() => setShowNewFolderInput(true)}
-          className="flex-1 text-center bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-medium py-2 px-3 rounded-md transition-all text-xs"
+          className="flex-1 text-center bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-medium py-3 px-3 rounded-md transition-all text-xs min-h-[44px]"
         >
           + Folder
         </button>

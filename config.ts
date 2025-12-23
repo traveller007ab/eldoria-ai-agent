@@ -27,3 +27,4 @@ export const API_KEY = (import.meta as any).env?.VITE_API_KEY || (process.env?.A
 
 export const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || (process.env?.GROQ_API_KEY as string);
 export const TAVILY_API_KEY = (import.meta as any).env?.VITE_TAVILY_API_KEY || (process.env?.TAVILY_API_KEY as string);
+export const OPENROUTER_API_KEY = (import.meta as any).env?.VITE_OPENROUTER_API_KEY || (process.env?.OPENROUTER_API_KEY as string);

@@ -8,9 +8,18 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+# Build artifacts
 dist
 dist-ssr
+release
+android
+ios
+out
+
+# Environment
 *.local
+.env*
+!.env.example
 
 # Editor directories and files
 .vscode/*

@@ -22,7 +22,7 @@ export const TerminalPanel: React.FC = () => {
     };
 
     return (
-        <div className={`panel ${isTerminalExpanded ? 'h-[80%]' : 'h-64'} w-full relative group flex flex-col transition-all duration-500 ease-in-out`}>
+        <div className={`panel ${isTerminalExpanded ? 'h-[80%]' : 'h-64'} shrink-0 w-full relative group flex flex-col transition-all duration-500 ease-in-out`}>
             <div className="flex justify-between items-center px-4 py-2 bg-cyan-950/40 border-b border-cyan-500/20 backdrop-blur-md">
                 <div className="flex items-center gap-2 text-cyan-300">
                     <TerminalIcon className="w-4 h-4" />

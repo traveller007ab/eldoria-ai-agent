@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Save, Play, CheckCircle2, AlertCircle, Info, Plus, Trash2, Loader2, Search, ExternalLink, Bookmark, BookOpen, Layout } from 'lucide-react';
+import React, { useState, lazy, Suspense } from 'react';
+import { NavLink } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Save, Play, CheckCircle2, AlertCircle, Info, Plus, Trash2, Loader2, Search, ExternalLink, Bookmark, BookOpen, Layout, Sparkles } from 'lucide-react';
 import { AcademicProject, AcademicWizardState } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { synthesizeChapter, searchScholarlyJournals } from '../services/academicService';
-import { Loader2 as LoaderIcon, Search as SearchIcon, ExternalLink as ExtIcon } from 'lucide-react'; // Removing redundant imports
+import { ThesisGenerator } from '../services/thesisGenerator';
+const ResearchMap = lazy(() => import('./ResearchMap').then(m => ({ default: m.ResearchMap })));
+import { ExpertVerdictPanel } from './ExpertVerdictPanel';
 
 interface AcademicWizardProps {
     project: AcademicProject;
@@ -23,7 +26,10 @@ const steps = [
 export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose }) => {
     const { updateAcademicProject, runManualCommand } = useWorkspace();
     const [currentStep, setCurrentStep] = useState(0);
-    const [localState, setLocalState] = useState<AcademicWizardState>(project.wizard_state);
+    const [localState, setLocalState] = useState<AcademicWizardState>({
+        ...project.wizard_state,
+        generationConfig: project.wizard_state.generationConfig || { targetPageCount: 80, depth: 'standard' }
+    });
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [synthStatus, setSynthStatus] = useState('');
     const [isSearching, setIsSearching] = useState(false);
@@ -54,31 +60,24 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
 
     const handleSynthesizeChapters = async () => {
         setIsSynthesizing(true);
-        const chapters = [
-            'Front Matter',
-            'Abstract',
-            'Chapter 1: Introduction',
-            'Chapter 2: Literature Review',
-            'Chapter 3: Materials & Methods',
-            'Chapter 4: Results & Discussion',
-            'Chapter 5: Conclusion & Recommendations'
-        ];
         let updatedDrafts = { ...project.draft_content };
 
         try {
-            for (const chapter of chapters) {
-                setSynthStatus(`Synthesizing ${chapter}...`);
-                let chapterContent = '';
-                const stream = synthesizeChapter({ ...project, wizard_state: localState }, chapter);
+            const generator = ThesisGenerator.generateFullThesis(
+                project,
+                localState.generationConfig.targetPageCount,
+                (prog) => setSynthStatus(`${prog.status}`)
+            );
 
-                for await (const chunk of stream) {
-                    chapterContent += chunk;
-                    // Optimistic update for UI if needed? 
-                    // For now we just update once per chapter to avoid too many global state changes
+            for await (const { chapter, content } of generator) {
+                updatedDrafts[chapter] = content;
+                // Periodic update to avoid database thrashing but keep UI alive
+                if (content.length % 500 === 0) {
+                    updateAcademicProject({ ...project, draft_content: { ...updatedDrafts }, wizard_state: localState });
                 }
-                updatedDrafts[chapter] = chapterContent;
-                updateAcademicProject({ ...project, draft_content: updatedDrafts, wizard_state: localState });
             }
+
+            updateAcademicProject({ ...project, draft_content: updatedDrafts, wizard_state: localState });
             setSynthStatus('Synthesis Complete!');
             setTimeout(() => setSynthStatus(''), 3000);
         } catch (e) {
@@ -127,12 +126,21 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
                         <h3 className="text-lg font-bold text-cyan-200 tracking-tight">Academic Research Wizard</h3>
                         <p className="text-xs text-cyan-400/60 italic">{steps[currentStep].desc}</p>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 hover:text-cyan-300 transition-colors"
-                    >
-                        Exit Hub
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <NavLink
+                            to="/"
+                            className="px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2"
+                        >
+                            <Layout className="w-3.5 h-3.5" />
+                            Warp to Workspace
+                        </NavLink>
+                        <button
+                            onClick={onClose}
+                            className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 hover:text-cyan-300 transition-colors"
+                        >
+                            Close Wizard
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex items-center justify-between relative px-4">
@@ -142,11 +150,11 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
                         const isActive = index === currentStep;
                         return (
                             <div key={index} className="flex flex-col items-center gap-2 group cursor-pointer" onClick={() => setCurrentStep(index)}>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${isCompleted ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' :
+                                <div className={`w-11 h-11 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${isCompleted ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' :
                                     isActive ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 scale-110 shadow-[0_0_15px_rgba(34,211,238,0.2)]' :
                                         'bg-black/40 border-cyan-500/10 text-cyan-500/30'
                                     }`}>
-                                    {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-xs font-bold">{index + 1}</span>}
+                                    {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : <span className="text-sm font-bold">{index + 1}</span>}
                                 </div>
                                 <span className={`text-[9px] font-bold uppercase tracking-tighter transition-colors ${isActive ? 'text-cyan-300' : 'text-cyan-500/40'}`}>
                                     {step.title.split(' ')[0]}
@@ -289,7 +297,7 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
                                             </div>
                                         )) : (
                                             <div className="p-8 border border-dashed border-cyan-500/10 rounded-2xl text-center">
-                                                <SearchIcon className="w-6 h-6 text-cyan-500/20 mx-auto mb-2" />
+                                                <Search className="w-6 h-6 text-cyan-500/20 mx-auto mb-2" />
                                                 <p className="text-[10px] text-cyan-500/30 uppercase tracking-widest">No results yet</p>
                                             </div>
                                         )}
@@ -412,36 +420,66 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
                                         {isSynthesizing && <Loader2 className="w-5 h-5 text-cyan-400 animate-spin absolute bottom-3 -right-2" />}
                                     </div>
                                     <h4 className="text-sm font-bold text-cyan-300 mb-1">Synthesize Chapters</h4>
-                                    <span className="text-[9px] uppercase tracking-widest text-cyan-500/50 mb-3">
-                                        {synthStatus || 'AI Synthesis v1.0'}
+
+                                    <div className="w-full px-4 mb-4">
+                                        <div className="flex justify-between text-[8px] font-bold text-cyan-500/40 uppercase mb-1">
+                                            <span>Target Volume</span>
+                                            <span className="text-cyan-300">{localState.generationConfig.targetPageCount} Pages</span>
+                                        </div>
+                                        <input
+                                            type="range" min="10" max="150" step="5"
+                                            className="w-full accent-cyan-500 h-1 bg-cyan-500/10 rounded-lg appearance-none cursor-pointer"
+                                            value={localState.generationConfig.targetPageCount}
+                                            onChange={(e) => updateState('generationConfig', 'targetPageCount', parseInt(e.target.value))}
+                                        />
+                                        <div className="flex justify-between gap-1 mt-3">
+                                            {[
+                                                { label: 'Minimal', val: 30 },
+                                                { label: 'Standard', val: 80 },
+                                                { label: 'Publication', val: 140 }
+                                            ].map(preset => (
+                                                <button
+                                                    key={preset.label}
+                                                    onClick={() => updateState('generationConfig', 'targetPageCount', preset.val)}
+                                                    className={`flex-grow py-1 rounded-[4px] text-[7px] font-black uppercase tracking-widest border transition-all ${localState.generationConfig.targetPageCount === preset.val ? 'bg-cyan-500/30 border-cyan-400 text-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.2)]' : 'bg-black/40 border-cyan-500/10 text-cyan-500/40 hover:border-cyan-500/30'}`}
+                                                >
+                                                    {preset.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <span className="text-[9px] uppercase tracking-widest text-cyan-500/50 mb-3 block min-h-[1em]">
+                                        {synthStatus || 'AI Chained Engine v2.0'}
                                     </span>
                                     <button
                                         onClick={handleSynthesizeChapters}
                                         disabled={isSynthesizing}
-                                        className="px-6 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
+                                        className="px-6 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-50"
                                     >
-                                        {isSynthesizing ? 'Orchestrating...' : 'Start Engine'}
+                                        {isSynthesizing ? 'Orchestrating...' : 'Start Synthesis Engine'}
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Research Map (Holographic Placeholder) */}
-                            <div className="mt-8 p-6 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl">
-                                <div className="text-[10px] font-bold text-cyan-500/40 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            {/* Research Map (Dynamic Logic Visualization) */}
+                            <div className="mt-8">
+                                <div className="text-[10px] font-bold text-cyan-500/40 uppercase tracking-widest mb-4 flex items-center gap-2 px-1">
                                     <Layout className="w-3.5 h-3.5" />
-                                    Holographic Research Map
+                                    Neural Research Map
                                 </div>
-                                <div className="h-32 border border-dashed border-cyan-500/20 rounded-xl flex items-center justify-center bg-black/40 group overflow-hidden relative">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-emerald-500/5"></div>
-                                    <div className="flex gap-4 relative z-10">
-                                        {['CH1', 'CH2', 'CH3', 'CH4', 'CH5'].map((ch, i) => (
-                                            <div key={ch} className="w-12 h-16 bg-cyan-500/10 border border-cyan-500/30 rounded-lg flex flex-col items-center justify-center gap-1 group-hover:scale-110 transition-transform cursor-pointer" style={{ transitionDelay: `${i * 100}ms` }}>
-                                                <div className="text-[8px] font-bold text-cyan-300">{ch}</div>
-                                                <div className={`w-2 h-2 rounded-full ${project.draft_content[`Chapter ${i + 1}`] ? 'bg-emerald-400' : 'bg-cyan-500/20 animate-pulse'}`}></div>
-                                            </div>
-                                        ))}
-                                    </div>
+                                <Suspense fallback={<div className="h-64 flex items-center justify-center text-[10px] text-cyan-500/20 uppercase tracking-widest animate-pulse">Engaging Neural Map...</div>}>
+                                    <ResearchMap state={localState} />
+                                </Suspense>
+                            </div>
+
+                            {/* Expert Verdict Panel */}
+                            <div className="mt-8">
+                                <div className="text-[10px] font-bold text-cyan-500/40 uppercase tracking-widest mb-4 flex items-center gap-2 px-1">
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    Expert Verdict System
                                 </div>
+                                <ExpertVerdictPanel project={project} />
                             </div>
                         </div>
                     )}
@@ -453,7 +491,7 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
                 <button
                     disabled={currentStep === 0}
                     onClick={() => setCurrentStep(prev => prev - 1)}
-                    className="flex items-center gap-2 px-4 py-2 text-cyan-500 hover:text-cyan-300 disabled:opacity-0 transition-all font-bold uppercase tracking-widest text-xs"
+                    className="flex items-center gap-2 px-6 py-3 text-cyan-500 hover:text-cyan-300 disabled:opacity-0 transition-all font-bold uppercase tracking-widest text-xs min-h-[44px]"
                 >
                     <ChevronLeft className="w-4 h-4" />
                     Back
@@ -463,7 +501,7 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
                     {currentStep < 6 && (
                         <button
                             onClick={() => setCurrentStep(prev => prev + 1)}
-                            className="flex items-center gap-2 px-6 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 rounded-lg shadow-[0_0_20px_rgba(34,211,238,0.15)] transition-all active:scale-95 font-bold uppercase tracking-widest text-xs"
+                            className="flex items-center gap-2 px-8 py-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 rounded-lg shadow-[0_0_20px_rgba(34,211,238,0.15)] transition-all active:scale-95 font-bold uppercase tracking-widest text-xs min-h-[44px]"
                         >
                             Next Phase
                             <ChevronRight className="w-4 h-4" />

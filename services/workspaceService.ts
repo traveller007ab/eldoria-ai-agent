@@ -1,6 +1,7 @@
 
 import { supabase } from './supabaseClient';
 import { Canvas } from '../types';
+import { bridgeClient } from './bridgeClient';
 
 export async function fetchCanvases(): Promise<Canvas[]> {
   const { data, error } = await supabase
@@ -95,32 +96,8 @@ export async function deleteCanvas(id: string): Promise<boolean> {
 }
 
 export async function runCommand(command: string): Promise<{ output: string; error: string | null }> {
-  console.log(`[WORKSPACE] Requesting real execution: ${command}`);
-
-  try {
-    const response = await fetch('http://localhost:3001/execute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { output: '', error: `Bridge returned ${response.status}: ${errorText}` };
-    }
-
-    const data = await response.json();
-    return {
-      output: data.output || '',
-      error: data.error || null
-    };
-  } catch (error) {
-    console.error('Error in real runCommand:', error);
-    return {
-      output: '',
-      error: `[FAILED TO CONNECT TO BRIDGE] Eldoria's local bridge is not running. Please run "node services/bridge.js".`
-    };
-  }
+  console.log(`[WORKSPACE] Requesting unified execution: ${command}`);
+  return await bridgeClient.executeCommand(command);
 }
 
 // --- ACADEMIC HUB CLOUD METHODS ---
@@ -186,5 +163,19 @@ export async function deleteAcademicProject(id: string): Promise<boolean> {
     console.error('Error deleting academic project:', error.message);
     return false;
   }
+  return true;
+}
+
+export async function publishToAcademicHub(projectId: string, fileName: string, content: string): Promise<boolean> {
+  console.log(`[WORKSPACE] Publishing ${fileName} to Project ${projectId}`);
+
+  // 1. Save file locally in projects/Academic-Resources
+  const folderPath = `Academic-Resources/${projectId}`;
+  await runCommand(`mkdir -p "${folderPath}"`); // mkdir -p for safety
+
+  // Use echo or type to create file? echo is safer on bridge
+  const command = `echo "${content.replace(/"/g, '\\"')}" > "${folderPath}/${fileName}"`;
+  await runCommand(command);
+
   return true;
 }

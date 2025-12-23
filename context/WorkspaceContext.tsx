@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, ReactNode, useCallback, useEffect, useRef } from 'react';
-import { Canvas, Folder, Source, CanvasPart, TextPart, SAFStatus, TaskLogEntry, ChatMessage, InlineAction, AcademicProject } from '../types';
+import { Canvas, Folder, Source, CanvasPart, TextPart, SAFStatus, TaskLogEntry, ChatMessage, InlineAction, AcademicProject, Attachment } from '../types';
 import * as WorkspaceService from '../services/workspaceService';
 import * as MemoryService from '../services/memoryService';
 import { CodebaseService } from '../services/codebaseService';
@@ -25,7 +25,11 @@ interface WorkspaceState {
   safStatus: SAFStatus;
   isTerminalVisible: boolean;
   isTerminalExpanded: boolean;
+  isIndexing: boolean;
   academicProjects: AcademicProject[];
+  onboarding_completed: string | null;
+  eldoria_user_level: 'newbie' | 'intermediate' | 'expert' | null;
+  isLowPerfMode: boolean;
 }
 
 type WorkspaceAction =
@@ -52,7 +56,11 @@ type WorkspaceAction =
   | { type: 'ADD_ACADEMIC_PROJECT'; payload: AcademicProject }
   | { type: 'UPDATE_ACADEMIC_PROJECT'; payload: AcademicProject }
   | { type: 'LOAD_ACADEMIC_PROJECTS'; payload: AcademicProject[] }
-  | { type: 'DELETE_ACADEMIC_PROJECT'; payload: string };
+  | { type: 'SET_INDEXING'; payload: boolean }
+  | { type: 'DELETE_ACADEMIC_PROJECT'; payload: string }
+  | { type: 'SET_ONBOARDING_STATUS'; payload: string | null }
+  | { type: 'SET_USER_LEVEL'; payload: 'newbie' | 'intermediate' | 'expert' | null }
+  | { type: 'SET_LOW_PERF_MODE'; payload: boolean };
 
 const initialState: WorkspaceState = {
   canvases: [],
@@ -69,7 +77,12 @@ const initialState: WorkspaceState = {
   safStatus: 'idle',
   isTerminalVisible: localStorage.getItem('isTerminalVisible') !== 'false',
   isTerminalExpanded: false,
+  isIndexing: false,
   academicProjects: [],
+  onboarding_completed: localStorage.getItem('onboarding_completed'),
+  eldoria_user_level: localStorage.getItem('eldoria_user_level') as any,
+  isLowPerfMode: localStorage.getItem('isLowPerfMode') === 'true' ||
+    ((navigator as any).deviceMemory && (navigator as any).deviceMemory < 4),
 };
 
 const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): WorkspaceState => {
@@ -130,8 +143,16 @@ const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): Works
       return { ...state, academicProjects: state.academicProjects.map(p => p.id === action.payload.id ? action.payload : p) };
     case 'LOAD_ACADEMIC_PROJECTS':
       return { ...state, academicProjects: action.payload };
+    case 'SET_INDEXING':
+      return { ...state, isIndexing: action.payload };
     case 'DELETE_ACADEMIC_PROJECT':
       return { ...state, academicProjects: state.academicProjects.filter(p => p.id !== action.payload) };
+    case 'SET_ONBOARDING_STATUS':
+      return { ...state, onboarding_completed: action.payload };
+    case 'SET_USER_LEVEL':
+      return { ...state, eldoria_user_level: action.payload };
+    case 'SET_LOW_PERF_MODE':
+      return { ...state, isLowPerfMode: action.payload };
     default:
       return state;
   }
@@ -163,7 +184,14 @@ interface WorkspaceContextType extends WorkspaceState {
   isTerminalExpanded: boolean;
   addAcademicProject: (project: AcademicProject) => void;
   updateAcademicProject: (project: AcademicProject) => void;
-  deleteAcademicProject: (id: string) => void;
+  deleteAcademicProject: (id: string) => Promise<void>;
+  publishToAcademicHub: (projectId: string, fileName: string, content: string) => Promise<void>;
+  openLocalFile: (path: string) => Promise<void>;
+  isIndexing: boolean;
+  completeOnboarding: () => void;
+  setUserLevel: (level: 'newbie' | 'intermediate' | 'expert') => void;
+  resetOnboarding: () => void;
+  setLowPerfMode: (enabled: boolean) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -172,14 +200,17 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(workspaceReducer, initialState);
   const activeCanvas = state.canvases.find(c => c.id === state.activeCanvasId);
   const updateTimeout = useRef<NodeJS.Timeout | null>(null);
+  const indexTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastAuditedContentRef = useRef<string>('');
 
-  const createCanvas = useCallback(async (name?: string, content?: CanvasPart[]): Promise<Canvas | null> => {
+  const createCanvas = useCallback(async (name?: string, content?: CanvasPart[], shouldSwitch = true): Promise<Canvas | null> => {
     const newName = name || `New Canvas ${state.canvases.length + 1}`;
     const newCanvas = await WorkspaceService.createCanvas(newName, content);
     if (newCanvas) {
       dispatch({ type: 'ADD_CANVAS', payload: newCanvas });
-      dispatch({ type: 'SET_ACTIVE_CANVAS', payload: newCanvas.id });
+      if (shouldSwitch) {
+        dispatch({ type: 'SET_ACTIVE_CANVAS', payload: newCanvas.id });
+      }
     }
     return newCanvas;
   }, [state.canvases.length]);
@@ -228,7 +259,12 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     }
     localStorage.setItem('isTerminalVisible', String(state.isTerminalVisible));
     localStorage.setItem('academicProjects', JSON.stringify(state.academicProjects));
-  }, [state.activeCanvasId, state.isTerminalVisible, state.academicProjects]);
+    if (state.onboarding_completed) localStorage.setItem('onboarding_completed', state.onboarding_completed);
+    else localStorage.removeItem('onboarding_completed');
+    if (state.eldoria_user_level) localStorage.setItem('eldoria_user_level', state.eldoria_user_level);
+    else localStorage.removeItem('eldoria_user_level');
+    localStorage.setItem('isLowPerfMode', String(state.isLowPerfMode));
+  }, [state.activeCanvasId, state.isTerminalVisible, state.academicProjects, state.onboarding_completed, state.eldoria_user_level, state.isLowPerfMode]);
 
   const selectCanvas = (id: string) => {
     dispatch({ type: 'SET_ACTIVE_CANVAS', payload: id });
@@ -297,6 +333,20 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     newContent[partIndex] = part;
     dispatch({ type: 'UPDATE_CANVAS', payload: { ...targetCanvas, content: newContent } });
     _updateCanvasDatabase(id, { content: newContent });
+
+    // Trigger debounced indexing
+    if (indexTimeout.current) clearTimeout(indexTimeout.current);
+    const settings = JSON.parse(localStorage.getItem('eldoria_settings') || '{}');
+    const debounceTime = settings.indexDebounce || 2000;
+
+    if (!settings.indexOnSaveOnly) {
+      const actualDebounce = state.isLowPerfMode ? Math.max(debounceTime, 10000) : debounceTime;
+      indexTimeout.current = setTimeout(async () => {
+        dispatch({ type: 'SET_INDEXING', payload: true });
+        await CodebaseService.indexProject();
+        dispatch({ type: 'SET_INDEXING', payload: false });
+      }, actualDebounce);
+    }
   };
 
   const addCanvasPart = (id: string, part: CanvasPart, index?: number) => {
@@ -326,7 +376,7 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       return error ? { error: error.message } : { content: data.content };
     }
     if (name === 'create_new_canvas_with_content') {
-      const newCanvas = await createCanvas(args.name, [{ type: 'text', content: args.content }]);
+      const newCanvas = await createCanvas(args.name, [{ type: 'text', content: args.content }], false);
       return { success: !!newCanvas, canvasId: newCanvas?.id, canvasName: newCanvas?.name };
     }
     if (name === 'run_command') {
@@ -342,7 +392,7 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     }
     // googleSearch is handled natively by the Gemini API.
     return { error: `Tool "${name}" is not implemented.` };
-  }, [createCanvas]);
+  }, [createCanvas, activeCanvas, state.activeCanvasId, _updateCanvasDatabase]);
 
   const generate = useCallback(async () => {
     if (!state.activeCanvasId || state.isLoading || !activeCanvas) return;
@@ -457,7 +507,11 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   }, [activeCanvas?.content, performProactiveAudit, state.isLoading]);
 
   const toggleTerminal = useCallback(() => {
-    dispatch({ type: 'SET_TERMINAL_VISIBLE', payload: !state.isTerminalVisible });
+    const nextVisible = !state.isTerminalVisible;
+    dispatch({ type: 'SET_TERMINAL_VISIBLE', payload: nextVisible });
+    if (!nextVisible) {
+      dispatch({ type: 'SET_TERMINAL_EXPANDED', payload: false });
+    }
   }, [state.isTerminalVisible]);
 
   const toggleTerminalExpansion = useCallback(() => {
@@ -504,12 +558,21 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: 'TOGGLE_FOLDER', payload: folderId });
   }, []);
 
-  const sendChatMessage = useCallback(async (message: string) => {
+  const sendChatMessage = useCallback(async (message: string, attachments: Attachment[] = []) => {
     if (!activeCanvas || state.isChatLoading) return;
 
     dispatch({ type: 'SET_CHAT_LOADING', payload: true });
 
-    const userMessage: ChatMessage = { sender: 'user', text: message };
+    // Process attachments: Read content if not present
+    const processedAttachments = await Promise.all(attachments.map(async attr => {
+      if (!attr.content) {
+        const content = await CodebaseService.readFileContent(attr.path);
+        return { ...attr, content };
+      }
+      return attr;
+    }));
+
+    const userMessage: ChatMessage = { sender: 'user', text: message, attachments: processedAttachments };
     const currentHistory = activeCanvas.chat_history || [];
     const updatedHistory = [...currentHistory, userMessage];
 
@@ -521,7 +584,26 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     const finalHistory = [...updatedHistory, botMessage];
 
     try {
-      const stream = runGroqConversationStream(activeCanvas.content, currentHistory, message);
+      // Build Meta-Context
+      const projectIndex = CodebaseService.getProjectIndex();
+      const currentProject = state.academicProjects.find(p =>
+        Object.values(p.draft_content || {}).some(c => c.includes(activeCanvas.content[0]?.content))
+      );
+
+      let metaContext = `\n\n--- PROJECT CONTEXT ---\nFILE INDEX:\n${projectIndex.substring(0, 1000)}`;
+      if (currentProject) {
+        metaContext += `\n\nTHESIS PROJECT: ${currentProject.name}\nOBJECTIVES: ${currentProject.wizard_state.objectives.aim}\nKEY SOURCES: ${currentProject.references.length} references found.`;
+      }
+
+      // Add full content of attachments to context
+      if (processedAttachments.length > 0) {
+        metaContext += `\n\n--- ATTACHED FILES ---\n`;
+        processedAttachments.forEach(attr => {
+          metaContext += `\nFILE: ${attr.name}\nCONTENT:\n${attr.content?.substring(0, 5000)}\n---`;
+        });
+      }
+
+      const stream = runGroqConversationStream(activeCanvas.content, currentHistory, message, metaContext);
       for await (const event of stream) {
         if (event.textChunk) {
           botResponse += event.textChunk;
@@ -535,14 +617,14 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (e) {
       console.error("Chat failed:", e);
-      botMessage.text = "Sorry, I encountered an error.";
+      botMessage.text = "Sorry, I encountered an error. The mental bridge seems slightly taxed.";
       dispatch({ type: 'UPDATE_CANVAS', payload: { ...activeCanvas, chat_history: [...finalHistory] } });
     } finally {
       dispatch({ type: 'SET_CHAT_LOADING', payload: false });
       _updateCanvasDatabase(activeCanvas.id, { chat_history: finalHistory });
     }
 
-  }, [activeCanvas, state.isChatLoading, _updateCanvasDatabase]);
+  }, [activeCanvas, state.isChatLoading, state.academicProjects, _updateCanvasDatabase]);
 
   const acceptOutput = useCallback(() => {
     if (!activeCanvas || !activeCanvas.output) return;
@@ -567,6 +649,26 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'SET_MEMORY_STATUS', payload: 'idle' });
     });
   }, [activeCanvas, _updateCanvasDatabase]);
+
+  const openLocalFile = useCallback(async (filePath: string) => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const content = await CodebaseService.readFileContent(filePath);
+      const fileName = filePath.split(/[\\/]/).pop() || 'Untitled';
+
+      // Check if a canvas with this name already exists
+      const existing = state.canvases.find(c => c.name === fileName);
+      if (existing) {
+        dispatch({ type: 'SET_ACTIVE_CANVAS', payload: existing.id });
+      } else {
+        await createCanvas(fileName, [{ type: 'text', content }]);
+      }
+    } catch (e) {
+      console.error("Failed to open local file:", e);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, [createCanvas, state.canvases]);
 
   const performInlineAction = useCallback(async (action: InlineAction, selection: { text: string; start: number; end: number }, partIndex: number) => {
     if (!activeCanvas) return;
@@ -600,9 +702,36 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       dispatch({ type: 'SET_INLINE_LOADING', payload: false });
     }
-
   }, [activeCanvas, updateCanvasPart, _updateCanvasDatabase]);
 
+  const deleteAcademicProject = useCallback(async (id: string) => {
+    dispatch({ type: 'DELETE_ACADEMIC_PROJECT', payload: id });
+    await WorkspaceService.deleteAcademicProject(id);
+  }, []);
+
+  const publishToAcademicHub = useCallback(async (projectId: string, fileName: string, content: string) => {
+    const success = await WorkspaceService.publishToAcademicHub(projectId, fileName, content);
+    if (success) {
+      console.log("Published to hub successfully.");
+    }
+  }, []);
+
+  const completeOnboarding = useCallback(() => {
+    dispatch({ type: 'SET_ONBOARDING_STATUS', payload: new Date().toISOString() });
+  }, []);
+
+  const setUserLevel = useCallback((level: 'newbie' | 'intermediate' | 'expert') => {
+    dispatch({ type: 'SET_USER_LEVEL', payload: level });
+  }, []);
+
+  const resetOnboarding = useCallback(() => {
+    dispatch({ type: 'SET_ONBOARDING_STATUS', payload: null });
+    dispatch({ type: 'SET_USER_LEVEL', payload: null });
+  }, []);
+
+  const setLowPerfMode = useCallback((enabled: boolean) => {
+    dispatch({ type: 'SET_LOW_PERF_MODE', payload: enabled });
+  }, []);
 
   return (
     <WorkspaceContext.Provider value={{
@@ -642,10 +771,13 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
           WorkspaceService.updateAcademicProject(project.id, project);
         }, 1000);
       },
-      deleteAcademicProject: async (id: string) => {
-        dispatch({ type: 'DELETE_ACADEMIC_PROJECT', payload: id });
-        await WorkspaceService.deleteAcademicProject(id);
-      },
+      deleteAcademicProject,
+      publishToAcademicHub,
+      openLocalFile,
+      completeOnboarding,
+      setUserLevel,
+      resetOnboarding,
+      setLowPerfMode
     }}>
       {children}
     </WorkspaceContext.Provider>

@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS public.academic_projects (
     format text NOT NULL DEFAULT 'RSU_MECH_ENG',
     wizard_state jsonb,
     draft_content jsonb,
-    references jsonb DEFAULT '[]'::jsonb
+    "references" jsonb DEFAULT '[]'::jsonb
 );
 
 -- Enable RLS for 'academic_projects'

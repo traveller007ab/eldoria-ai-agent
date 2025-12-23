@@ -88,32 +88,38 @@ export async function searchScholarlyJournals(keywords: string[]) {
 }
 
 /**
- * Checks a content block for originality by scanning online repositories.
+ * Checks a content block for originality by scanning online repositories and analyzing results with Groq.
  */
 export async function checkOriginality(content: string) {
     if (!content || content.length < 50) return { score: 0, matches: [] };
 
-    const segments = content.split('\n')
-        .filter(s => s.trim().length > 60)
-        .slice(0, 3);
+    const groq = getGroq();
+
+    // Sample segments more broadly through the content
+    const allSegments = content.split('\n').filter(s => s.trim().length > 80);
+    const step = Math.max(1, Math.floor(allSegments.length / 5));
+    const segments = [];
+    for (let i = 0; i < allSegments.length && segments.length < 5; i += step) {
+        segments.push(allSegments[i]);
+    }
 
     let maxSimilarity = 0;
-    const matches: any[] = [];
+    const rawMatches: any[] = [];
 
     for (const segment of segments) {
         try {
-            const query = `"${segment.substring(0, 100)}"`;
+            const query = `"${segment.substring(0, 120)}"`;
             const data = await advancedSearchTavily(query);
 
             if (data.results && data.results.length > 0) {
                 const bestMatch = data.results[0];
-                if (bestMatch.score > 0.5) {
-                    maxSimilarity = Math.max(maxSimilarity, bestMatch.score);
-                    matches.push({
-                        segment: segment.substring(0, 60) + "...",
+                if (bestMatch.score > 0.4) {
+                    rawMatches.push({
+                        segment,
                         source: bestMatch.title,
                         url: bestMatch.url,
-                        score: Math.round(bestMatch.score * 100)
+                        content: bestMatch.content,
+                        tavilyScore: bestMatch.score
                     });
                 }
             }
@@ -122,11 +128,65 @@ export async function checkOriginality(content: string) {
         }
     }
 
-    const finalScore = Math.round(maxSimilarity * 100);
+    if (rawMatches.length === 0) {
+        return { score: 0, status: 'success', matches: [] };
+    }
 
-    return {
-        score: finalScore,
-        status: finalScore > 25 ? 'warning' : 'success',
-        matches
-    };
+    // Use Groq to analyze if the matches are actually plagiarism or common knowledge/standard phrasing
+    const analysisPrompt = `
+        Analyze the following potential plagiarism matches for an engineering thesis.
+        Distinguish between:
+        1. "Direct Plagiarism" (Exact copied paragraphs)
+        2. "Standard Academic Phrasing" (Common definitions, standard methodologies)
+        3. "Common Knowledge" (Newton's laws, standard formulas)
+
+        DRAFT SEGMENTS VS WEB MATCHES:
+        ${rawMatches.map((m, i) => `Match ${i + 1}:\nDraft: "${m.segment}"\nWeb Source: "${m.content}"`).join('\n\n')}
+
+        Return a JSON object:
+        {
+            "finalSimilarityScore": number (0-100),
+            "matches": [
+                {
+                    "segmentSnippet": string (short),
+                    "source": string,
+                    "url": string,
+                    "intelligentScore": number (0-100),
+                    "reason": string (brief justification)
+                }
+            ]
+        }
+    `;
+
+    try {
+        const response = await groq.chat.completions.create({
+            messages: [{ role: "user", content: analysisPrompt }],
+            model: "llama-3.3-70b-versatile",
+            response_format: { type: "json_object" }
+        });
+
+        const analysis = JSON.parse(response.choices[0].message.content || "{}");
+        const finalScore = analysis.finalSimilarityScore || 0;
+
+        return {
+            score: finalScore,
+            status: finalScore > 20 ? 'warning' : 'success',
+            matches: analysis.matches || []
+        };
+    } catch (e) {
+        console.error("Groq originality analysis failed", e);
+        // Fallback to simpler scoring
+        const fallbackScore = Math.min(100, rawMatches.length * 20);
+        return {
+            score: fallbackScore,
+            status: fallbackScore > 25 ? 'warning' : 'success',
+            matches: rawMatches.map(m => ({
+                segmentSnippet: m.segment.substring(0, 50) + "...",
+                source: m.source,
+                url: m.url,
+                intelligentScore: Math.round(m.tavilyScore * 100),
+                reason: "Automated similarity detection"
+            }))
+        };
+    }
 }
