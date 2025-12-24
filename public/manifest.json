@@ -1,0 +1,30 @@
+{
+    "name": "Eldoria AI IDE",
+    "short_name": "Eldoria",
+    "description": "Sentient Academic Co-Pilot & Research IDE",
+    "start_url": "./",
+    "display": "standalone",
+    "background_color": "#020617",
+    "theme_color": "#06b6d4",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "favicon.svg",
+            "type": "image/svg+xml",
+            "sizes": "any",
+            "purpose": "any"
+        },
+        {
+            "src": "logo-192.png",
+            "type": "image/png",
+            "sizes": "192x192",
+            "purpose": "maskable"
+        },
+        {
+            "src": "logo-512.png",
+            "type": "image/png",
+            "sizes": "512x512",
+            "purpose": "any"
+        }
+    ]
+}

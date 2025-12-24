@@ -1,5 +1,5 @@
 import { AcademicProject } from '../types';
-import { getGroq } from './groqService';
+import { runGroqGenerate } from './groqService';
 import { advancedSearchTavily } from './tavilyService';
 
 export interface ResearchEvidence {
@@ -15,7 +15,6 @@ export interface DeepResearchResult {
 }
 
 export const runAutonomousResearch = async (project: AcademicProject): Promise<DeepResearchResult> => {
-    const groq = getGroq();
     const wizard = project.wizard_state;
 
     // Step 1: Initial Analysis & Strategy Generation
@@ -29,11 +28,10 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
         Output as JSON: { queries: string[] }
     `;
 
-    const strategyCompletion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: strategyPrompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
-    });
+    const strategyCompletion = await runGroqGenerate(
+        [{ role: "user", content: strategyPrompt }],
+        { model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } }
+    );
 
     const { queries } = JSON.parse(strategyCompletion.choices[0].message.content || '{"queries":[]}');
 
@@ -50,11 +48,10 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
                 Provide a technical summary of findings and how they support the thesis objectives.
             `;
 
-            const synthCompletion = await groq.chat.completions.create({
-                messages: [{ role: "user", content: synthesisPrompt }],
-                model: "llama-3.3-70b-versatile",
-                temperature: 0.5
-            });
+            const synthCompletion = await runGroqGenerate(
+                [{ role: "user", content: synthesisPrompt }],
+                { model: "llama-3.3-70b-versatile", temperature: 0.5 }
+            );
 
             evidenceChain.push({
                 query,
@@ -78,11 +75,10 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
         Output as JSON: { analysis: string, suggestedUpdates: string[] }
     `;
 
-    const finalCompletion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: finalPrompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
-    });
+    const finalCompletion = await runGroqGenerate(
+        [{ role: "user", content: finalPrompt }],
+        { model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } }
+    );
 
     const finalResult = JSON.parse(finalCompletion.choices[0].message.content || '{"analysis": "", "suggestedUpdates": []}');
 

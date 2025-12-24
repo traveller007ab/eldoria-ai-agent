@@ -1,4 +1,5 @@
 import { TAVILY_API_KEY } from '../config';
+import { getBridgeUrl } from './bridgeClient';
 
 interface TavilySearchResult {
     title: string;
@@ -17,7 +18,8 @@ export const advancedSearchTavily = async (query: string): Promise<TavilyRespons
         throw new Error('Tavily API Key is missing.');
     }
 
-    const response = await fetch('https://api.tavily.com/search', {
+    const bridgeUrl = await getBridgeUrl();
+    const response = await fetch(`${bridgeUrl}/proxy/tavily`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

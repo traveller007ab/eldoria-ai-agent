@@ -1,6 +1,8 @@
 
 import { AcademicProject } from '../types';
-import { getGroq } from './groqService';
+import { runGroqGenerate } from './groqService';
+import { getModelById, DEFAULT_MODELS, AcademicModel, ChapterDefinition } from '../models/AcademicModels';
+import { getBridgeUrl } from './bridgeClient';
 
 export interface GenerationProgress {
     chapter: string;
@@ -11,11 +13,37 @@ export interface GenerationProgress {
 /**
  * Advanced Thesis Generator Service
  * Implements chained synthesis, scaling for page counts, and real-time progress.
+ * Now uses DYNAMIC MODEL CHAPTERS from the project's assigned model.
  */
 export class ThesisGenerator {
 
     /**
+     * Get the model for a project (falls back to RSU Mech Eng)
+     */
+    private static getProjectModel(project: AcademicProject): AcademicModel {
+        const modelId = project.modelId || project.format || 'rsu-mech-eng';
+
+        // Check built-in models
+        let model = getModelById(modelId);
+        if (model) return model;
+
+        // Check custom models from localStorage
+        try {
+            const customModels = localStorage.getItem('eldoria-custom-models');
+            if (customModels) {
+                const parsed = JSON.parse(customModels) as AcademicModel[];
+                model = parsed.find(m => m.id === modelId);
+                if (model) return model;
+            }
+        } catch { }
+
+        // Fallback
+        return DEFAULT_MODELS['rsu-mech-eng'];
+    }
+
+    /**
      * Entry point for voluminous thesis generation.
+     * Dynamically reads chapters from the project's assigned model.
      */
     static async* generateFullThesis(
         project: AcademicProject,
@@ -23,70 +51,62 @@ export class ThesisGenerator {
         onProgress?: (progress: GenerationProgress) => void
     ): AsyncGenerator<{ chapter: string; content: string }> {
 
-        const chapters = [
-            'Front Matter',
-            'Abstract',
-            'Chapter 1: Introduction',
-            'Chapter 2: Literature Review',
-            'Chapter 3: Materials & Methods',
-            'Chapter 4: Results & Discussion',
-            'Chapter 5: Conclusion & Recommendations',
-            'References'
-        ];
+        const model = this.getProjectModel(project);
+        const chapters = model.chapters;
 
         // Scale token budgets based on target page count (approx 300 words per page)
         const totalWords = targetPageCount * 300;
-        const chapterBudgets: Record<string, number> = {
-            'Front Matter': 500,
-            'Abstract': 350,
-            'Chapter 1: Introduction': Math.floor(totalWords * 0.15),
-            'Chapter 2: Literature Review': Math.floor(totalWords * 0.35),
-            'Chapter 3: Materials & Methods': Math.floor(totalWords * 0.20),
-            'Chapter 4: Results & Discussion': Math.floor(totalWords * 0.20),
-            'Chapter 5: Conclusion & Recommendations': Math.floor(totalWords * 0.10),
-            'References': 500
-        };
+        const totalMinWords = chapters.reduce((sum, ch) => sum + ch.minWords, 0);
 
         let cumulativeContext = ""; // Used to maintain flow between chapters
 
         for (const chapter of chapters) {
-            onProgress?.({ chapter, progress: 0, status: `Synthesizing ${chapter}...` });
+            onProgress?.({ chapter: chapter.name, progress: 0, status: `Synthesizing ${chapter.name}...` });
+
+            // Calculate word budget proportionally or use chapter's max
+            const chapterBudget = Math.min(
+                chapter.maxWords,
+                Math.max(chapter.minWords, Math.floor(totalWords * (chapter.minWords / totalMinWords)))
+            );
 
             let chapterContent = "";
-            const budget = chapterBudgets[chapter];
 
-            // For large chapters, we might need multiple passes or deeper prompts
-            const stream = this.synthesizeSegment(project, chapter, budget, cumulativeContext);
+            const stream = this.synthesizeSegment(project, model, chapter, chapterBudget, cumulativeContext);
 
             for await (const chunk of stream) {
                 chapterContent += chunk;
-                yield { chapter, content: chapterContent };
+                yield { chapter: chapter.name, content: chapterContent };
             }
 
-            cumulativeContext += `\n\nSUMMARY OF ${chapter}:\n${chapterContent.substring(0, 500)}...`;
-            onProgress?.({ chapter, progress: 100, status: `${chapter} Complete.` });
+            cumulativeContext += `\n\nSUMMARY OF ${chapter.name}:\n${chapterContent.substring(0, 500)}...`;
+            onProgress?.({ chapter: chapter.name, progress: 100, status: `${chapter.name} Complete.` });
         }
     }
 
     private static async* synthesizeSegment(
         project: AcademicProject,
-        chapter: string,
+        model: AcademicModel,
+        chapter: ChapterDefinition,
         wordBudget: number,
         context: string
     ) {
-        const groq = getGroq();
         const wizard = project.wizard_state;
 
-        const systemPrompt = `You are a Senior Academic Supervisor at Rivers State University. 
+        const systemPrompt = model.aiConfig.systemPrompt || `You are a Senior Academic Supervisor. 
         Your goal is to produce a high-caliber, voluminous thesis section. 
         Target Length: ${wordBudget} words. 
-        Style: APA 7th Edition. 
-        Tone: Sophisticated, Analytical, Engineering-focused.`;
+        Style: ${model.citationStyle} format. 
+        Tone: Sophisticated, Analytical, Professional.`;
 
         const userPrompt = `
-        PRODUCING: ${chapter}
+        PRODUCING: ${chapter.name}
+        CHAPTER DESCRIPTION: ${chapter.description}
+        ${chapter.aiPromptHint ? `SPECIAL INSTRUCTIONS: ${chapter.aiPromptHint}` : ''}
+        
         THESIS TITLE: ${wizard.basics.title}
         AUTHOR: ${wizard.basics.author}
+        INSTITUTION: ${model.institution}
+        DEPARTMENT: ${model.department}
         
         WIZARD DATA:
         Aim: ${wizard.objectives.aim}
@@ -97,27 +117,63 @@ export class ThesisGenerator {
         PREVIOUS CHAPTER CONTEXT:
         ${context}
         
-        INSTRUCTIONS FOR ${chapter}:
-        - If Chapter 2, perform a deep synthesis of theoretical frameworks. 
-        - If Chapter 3, use technical materials: ${wizard.methodology.materials.join(', ')}.
+        TARGET WORD COUNT: ${wordBudget} words minimum.
+        
+        INSTRUCTIONS:
         - Ensure a logical bridge from the previous summary.
         - Use complex sentence structures and rigorous domain-specific vocabulary.
+        - Format in Markdown with proper headings.
         - Output ONLY the Markdown content for this section.
         `;
 
-        const stream = await groq.chat.completions.create({
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt }
-            ],
-            model: "llama-3.3-70b-versatile",
-            temperature: 0.5,
-            stream: true,
-        });
+        try {
+            const bridgeUrl = await getBridgeUrl();
+            const response = await fetch(`${bridgeUrl}/proxy/groq`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: userPrompt }
+                    ],
+                    model: model.aiConfig.model || "llama-3.3-70b-versatile",
+                    temperature: model.aiConfig.temperature || 0.5,
+                    stream: true,
+                    apiKey: (window as any).GROQ_API_KEY || ''
+                })
+            });
 
-        for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content || "";
-            if (content) yield content;
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (!reader) {
+                yield "Error: Could not initialize stream reader.";
+                return;
+            }
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n').filter(line => line.startsWith('data:'));
+
+                for (const line of lines) {
+                    const data = line.replace('data: ', '').trim();
+                    if (data === '[DONE]') continue;
+                    try {
+                        const parsed = JSON.parse(data);
+                        const content = parsed.choices?.[0]?.delta?.content || '';
+                        if (content) yield content;
+                    } catch {
+                        // Ignore parse errors
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Synthesis segment failed", e);
+            yield `Error synthesizing ${chapter.name}. Please check your connection.`;
         }
     }
 }
+

@@ -33,8 +33,8 @@ const ALLOWED_COMMANDS = [
  */
 function startEmbeddedBridge() {
     try {
-        const bridgePath = path.join(__dirname, '..', 'services', 'bridge.js');
-        bridgeServer = spawn('node', [bridgePath], {
+        const bridgePath = path.join(__dirname, '..', 'services', 'bridge.py');
+        bridgeServer = spawn('python', [bridgePath], {
             cwd: path.join(__dirname, '..'),
             env: { ...process.env, PORT: bridgePort.toString() },
             stdio: 'inherit'
@@ -145,6 +145,42 @@ function setupIpcHandlers() {
     // Bridge port info
     ipcMain.handle('bridge:getPort', () => {
         return bridgePort;
+    });
+
+    // Bridge restart
+    ipcMain.handle('bridge:restart', async () => {
+        console.log('[Eldoria Main] Manual bridge restart requested...');
+        if (bridgeServer) {
+            bridgeServer.kill();
+        }
+        startEmbeddedBridge();
+        return { success: true };
+    });
+
+    // Project Indexing via Main Process (Proxy to Python)
+    ipcMain.handle('bridge:indexProject', async (event, rootPath) => {
+        // In the desktop app, we default to the CWD or a specific project path
+        // For now, let's allow it to pass through to the Python bridge URL manually
+        // OR better yet, let the renderer do the fetching if it knows the port.
+        // BUT, bridgeClient prefers IPC if available.
+        // So we must act as a proxy or execute the python script directly.
+
+        // Simpler approach: return the Current Working Directory so the renderer knows where it is
+        // and can then call the bridge URL with the correct absolute path.
+        // However, bridgeClient.indexProject EXPECTS the actual file list if it calls IPC.
+
+        // Let's implement a direct fetch here to the local bridge to ensure we bypass ANY renderer CORS/network issues
+        // and return the data cleanly.
+        try {
+            const fetch = (await import('node-fetch')).default;
+            const targetUrl = `http://localhost:${bridgePort}/codebase/index?root=${encodeURIComponent(rootPath || process.cwd())}`;
+            const response = await fetch(targetUrl);
+            if (!response.ok) return { files: [] };
+            return await response.json();
+        } catch (e) {
+            console.error('[Eldoria Main] Indexing proxy failed:', e);
+            return { files: [] };
+        }
     });
 }
 

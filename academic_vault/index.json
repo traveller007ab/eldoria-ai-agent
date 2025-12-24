@@ -1,0 +1,25 @@
+{
+    "archives": [
+        {
+            "id": "767fd6fc-9a27-45df-8d7a-c6857ab11bdd",
+            "project_id": "d309c6ba-f759-4ea3-a5d4-69e244605617",
+            "title": "Untitled Research",
+            "timestamp": "2025-12-23T23:21:32.850558",
+            "tags": []
+        },
+        {
+            "id": "166adca2-9382-4380-8e2c-33809584c10b",
+            "project_id": "b0a08cd1-7e88-4a67-a053-609f1f225493",
+            "title": "Untitled Research",
+            "timestamp": "2025-12-24T00:38:23.005350",
+            "tags": []
+        },
+        {
+            "id": "45a5c541-9a8c-4f15-b5e8-b6a8ef7cf101",
+            "project_id": "b0a08cd1-7e88-4a67-a053-609f1f225493",
+            "title": "Untitled Research",
+            "timestamp": "2025-12-24T00:39:14.610025",
+            "tags": []
+        }
+    ]
+}

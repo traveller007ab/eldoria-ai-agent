@@ -79,7 +79,20 @@ export interface Reference {
   formattedApa?: string;
 }
 
-export type CanvasPart = TextPart | ImagePart;
+export interface FilePart {
+  type: 'file';
+  name: string;
+  path: string;
+  size?: number;
+}
+
+export interface FolderPart {
+  type: 'folder';
+  name: string;
+  path: string;
+}
+
+export type CanvasPart = TextPart | ImagePart | FilePart | FolderPart;
 
 export type TaskLogEntryType = 'plan' | 'thought' | 'tool_code' | 'tool_result' | 'error';
 
@@ -172,6 +185,7 @@ export interface AcademicProject {
   id: string;
   name: string;
   format: string; // e.g., 'RSU_MECH_ENG'
+  modelId?: string; // Reference to the AcademicModel used
   created_at: string;
   wizard_state: AcademicWizardState;
   draft_content: Record<string, string>; // Chapter -> Markdown

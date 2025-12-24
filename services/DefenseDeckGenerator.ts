@@ -1,11 +1,10 @@
-import { getGroq } from './groqService';
+import { runGroqGenerate } from './groqService';
 import { AcademicProject } from '../types';
 
 /**
  * Transforms full thesis drafts into a structured presentation outline.
  */
 export const generateDefenseDeck = async (project: AcademicProject): Promise<string> => {
-    const groq = getGroq();
     const drafts = project.draft_content;
     const basics = project.wizard_state.basics;
 
@@ -29,11 +28,10 @@ export const generateDefenseDeck = async (project: AcademicProject): Promise<str
     `;
 
     try {
-        const response = await groq.chat.completions.create({
-            messages: [
-                { role: "system", content: "You are an expert in academic presentations and defense strategies." },
-                { role: "user", content: prompt }
-            ],
+        const response = await runGroqGenerate([
+            { role: "system", content: "You are an expert in academic presentations and defense strategies." },
+            { role: "user", content: prompt }
+        ], {
             model: "llama-3.3-70b-versatile",
             temperature: 0.5,
         });

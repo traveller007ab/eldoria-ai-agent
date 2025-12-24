@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, Loader2 } from 'lucide-react';
+import { BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, Loader2, Cog } from 'lucide-react';
 import { AcademicDashboard } from './AcademicDashboard';
 import { AcademicWizard } from './AcademicWizard';
 import { ComplianceSidebar } from './ComplianceSidebar';
@@ -12,6 +12,10 @@ import { DefenseDeckUI } from './DefenseDeckUI';
 import { runAutonomousResearch, DeepResearchResult } from '../services/AutonomousResearcher';
 import { Sigma, X, Microscope, Info, Terminal, Link, Zap, HardDrive } from 'lucide-react';
 import { ProjectResources } from './ProjectResources';
+import { bridgeClient } from '../services/bridgeClient';
+import { ModelCreator } from './ModelCreator';
+import { AcademicModel } from '../models/AcademicModels';
+
 
 export const AcademicHub: React.FC = () => {
     const { addAcademicProject, updateAcademicProject } = useWorkspace();
@@ -23,6 +27,23 @@ export const AcademicHub: React.FC = () => {
     const [isFormulaEditorOpen, setIsFormulaEditorOpen] = useState(false);
     const [isResearching, setIsResearching] = useState(false);
     const [researchResult, setResearchResult] = useState<DeepResearchResult | null>(null);
+    const [isVaulting, setIsVaulting] = useState(false);
+    const [isSynthesizing, setIsSynthesizing] = useState(false);
+    const [isModelCreatorOpen, setIsModelCreatorOpen] = useState(false);
+
+    const handleSaveNewModel = (model: AcademicModel) => {
+        try {
+            const existingModels = localStorage.getItem('eldoria-custom-models');
+            const models = existingModels ? JSON.parse(existingModels) : [];
+            models.push(model);
+            localStorage.setItem('eldoria-custom-models', JSON.stringify(models));
+            setIsModelCreatorOpen(false);
+            alert(`Model "${model.name}" saved successfully!`);
+        } catch (e) {
+            console.error('Failed to save model', e);
+        }
+    };
+
 
     const handleUpdateDraft = (chapter: string, content: string) => {
         if (!selectedProject) return;
@@ -58,6 +79,41 @@ export const AcademicHub: React.FC = () => {
         }
     };
 
+    const handleVaultArchive = async () => {
+        if (!selectedProject) return;
+        setIsVaulting(true);
+        try {
+            const result = await bridgeClient.archiveResearch(
+                selectedProject.id,
+                selectedProject.wizard_state.basics.title || 'Untitled Research',
+                selectedProject.wizard_state,
+                { last_vaulted: new Date().toISOString() }
+            );
+            if (result.success) {
+                alert(`Research archived successfully to: ${result.entry.id}`);
+            }
+        } catch (e) {
+            console.error("Vaulting failed", e);
+        } finally {
+            setIsVaulting(false);
+        }
+    };
+
+    const handleSynthesizeThesis = async () => {
+        if (!selectedProject) return;
+        setIsSynthesizing(true);
+        try {
+            const result = await bridgeClient.synthesizeThesis(selectedProject.id);
+            if (result.success) {
+                alert(`Thesis draft synthesized: ${result.filename}\nPath: ${result.path}`);
+            }
+        } catch (e) {
+            console.error("Synthesis failed", e);
+        } finally {
+            setIsSynthesizing(false);
+        }
+    };
+
     const handleNewProject = () => {
         const newProject: AcademicProject = {
             id: crypto.randomUUID(),
@@ -86,8 +142,23 @@ export const AcademicHub: React.FC = () => {
 
     return (
         <div className="flex-grow flex gap-4 overflow-hidden h-full">
+            {/* Model Creator Modal */}
+            {isModelCreatorOpen && (
+                <ModelCreator
+                    onSave={handleSaveNewModel}
+                    onCancel={() => setIsModelCreatorOpen(false)}
+                />
+            )}
+
             {/* Left Sidebar: Projects & Dashboard */}
             <div className="w-80 shrink-0 flex flex-col gap-4 overflow-hidden">
+                <button
+                    onClick={() => setIsModelCreatorOpen(true)}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20 transition-all"
+                >
+                    <Cog className="w-3.5 h-3.5" />
+                    Create Custom Template
+                </button>
                 <AcademicDashboard
                     onSelectProject={(project) => {
                         setSelectedProject(project);
@@ -95,6 +166,7 @@ export const AcademicHub: React.FC = () => {
                     }}
                 />
             </div>
+
 
             {/* Main Content: Wizard or Preview */}
             <div className="flex-grow flex flex-col gap-4 overflow-hidden">
@@ -142,6 +214,24 @@ export const AcademicHub: React.FC = () => {
                                         Warp to Workspace
                                     </NavLink>
                                     <button onClick={() => setIsWizardOpen(true)} className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/40 transition-all">Setup Wizard</button>
+                                    <button
+                                        onClick={handleVaultArchive}
+                                        disabled={isVaulting}
+                                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isVaulting ? 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40 animate-pulse' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'}`}
+                                        title="Archive to Neural Vault"
+                                    >
+                                        {isVaulting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+                                        {isVaulting ? 'Archiving...' : 'Vault Research'}
+                                    </button>
+                                    <button
+                                        onClick={handleSynthesizeThesis}
+                                        disabled={isSynthesizing}
+                                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isSynthesizing ? 'bg-emerald-500/20 text-emerald-100 border-emerald-500/40 animate-pulse' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'}`}
+                                        title="Generate Word Document"
+                                    >
+                                        {isSynthesizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                                        {isSynthesizing ? 'Synthesizing...' : 'Draft .DOCX'}
+                                    </button>
                                     <button
                                         onClick={() => setIsFormulaEditorOpen(!isFormulaEditorOpen)}
                                         className={`p-1.5 rounded-md transition-colors ${isFormulaEditorOpen ? 'bg-cyan-500/20 text-cyan-200' : 'hover:bg-cyan-500/10 text-cyan-400'}`}

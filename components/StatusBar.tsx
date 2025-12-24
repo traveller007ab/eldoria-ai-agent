@@ -4,16 +4,18 @@ import { supabase } from '../services/supabaseClient';
 import { DatabaseIcon, EmeraldMindIcon, SAFIcon, TerminalIcon } from './Icons';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { bridgeClient } from '../services/bridgeClient';
+import { CodebaseService } from '../services/codebaseService';
 import { SAFStatus } from '../types';
+import { FolderOpen } from 'lucide-react';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'error';
 type MemoryStatus = 'idle' | 'searching' | 'saving' | 'error';
 
 const MemoryStatusIndicator: React.FC<{ status: MemoryStatus }> = ({ status }) => {
   const config = {
-    idle: { text: '', visible: false, color: '' },
-    searching: { text: 'Consulting EmeraldMind...', visible: true, color: 'text-cyan-400/70' },
-    saving: { text: 'Committing to memory...', visible: true, color: 'text-cyan-400/70' },
+    idle: { text: 'EmeraldMind Ready', visible: true, color: 'text-cyan-500/20' },
+    searching: { text: 'Consulting EmeraldMind...', visible: true, color: 'text-cyan-400/80' },
+    saving: { text: 'Committing to memory...', visible: true, color: 'text-emerald-400/80' },
     error: { text: 'Memory Anomaly', visible: true, color: 'text-yellow-500' },
   };
   const current = config[status];
@@ -27,11 +29,11 @@ const MemoryStatusIndicator: React.FC<{ status: MemoryStatus }> = ({ status }) =
 
 const SAFStatusIndicator: React.FC<{ status: SAFStatus }> = ({ status }) => {
   const config = {
-    idle: { text: '', visible: false, color: '', animate: false },
-    planning: { text: 'SAF: Planning...', visible: true, color: 'text-cyan-400/70', animate: true },
-    thinking: { text: 'SAF: Thinking...', visible: true, color: 'text-cyan-400/70', animate: true },
-    executing_tool: { text: 'SAF: Executing tool...', visible: true, color: 'text-cyan-400/70', animate: true },
-    responding: { text: 'SAF: Responding...', visible: true, color: 'text-cyan-400/70', animate: true },
+    idle: { text: 'SAF Engine Active', visible: true, color: 'text-cyan-500/20', animate: false },
+    planning: { text: 'SAF: Planning Strategy...', visible: true, color: 'text-cyan-400/80', animate: true },
+    thinking: { text: 'SAF: Reasoning...', visible: true, color: 'text-cyan-400/80', animate: true },
+    executing_tool: { text: 'SAF: Tool Execution...', visible: true, color: 'text-cyan-400/80', animate: true },
+    responding: { text: 'SAF: Finalizing...', visible: true, color: 'text-cyan-400/80', animate: true },
   };
   const current = config[status];
   return (
@@ -46,10 +48,12 @@ export const StatusBar: React.FC = () => {
   const { saveStatus, memoryStatus, safStatus, isTerminalVisible, toggleTerminal } = useWorkspace();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [bridgeStatus, setBridgeStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
+  const [projectPath, setProjectPath] = useState<string>(CodebaseService.getProjectPath());
+  const [isIndexing, setIsIndexing] = useState(false);
 
   useEffect(() => {
     const checkConnections = async () => {
-      // 1. Check Supabase
+      // 1. Check Supabase (Database)
       try {
         const { error } = await supabase.from('canvases').select('id').limit(1);
         setConnectionStatus(error ? 'error' : 'connected');
@@ -57,23 +61,26 @@ export const StatusBar: React.FC = () => {
         setConnectionStatus('error');
       }
 
-      // 2. Check Terminal Bridge (Skip if Electron, it's auto-managed)
-      if (bridgeClient.isElectron()) {
-        setBridgeStatus('online');
-      } else {
-        try {
-          const res = await fetch('http://localhost:3001/health');
-          setBridgeStatus(res.ok ? 'online' : 'offline');
-        } catch (e) {
-          setBridgeStatus('offline');
-        }
-      }
+      // 2. Check Terminal Bridge (Centralized)
+      const isOnline = await bridgeClient.checkBridgeHealth();
+      setBridgeStatus(isOnline ? 'online' : 'offline');
     };
 
     checkConnections();
     const interval = setInterval(checkConnections, 8000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleOpenProject = async () => {
+    const path = await bridgeClient.openFolderDialog();
+    if (path) {
+      CodebaseService.setProjectPath(path);
+      setProjectPath(path);
+      setIsIndexing(true);
+      await CodebaseService.indexProject(path);
+      setIsIndexing(false);
+    }
+  };
 
   const statusConfig = {
     connecting: { text: 'Syncing...', color: 'text-cyan-400/50', iconClass: 'animate-pulse' },
@@ -89,6 +96,7 @@ export const StatusBar: React.FC = () => {
 
   const currentStatus = statusConfig[connectionStatus];
   const saveStatusText = saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'All changes saved' : '';
+  const projectName = projectPath === '.' ? 'No Project' : projectPath.split(/[\\/]/).pop() || 'Project';
 
   return (
     <div className="shrink-0 h-8 bg-black/40 backdrop-filter backdrop-blur-md border-t border-cyan-500/20 flex items-center justify-between px-4 text-[10px] z-10">
@@ -105,6 +113,18 @@ export const StatusBar: React.FC = () => {
         <SAFStatusIndicator status={safStatus} />
 
         <div className="flex items-center gap-5 border-l border-cyan-500/10 pl-6 h-4">
+          <button
+            onClick={handleOpenProject}
+            disabled={isIndexing}
+            className={`flex items-center gap-2 px-2 py-0.5 rounded transition-all active:scale-95 ${projectPath !== '.' ? 'bg-emerald-500/10 text-emerald-300' : 'text-cyan-500/50 hover:bg-cyan-500/5'}`}
+            title={`Current Project: ${projectPath}`}
+          >
+            <FolderOpen className={`w-3.5 h-3.5 ${isIndexing ? 'animate-pulse' : ''}`} />
+            <span className="font-black tracking-tighter uppercase max-w-[100px] truncate">
+              {isIndexing ? 'Indexing...' : projectName}
+            </span>
+          </button>
+
           <button
             onClick={toggleTerminal}
             className={`flex items-center gap-2 px-2 py-0.5 rounded transition-all active:scale-95 ${isTerminalVisible ? 'bg-cyan-500/10 text-cyan-300' : 'text-cyan-500/50 hover:bg-cyan-500/5'}`}

@@ -77,6 +77,16 @@ def build_thesis(input_data):
             p = doc.add_paragraph(apa)
             p.style.font.size = Pt(11)
     
+    # 4. Ethical Watermark (Footer)
+    for section in doc.sections:
+        footer = section.footer
+        p = footer.paragraphs[0]
+        p.text = f"Eldoria-Assisted Research Draft | Project ID: {input_data.get('id', 'N/A')} | Ethical Transparency Log Active"
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in p.runs:
+            run.font.size = Pt(8)
+            run.font.italic = True
+
     output_path = f"thesis_{input_data.get('id', 'temp')}.docx"
     doc.save(output_path)
     return output_path

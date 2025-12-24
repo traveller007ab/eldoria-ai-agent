@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AcademicProject } from '../types';
 import { ShieldAlert, UserCheck, MessageSquare, AlertCircle, CheckCircle2, Loader2, Sparkles, TrendingUp } from 'lucide-react';
-import { getGroq } from '../services/groqService';
+import { runGroqGenerate } from '../services/groqService';
 
 interface ExpertVerdictPanelProps {
     project: AcademicProject;
@@ -43,7 +43,6 @@ export const ExpertVerdictPanel: React.FC<ExpertVerdictPanelProps> = ({ project 
 
     const handleGenerateVerdict = async () => {
         setIsAnalyzing(true);
-        const groq = getGroq();
 
         const prompt = `
             You are acting as '${personas[selectedPersona].name}', high-level persona described as: '${personas[selectedPersona].role}'.
@@ -63,17 +62,15 @@ export const ExpertVerdictPanel: React.FC<ExpertVerdictPanelProps> = ({ project 
         `;
 
         try {
-            const completion = await groq.chat.completions.create({
-                messages: [
+            const response = await runGroqGenerate(
+                [
                     { role: "system", content: "You are a specialized academic reviewer providing brutal but constructive feedback in JSON format." },
                     { role: "user", content: prompt }
                 ],
-                model: "llama-3.3-70b-versatile",
-                response_format: { type: "json_object" },
-                temperature: 0.7
-            });
+                { model: "llama-3.3-70b-versatile", temperature: 0.7, response_format: { type: "json_object" } }
+            );
 
-            const content = completion.choices[0].message.content;
+            const content = response.choices[0].message.content;
             if (content) {
                 setVerdict(JSON.parse(content));
             }
@@ -83,6 +80,7 @@ export const ExpertVerdictPanel: React.FC<ExpertVerdictPanelProps> = ({ project 
             setIsAnalyzing(false);
         }
     };
+
 
     return (
         <div className="space-y-6">

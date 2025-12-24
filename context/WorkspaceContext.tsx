@@ -4,6 +4,7 @@ import * as WorkspaceService from '../services/workspaceService';
 import * as MemoryService from '../services/memoryService';
 import { CodebaseService } from '../services/codebaseService';
 import { runGroqGenerateStream, runGroqConversationStream, runGroqInlineActionStream, runGroqAuditStream } from '../services/groqService';
+import { contextService } from '../services/ContextService';
 import { supabase } from '../services/supabaseClient';
 
 
@@ -25,11 +26,13 @@ interface WorkspaceState {
   safStatus: SAFStatus;
   isTerminalVisible: boolean;
   isTerminalExpanded: boolean;
+  isTerminalMinimized: boolean;
   isIndexing: boolean;
   academicProjects: AcademicProject[];
   onboarding_completed: string | null;
   eldoria_user_level: 'newbie' | 'intermediate' | 'expert' | null;
   isLowPerfMode: boolean;
+  isTerminalExecuting: boolean;
 }
 
 type WorkspaceAction =
@@ -53,6 +56,8 @@ type WorkspaceAction =
   | { type: 'TOGGLE_FOLDER'; payload: string }
   | { type: 'SET_TERMINAL_VISIBLE'; payload: boolean }
   | { type: 'SET_TERMINAL_EXPANDED'; payload: boolean }
+  | { type: 'TOGGLE_TERMINAL_EXPANSION' }
+  | { type: 'TOGGLE_TERMINAL_MINIMIZED' }
   | { type: 'ADD_ACADEMIC_PROJECT'; payload: AcademicProject }
   | { type: 'UPDATE_ACADEMIC_PROJECT'; payload: AcademicProject }
   | { type: 'LOAD_ACADEMIC_PROJECTS'; payload: AcademicProject[] }
@@ -60,7 +65,8 @@ type WorkspaceAction =
   | { type: 'DELETE_ACADEMIC_PROJECT'; payload: string }
   | { type: 'SET_ONBOARDING_STATUS'; payload: string | null }
   | { type: 'SET_USER_LEVEL'; payload: 'newbie' | 'intermediate' | 'expert' | null }
-  | { type: 'SET_LOW_PERF_MODE'; payload: boolean };
+  | { type: 'SET_LOW_PERF_MODE'; payload: boolean }
+  | { type: 'SET_TERMINAL_EXECUTING'; payload: boolean };
 
 const initialState: WorkspaceState = {
   canvases: [],
@@ -77,12 +83,14 @@ const initialState: WorkspaceState = {
   safStatus: 'idle',
   isTerminalVisible: localStorage.getItem('isTerminalVisible') !== 'false',
   isTerminalExpanded: false,
+  isTerminalMinimized: false,
   isIndexing: false,
   academicProjects: [],
   onboarding_completed: localStorage.getItem('onboarding_completed'),
   eldoria_user_level: localStorage.getItem('eldoria_user_level') as any,
   isLowPerfMode: localStorage.getItem('isLowPerfMode') === 'true' ||
     ((navigator as any).deviceMemory && (navigator as any).deviceMemory < 4),
+  isTerminalExecuting: false,
 };
 
 const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): WorkspaceState => {
@@ -136,7 +144,11 @@ const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): Works
     case 'SET_TERMINAL_VISIBLE':
       return { ...state, isTerminalVisible: action.payload };
     case 'SET_TERMINAL_EXPANDED':
-      return { ...state, isTerminalExpanded: action.payload };
+      return { ...state, isTerminalExpanded: action.payload, isTerminalMinimized: action.payload ? false : state.isTerminalMinimized };
+    case 'TOGGLE_TERMINAL_EXPANSION':
+      return { ...state, isTerminalExpanded: !state.isTerminalExpanded, isTerminalMinimized: false };
+    case 'TOGGLE_TERMINAL_MINIMIZED':
+      return { ...state, isTerminalMinimized: !state.isTerminalMinimized, isTerminalExpanded: false };
     case 'ADD_ACADEMIC_PROJECT':
       return { ...state, academicProjects: [action.payload, ...state.academicProjects] };
     case 'UPDATE_ACADEMIC_PROJECT':
@@ -153,6 +165,8 @@ const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): Works
       return { ...state, eldoria_user_level: action.payload };
     case 'SET_LOW_PERF_MODE':
       return { ...state, isLowPerfMode: action.payload };
+    case 'SET_TERMINAL_EXECUTING':
+      return { ...state, isTerminalExecuting: action.payload };
     default:
       return state;
   }
@@ -180,8 +194,10 @@ interface WorkspaceContextType extends WorkspaceState {
   performProactiveAudit: () => Promise<void>;
   toggleTerminal: () => void;
   toggleTerminalExpansion: () => void;
+  toggleTerminalMinimized: () => void;
   runManualCommand: (command: string) => Promise<{ output: string; error: string | null }>;
   isTerminalExpanded: boolean;
+  isTerminalMinimized: boolean;
   addAcademicProject: (project: AcademicProject) => void;
   updateAcademicProject: (project: AcademicProject) => void;
   deleteAcademicProject: (id: string) => Promise<void>;
@@ -192,6 +208,7 @@ interface WorkspaceContextType extends WorkspaceState {
   setUserLevel: (level: 'newbie' | 'intermediate' | 'expert') => void;
   resetOnboarding: () => void;
   setLowPerfMode: (enabled: boolean) => void;
+  isTerminalExecuting: boolean;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -317,6 +334,36 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       setTimeout(() => dispatch({ type: 'SET_SAVE_STATUS', payload: 'idle' }), 2000);
     }, 500);
   }, []);
+
+  // Sync ContextService with active state
+  useEffect(() => {
+    if (activeCanvas) {
+      const content = Array.isArray(activeCanvas.content)
+        ? activeCanvas.content
+          .filter(p => p.type === 'text' || p.type === 'image')
+          .map(p => (p as any).content || '')
+          .join('\n')
+        : activeCanvas.content;
+
+      contextService.updateContext({
+        activeFileName: activeCanvas.name,
+        activeFileContent: content
+      });
+    }
+  }, [activeCanvas]);
+
+  useEffect(() => {
+    if (state.academicProjects.length > 0) {
+      const activeProject = state.academicProjects[state.academicProjects.length - 1];
+      contextService.updateContext({
+        academicProject: {
+          id: activeProject.id,
+          title: activeProject.wizard_state.basics.title || 'Untitled Research',
+          mapSummary: `${Object.keys(activeProject.draft_content || {}).length} chapters drafted`
+        }
+      });
+    }
+  }, [state.academicProjects]);
 
   const renameCanvas = async (id: string, newName: string) => {
     const canvas = state.canvases.find(c => c.id === id);
@@ -515,8 +562,12 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   }, [state.isTerminalVisible]);
 
   const toggleTerminalExpansion = useCallback(() => {
-    dispatch({ type: 'SET_TERMINAL_EXPANDED', payload: !state.isTerminalExpanded });
-  }, [state.isTerminalExpanded]);
+    dispatch({ type: 'TOGGLE_TERMINAL_EXPANSION' });
+  }, []);
+
+  const toggleTerminalMinimized = useCallback(() => {
+    dispatch({ type: 'TOGGLE_TERMINAL_MINIMIZED' });
+  }, []);
 
   const runManualCommand = useCallback(async (command: string): Promise<{ output: string; error: string | null }> => {
     if (!activeCanvas) return { output: '', error: 'No active canvas' };
@@ -524,6 +575,13 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     const timestamp = new Date().toLocaleTimeString();
     const commandLog = `\n[${timestamp}] $ ${command}\n`;
 
+    // Auto-Peek: Expand if minimized
+    const wasMinimized = state.isTerminalMinimized;
+    if (wasMinimized) {
+      dispatch({ type: 'TOGGLE_TERMINAL_MINIMIZED' });
+    }
+
+    dispatch({ type: 'SET_TERMINAL_EXECUTING', payload: true });
     dispatch({ type: 'UPDATE_CANVAS', payload: { ...activeCanvas, terminal_output: (activeCanvas.terminal_output || '') + commandLog } });
 
     const result = await WorkspaceService.runCommand(command);
@@ -535,8 +593,17 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
+    dispatch({ type: 'SET_TERMINAL_EXECUTING', payload: false });
+
+    // Auto-Peek: Collapse back after a delay if it was auto-expanded
+    if (wasMinimized) {
+      setTimeout(() => {
+        dispatch({ type: 'TOGGLE_TERMINAL_MINIMIZED' });
+      }, 1500);
+    }
+
     return result;
-  }, [activeCanvas]);
+  }, [activeCanvas, state.isTerminalMinimized]);
 
   const clearTerminal = useCallback(() => {
     if (!state.activeCanvasId || !activeCanvas) return;
@@ -586,8 +653,12 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Build Meta-Context
       const projectIndex = CodebaseService.getProjectIndex();
+      const firstPartText = activeCanvas.content[0]?.type === 'text'
+        ? (activeCanvas.content[0] as any).content
+        : '';
+
       const currentProject = state.academicProjects.find(p =>
-        Object.values(p.draft_content || {}).some(c => c.includes(activeCanvas.content[0]?.content))
+        Object.values(p.draft_content || {}).some(c => firstPartText && c.includes(firstPartText))
       );
 
       let metaContext = `\n\n--- PROJECT CONTEXT ---\nFILE INDEX:\n${projectIndex.substring(0, 1000)}`;
@@ -757,8 +828,10 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       performProactiveAudit,
       toggleTerminal,
       toggleTerminalExpansion,
+      toggleTerminalMinimized,
       runManualCommand,
       isTerminalExpanded: state.isTerminalExpanded,
+      isTerminalMinimized: state.isTerminalMinimized,
       addAcademicProject: async (project: AcademicProject) => {
         dispatch({ type: 'ADD_ACADEMIC_PROJECT', payload: project });
         await WorkspaceService.createAcademicProject(project);

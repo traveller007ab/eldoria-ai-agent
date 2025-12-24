@@ -120,7 +120,8 @@ export async function fetchAcademicProjects(): Promise<AcademicProject[]> {
     ...p,
     wizard_state: p.wizard_state || {},
     draft_content: p.draft_content || {},
-    references: p.references || []
+    references: p.references || [],
+    resources: p.resources || []
   })) as AcademicProject[];
 }
 

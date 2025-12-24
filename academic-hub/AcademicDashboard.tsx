@@ -1,7 +1,8 @@
-import React from 'react';
-import { Layout, Plus, Search, BookOpen } from 'lucide-react';
+import React, { useState } from 'react';
+import { Layout, Plus, Search, BookOpen, GraduationCap, Building2, ChevronRight } from 'lucide-react';
 import { AcademicProject, AcademicWizardState } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { getAllModels, AcademicModel, DEFAULT_MODELS } from '../models/AcademicModels';
 
 interface AcademicDashboardProps {
     onSelectProject: (project: AcademicProject) => void;
@@ -9,27 +10,41 @@ interface AcademicDashboardProps {
 
 export const AcademicDashboard: React.FC<AcademicDashboardProps> = ({ onSelectProject }) => {
     const { academicProjects, addAcademicProject } = useWorkspace();
+    const [selectedModelId, setSelectedModelId] = useState<string>('rsu-mech-eng');
 
-    const handleCreateProject = () => {
+    // Get all models including custom ones from localStorage
+    const customModels: AcademicModel[] = (() => {
+        try {
+            const saved = localStorage.getItem('eldoria-custom-models');
+            return saved ? JSON.parse(saved) : [];
+        } catch { return []; }
+    })();
+    const allModels = [...getAllModels(), ...customModels];
+
+    const handleCreateProject = (modelId: string) => {
+        const model = allModels.find(m => m.id === modelId) || DEFAULT_MODELS['rsu-mech-eng'];
+
         const initialState: AcademicWizardState = {
             step: 0,
-            basics: { title: 'New Thesis Project', author: '', regNumber: '', year: '2024' },
+            basics: { title: 'New Thesis Project', author: '', regNumber: '', year: new Date().getFullYear().toString() },
             objectives: { aim: '', specificObjectives: [] },
             scope: { scopeOfWork: '', significance: '', limitations: '' },
             literature: { keywords: [], searchQueries: [] },
             methodology: { materials: [], methods: '', costs: '', results_data: '' },
             finishing: { dedication: '', acknowledgements: '', preface: '' },
-            compliance: { plagiarismChecked: false, wordCountValid: false, abstractReady: false }
+            compliance: { plagiarismChecked: false, wordCountValid: false, abstractReady: false },
+            generationConfig: { targetPageCount: 80, depth: 'standard' }
         };
 
         const newProject: AcademicProject = {
             id: crypto.randomUUID(),
             name: 'New Research Project',
-            format: 'RSU_MECH_ENG',
+            format: model.id,
             created_at: new Date().toISOString(),
             wizard_state: initialState,
             draft_content: {},
-            references: []
+            references: [],
+            modelId: model.id // Store the model reference
         };
 
         addAcademicProject(newProject);
@@ -43,12 +58,6 @@ export const AcademicDashboard: React.FC<AcademicDashboardProps> = ({ onSelectPr
                     <Layout className="w-4 h-4 text-cyan-400" />
                     <span className="text-xs font-bold uppercase tracking-widest text-cyan-300">Library</span>
                 </div>
-                <button
-                    onClick={handleCreateProject}
-                    className="p-1.5 hover:bg-emerald-500/10 text-emerald-400 rounded-md transition-colors border border-emerald-500/20"
-                >
-                    <Plus className="w-4 h-4" />
-                </button>
             </div>
 
             <div className="p-3">
@@ -63,18 +72,34 @@ export const AcademicDashboard: React.FC<AcademicDashboardProps> = ({ onSelectPr
             </div>
 
             <div className="flex-grow overflow-y-auto custom-scrollbar p-3 space-y-3">
-                <div className="text-[10px] font-bold text-cyan-500/40 uppercase tracking-[0.2em] px-2 mb-1">Available Formats</div>
-                <div className="p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg cursor-pointer hover:bg-cyan-500/10 transition-all group">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-cyan-500/20 rounded-md group-hover:bg-cyan-500/30 transition-colors">
-                            <BookOpen className="w-4 h-4 text-cyan-300" />
+                <div className="text-[10px] font-bold text-cyan-500/40 uppercase tracking-[0.2em] px-2 mb-1">Thesis Templates</div>
+
+                {allModels.map(model => (
+                    <button
+                        key={model.id}
+                        onClick={() => handleCreateProject(model.id)}
+                        className={`w-full p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg text-left hover:bg-cyan-500/10 hover:border-cyan-500/30 transition-all group`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-cyan-500/20 rounded-md group-hover:bg-cyan-500/30 transition-colors">
+                                <GraduationCap className="w-4 h-4 text-cyan-300" />
+                            </div>
+                            <div className="flex-grow">
+                                <div className="text-[11px] font-bold text-cyan-100 uppercase tracking-tighter">{model.name}</div>
+                                <div className="text-[9px] text-cyan-400/50 uppercase tracking-widest font-medium flex items-center gap-1">
+                                    <Building2 className="w-2.5 h-2.5" />
+                                    {model.institution}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-purple-500/10 rounded text-[7px] text-purple-400 font-bold uppercase">
+                                    {model.chapters.length} CH
+                                </span>
+                                <ChevronRight className="w-3.5 h-3.5 text-cyan-500/20 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
+                            </div>
                         </div>
-                        <div>
-                            <div className="text-[11px] font-bold text-cyan-100 uppercase tracking-tighter">RSU - Mechanical Engineering</div>
-                            <div className="text-[9px] text-cyan-400/50 uppercase tracking-widest font-medium">Standard v1.2</div>
-                        </div>
-                    </div>
-                </div>
+                    </button>
+                ))}
 
                 <div className="pt-4 text-[10px] font-bold text-cyan-500/40 uppercase tracking-[0.2em] px-2 mb-1">Recent Projects</div>
                 {academicProjects.length === 0 ? (
@@ -92,7 +117,7 @@ export const AcademicDashboard: React.FC<AcademicDashboardProps> = ({ onSelectPr
                                 {project.wizard_state.basics.title || 'Untitled Project'}
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-[8px] text-cyan-500/50 uppercase font-bold tracking-widest">{project.format}</span>
+                                <span className="text-[8px] text-cyan-500/50 uppercase font-bold tracking-widest">{project.format || project.modelId || 'Custom'}</span>
                                 <span className="text-[8px] text-cyan-500/30 italic">{new Date(project.created_at).toLocaleDateString()}</span>
                             </div>
                         </div>
@@ -102,3 +127,4 @@ export const AcademicDashboard: React.FC<AcademicDashboardProps> = ({ onSelectPr
         </div>
     );
 };
+

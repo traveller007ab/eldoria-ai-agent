@@ -1,9 +1,10 @@
 import Groq from 'groq-sdk';
 import { searchTavily } from './tavilyService';
 import { CanvasPart, ChatMessage, TaskLogEntry, Source, SAFStatus, InlineAction } from '../types';
+import { contextService } from './ContextService';
 
 import { GROQ_API_KEY, API_KEY as GEMINI_API_KEY, OPENROUTER_API_KEY } from '../config';
-const BRIDGE_URL = 'http://localhost:3099/proxy/groq';
+import { getBridgeUrl } from './bridgeClient';
 
 // Legacy direct instance for compatibility (Note: May hit CORS if not proxied)
 const groq = new Groq({
@@ -14,7 +15,13 @@ const groq = new Groq({
 export const getGroq = () => groq;
 
 async function* streamFromBridge(body: any): AsyncGenerator<string> {
-    const response = await fetch(BRIDGE_URL, {
+    const bridgeUrl = await getBridgeUrl();
+
+    // Determine target proxy based on model or explicit provider
+    const isOpenRouter = body.model?.startsWith('openrouter/') || body.provider === 'openrouter';
+    const endpoint = isOpenRouter ? '/proxy/openrouter' : '/proxy/groq';
+
+    const response = await fetch(`${bridgeUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, apiKey: GROQ_API_KEY, geminiApiKey: GEMINI_API_KEY, openRouterApiKey: OPENROUTER_API_KEY })
@@ -166,6 +173,7 @@ interface StreamEvent {
     sources?: Source[];
     safStatus?: SAFStatus;
     taskLogEntry?: TaskLogEntry;
+    error?: string;
 }
 
 export async function* runGroqGenerateStream(
@@ -175,6 +183,10 @@ export async function* runGroqGenerateStream(
 ): AsyncGenerator<StreamEvent> {
     try {
         let systemPrompt = agentSystemInstruction;
+        const ambientContext = contextService.getSystemContextString();
+        if (ambientContext) {
+            systemPrompt += `\n\n${ambientContext}`;
+        }
         if (memoryContext && memoryContext.trim()) {
             systemPrompt += `\n\n--- RELEVANT CONTEXT FROM MEMORY ---\n${memoryContext}\n--- END MEMORY ---`;
         }
@@ -202,7 +214,8 @@ export async function* runGroqGenerateStream(
             yield { safStatus: 'thinking' };
 
             // For tool calls, we don't stream to simplify parsing in this prototype
-            const response = await fetch(BRIDGE_URL, {
+            const bridgeUrl = await getBridgeUrl();
+            const response = await fetch(`${bridgeUrl}/proxy/groq`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -286,7 +299,10 @@ export async function* runGroqConversationStream(
     metaContext?: string
 ): AsyncGenerator<{ textChunk?: string; error?: string }> {
     try {
-        const systemPrompt = chatSystemInstruction + (metaContext ? `\n\n--- ADDITIONAL CONTEXT ---\n${metaContext}` : "");
+        const ambientContext = contextService.getSystemContextString();
+        const systemPrompt = chatSystemInstruction +
+            (ambientContext ? `\n\n${ambientContext}` : "") +
+            (metaContext ? `\n\n--- ADDITIONAL CONTEXT ---\n${metaContext}` : "");
         const context = canvasContent
             .filter(p => p.type === 'text')
             .map(p => (p as any).content)
@@ -384,5 +400,94 @@ export async function* runGroqAuditStream(
         }
     } catch (error) {
         console.error("Groq Proxy Audit Error:", error);
+    }
+}
+
+export async function* runOpenRouterGenerateStream(
+    promptParts: CanvasPart[],
+    model: string,
+    memoryContext?: string
+): AsyncGenerator<StreamEvent> {
+    // Re-use the existing logic but force the provider
+    const generator = runGroqGenerateStream(promptParts, memoryContext);
+
+    // We need to intercept the fetch call effectively. 
+    // Since runGroqGenerateStream hardcodes the model in the body, we need a slight refactor 
+    // OR we can just implement a simplified version here.
+    // Given the architecture, let's implement a clean call:
+
+    try {
+        const ambientContext = contextService.getSystemContextString();
+        let systemPrompt = agentSystemInstruction + (ambientContext ? `\n\n${ambientContext}` : "");
+
+        const userMessage = promptParts.filter(p => p.type === 'text').map(p => (p as any).content).join('\n');
+
+        const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage }
+        ];
+
+        yield { safStatus: 'thinking' };
+
+        const stream = streamFromBridge({
+            messages,
+            model: model, // e.g. "anthropic/claude-3-opus"
+            provider: 'openrouter',
+            temperature: 0.7,
+            stream: true,
+            apiKey: OPENROUTER_API_KEY
+        });
+
+        for await (const chunk of stream) {
+            yield { textChunk: chunk };
+        }
+        yield { safStatus: 'idle' };
+
+    } catch (error: any) {
+        console.error("OpenRouter Stream Error:", error);
+        yield { safStatus: 'idle', error: error.message };
+    }
+}
+
+export async function runGroqGenerate(
+    messages: { role: string; content: string }[],
+    options: {
+        model?: string;
+        temperature?: number;
+        response_format?: { type: "json_object" };
+    } = {}
+): Promise<any> {
+    try {
+        const bridgeUrl = await getBridgeUrl();
+        const model = options.model || "llama-3.3-70b-versatile";
+
+        // Determine target proxy based on model
+        const isOpenRouter = model.startsWith('openrouter/');
+        const endpoint = isOpenRouter ? '/proxy/openrouter' : '/proxy/groq';
+
+        const response = await fetch(`${bridgeUrl}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messages,
+                model,
+                temperature: options.temperature ?? 0.7,
+                stream: false,
+                response_format: options.response_format,
+                apiKey: GROQ_API_KEY,
+                geminiApiKey: GEMINI_API_KEY,
+                openRouterApiKey: OPENROUTER_API_KEY
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Bridge Error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data; // Returns standard OpenAI-compatible response object
+    } catch (error: any) {
+        console.error("Groq Generate Error:", error);
+        throw error;
     }
 }

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Part, FunctionCall, Content, Type, GenerateContentResponse } from "@google/genai";
 import { Source, CanvasPart, SAFStatus, TaskLogEntry, ChatMessage, InlineAction } from "../types";
+import { contextService } from "./ContextService";
 import { supabase } from "./supabaseClient";
 import { API_KEY } from "../config";
 
@@ -107,15 +108,18 @@ const convertCanvasPartsToGeminiParts = (parts: CanvasPart[]): Part[] => {
   return parts.map(part => {
     if (part.type === 'text') {
       return { text: part.content };
-    } else {
+    } else if (part.type === 'image') {
       return {
         inlineData: {
           mimeType: part.mimeType,
           data: part.content.split(',')[1],
         },
       };
+    } else {
+      // For File and Folder parts, just provide the name/path as text context
+      return { text: `[${part.type.toUpperCase()}: ${part.name} (${part.path})]` };
     }
-  });
+  }).filter(p => !!p) as Part[];
 };
 
 const tools = [
@@ -167,6 +171,10 @@ export async function* runGenerateStream(
 ): AsyncGenerator<StreamEvent> {
   try {
     let fullSystemInstruction = getDynamicSystemInstruction(agentSystemInstruction);
+    const ambientContext = contextService.getSystemContextString();
+    if (ambientContext) {
+      fullSystemInstruction += `\n\n${ambientContext}`;
+    }
     if (memoryContext && memoryContext.trim()) {
       fullSystemInstruction += `\n\n--- RELEVANT CONTEXT FROM YOUR MEMORY (EMERALDMIND) ---\n${memoryContext}\n--- END OF MEMORY CONTEXT ---`;
     }
@@ -260,7 +268,10 @@ export async function* runConversationStream(
   metaContext?: string
 ): AsyncGenerator<{ textChunk?: string; error?: string }> {
   try {
-    const fullSystemInstruction = getDynamicSystemInstruction(chatSystemInstruction) + (metaContext ? `\n\n--- ADDITIONAL CONTEXT ---\n${metaContext}` : "");
+    const ambientContext = contextService.getSystemContextString();
+    const fullSystemInstruction = getDynamicSystemInstruction(chatSystemInstruction) +
+      (ambientContext ? `\n\n${ambientContext}` : "") +
+      (metaContext ? `\n\n--- ADDITIONAL CONTEXT ---\n${metaContext}` : "");
     // FIX: Changed `GeminiChatMessage[]` to `Content[]` to match the correct type from the `@google/genai` library.
     const history: Content[] = chatHistory.map(msg => ({
       role: msg.sender === 'user' ? 'user' : 'model',

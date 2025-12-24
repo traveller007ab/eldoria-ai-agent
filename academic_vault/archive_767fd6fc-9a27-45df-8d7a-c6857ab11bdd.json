@@ -1,0 +1,60 @@
+{
+    "metadata": {
+        "id": "767fd6fc-9a27-45df-8d7a-c6857ab11bdd",
+        "project_id": "d309c6ba-f759-4ea3-a5d4-69e244605617",
+        "title": "Untitled Research",
+        "timestamp": "2025-12-23T23:21:32.850558",
+        "tags": []
+    },
+    "content": {
+        "id": "d309c6ba-f759-4ea3-a5d4-69e244605617",
+        "name": "New Research Project",
+        "format": "RSU_MECH_ENG",
+        "created_at": "2025-12-23T22:20:49.887Z",
+        "wizard_state": {
+            "step": 0,
+            "basics": {
+                "title": "",
+                "author": "",
+                "regNumber": "",
+                "year": "2024"
+            },
+            "objectives": {
+                "aim": "",
+                "specificObjectives": []
+            },
+            "scope": {
+                "scopeOfWork": "",
+                "significance": "",
+                "limitations": ""
+            },
+            "literature": {
+                "keywords": [],
+                "searchQueries": []
+            },
+            "methodology": {
+                "materials": [],
+                "methods": "",
+                "costs": "",
+                "results_data": ""
+            },
+            "finishing": {
+                "dedication": "",
+                "acknowledgements": "",
+                "preface": ""
+            },
+            "compliance": {
+                "plagiarismChecked": false,
+                "wordCountValid": false,
+                "abstractReady": false
+            },
+            "generationConfig": {
+                "targetPageCount": 80,
+                "depth": "standard"
+            }
+        },
+        "draft_content": {},
+        "references": [],
+        "resources": []
+    }
+}

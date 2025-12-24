@@ -1,5 +1,8 @@
 
+import { bridgeClient } from './bridgeClient';
 import { runCommand } from './workspaceService';
+
+const STORAGE_KEY = 'eldoria_project_path';
 
 export interface FileMetadata {
     lastModified: string;
@@ -18,42 +21,51 @@ export interface FileNode {
 export class CodebaseService {
     private static projectIndex: string = "";
     private static structuredIndex: FileNode[] = [];
+    private static activeProjectPath: string = localStorage.getItem(STORAGE_KEY) || ".";
+
+    /**
+     * Set the active project path for indexing.
+     */
+    static setProjectPath(path: string): void {
+        this.activeProjectPath = path;
+        localStorage.setItem(STORAGE_KEY, path);
+        console.log(`[CODEBASE] Active project path set to: ${path}`);
+    }
+
+    /**
+     * Get the active project path.
+     */
+    static getProjectPath(): string {
+        return this.activeProjectPath;
+    }
 
     /**
      * Scans the codebase to build a structural overview with metadata.
      */
-    static async indexProject(): Promise<string> {
+    static async indexProject(path?: string): Promise<string> {
         try {
-            console.log("[CODEBASE] Indexing project structure with metadata...");
+            const targetPath = path || this.activeProjectPath;
+            console.log(`[CODEBASE] Indexing project structure via Python Bridge... Path: ${targetPath}`);
 
-            // Use powershell friendly command with metadata selection
-            const command = "Get-ChildItem -Recurse -File -Exclude node_modules,dist,.git,.next,build | Select-Object FullName, LastWriteTime, Length | ConvertTo-Json";
-            const result = await runCommand(command);
+            const result = await bridgeClient.indexProject(targetPath);
 
-            if (result.error && result.error.includes("[FAILED TO CONNECT TO BRIDGE]")) {
-                return "Project indexing failed: Bridge not connected.";
+            if (result.files.length === 0) {
+                console.warn("[CODEBASE] Received empty index from bridge.");
             }
 
-            try {
-                const rawData = JSON.parse(result.output);
-                this.structuredIndex = Array.isArray(rawData) ? rawData.map((item: any) => ({
-                    name: item.FullName.split('\\').pop(),
-                    path: item.FullName,
-                    type: 'file',
-                    metadata: {
-                        lastModified: item.LastWriteTime,
-                        size: item.Length,
-                        relevance: this.calculateRelevance(item.FullName)
-                    }
-                })) : [];
+            this.structuredIndex = result.files.map((item: any) => ({
+                name: item.name,
+                path: item.path,
+                type: 'file',
+                metadata: {
+                    lastModified: item.lastModified,
+                    size: item.size,
+                    relevance: this.calculateRelevance(item.path)
+                }
+            }));
 
-                this.projectIndex = this.structuredIndex.map(node => `${node.path} (${node.metadata?.lastModified})`).join('\n');
-                return this.projectIndex;
-            } catch (e) {
-                console.warn("[CODEBASE] Failed to parse structured JSON, falling back to raw output.");
-                this.projectIndex = result.output;
-                return result.output;
-            }
+            this.projectIndex = this.structuredIndex.map(node => `${node.path} (${node.metadata?.lastModified})`).join('\n');
+            return this.projectIndex;
         } catch (error) {
             console.error("[CODEBASE] Error indexing project:", error);
             return "Error indexing project.";

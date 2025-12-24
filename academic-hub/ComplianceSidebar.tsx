@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, AlertTriangle, CheckCircle, Info, InfoIcon, Loader2, ExternalLink, HeartPulse, History } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, CheckCircle, Info, InfoIcon, Loader2, ExternalLink, HeartPulse, History, FileText } from 'lucide-react';
 import { AcademicProject } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { checkOriginality } from '../services/academicService';
+import { checkOriginality, generateComplianceReport, ComplianceReport } from '../services/academicService';
 import { ProjectTimeline } from './ProjectTimeline';
 import { IntegrityGuardian } from './IntegrityGuardian';
 
@@ -12,7 +12,7 @@ interface ComplianceSidebarProps {
 
 export const ComplianceSidebar: React.FC<ComplianceSidebarProps> = ({ project }) => {
     const { runManualCommand } = useWorkspace();
-    const [auditResults, setAuditResults] = useState<any>(null);
+    const [auditResults, setAuditResults] = useState<ComplianceReport | null>(null);
     const [isAuditing, setIsAuditing] = useState(false);
     const [scanResults, setScanResults] = useState<any>(null);
     const [isScanning, setIsScanning] = useState(false);
@@ -24,39 +24,27 @@ export const ComplianceSidebar: React.FC<ComplianceSidebarProps> = ({ project })
             return;
         }
 
+        // Run real compliance scoring
         const timer = setTimeout(() => {
-            handleAudit();
-        }, 2000);
+            setIsAuditing(true);
+            try {
+                const report = generateComplianceReport(project);
+                setAuditResults(report);
+            } catch (e) {
+                console.error("Compliance report failed", e);
+            } finally {
+                setIsAuditing(false);
+            }
+        }, 500);
 
         return () => clearTimeout(timer);
-    }, [project?.wizard_state]);
-
-    const handleAudit = async () => {
-        if (!project) return;
-        setIsAuditing(true);
-        try {
-            const command = `python services/academic-assistant/auditor.py '${JSON.stringify(project)}'`;
-            const result = await runManualCommand(command);
-            if (result.output) {
-                try {
-                    const parsed = JSON.parse(result.output);
-                    setAuditResults(parsed);
-                } catch (e) {
-                    console.error("Failed to parse audit output", result.output);
-                }
-            }
-        } catch (e) {
-            console.error("Audit failed", e);
-        } finally {
-            setIsAuditing(false);
-        }
-    };
+    }, [project?.wizard_state, project?.draft_content]);
 
     const handleInitiateScan = async () => {
         if (!project) return;
         setIsScanning(true);
         try {
-            const allContent = Object.values(project.draft_content).join('\n\n');
+            const allContent = Object.values(project.draft_content || {}).join('\n\n');
             const result = await checkOriginality(allContent);
             setScanResults(result);
         } catch (e) {
@@ -83,6 +71,9 @@ export const ComplianceSidebar: React.FC<ComplianceSidebarProps> = ({ project })
         { label: "Technical Results", status: "info", detail: "Awaiting Chapter 4..." },
         { label: "Thesis Concluding", status: "info", detail: "Awaiting final chapters..." }
     ];
+    const totalWordCount = auditResults?.totalWordCount || 0;
+    const wordCountByChapter = auditResults?.wordCountByChapter || {};
+
 
     return (
         <div className="panel flex-grow flex flex-col overflow-hidden">
@@ -136,6 +127,24 @@ export const ComplianceSidebar: React.FC<ComplianceSidebarProps> = ({ project })
                                 />
                             ))}
                         </div>
+
+                        {/* Word Count Breakdown */}
+                        {totalWordCount > 0 && (
+                            <div className="pt-4">
+                                <div className="text-[10px] font-bold text-cyan-500/40 uppercase tracking-[0.2em] mb-3 px-1 flex items-center gap-2">
+                                    <FileText className="w-3 h-3" />
+                                    Word Count: {totalWordCount.toLocaleString()}
+                                </div>
+                                <div className="space-y-2">
+                                    {Object.entries(wordCountByChapter).filter(([_, count]) => count > 0).map(([chapter, count]) => (
+                                        <div key={chapter} className="flex items-center justify-between text-[9px] px-1">
+                                            <span className="text-cyan-300/60 truncate max-w-[150px]">{chapter.replace('Chapter ', 'Ch ')}</span>
+                                            <span className="text-cyan-100 font-mono">{count.toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Plagiarism Section */}
                         <div className="pt-6">

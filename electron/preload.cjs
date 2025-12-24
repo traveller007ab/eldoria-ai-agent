@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('eldoriaDesktop', {
     // Get bridge server port
     getBridgePort: () => ipcRenderer.invoke('bridge:getPort'),
 
+    // Restart bridge server
+    restartBridge: () => ipcRenderer.invoke('bridge:restart'),
+
     // Platform info
     platform: process.platform,
 
