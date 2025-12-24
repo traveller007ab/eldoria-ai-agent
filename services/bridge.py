@@ -10,10 +10,18 @@ from fastapi import FastAPI, HTTPException, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Any
-import tkinter as tk
-from tkinter import filedialog
-import requests
 from fastapi.responses import StreamingResponse
+
+# Optional tkinter for desktop mode (not available on headless servers)
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+    TKINTER_AVAILABLE = True
+except ImportError:
+    TKINTER_AVAILABLE = False
+    tk = None
+    filedialog = None
+
 
 # mDNS Discovery Refinement
 try:
@@ -350,13 +358,14 @@ if __name__ == "__main__":
 
     # Port-Resilience Loop: Ensures we can start even if the previous process is still dying
     try:
-        # Port-Resilience Loop: Ensures we can start even if the previous process is still dying
-        port = 3001
+        # Use PORT from environment (for Railway/Render) or default to 3001
+        port = int(os.environ.get('PORT', 3001))
+        host = os.environ.get('HOST', '0.0.0.0')
         max_retries = 10
         for i in range(max_retries):
             try:
-                print(f"[BRIDGE] Starting Eldoria Neural Bridge on port {port}...")
-                uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+                print(f"[BRIDGE] Starting Eldoria Neural Bridge on {host}:{port}...")
+                uvicorn.run(app, host=host, port=port, log_level="info")
                 break
             except Exception as e:
                 if "10048" in str(e) or "address already in use" in str(e).lower():
