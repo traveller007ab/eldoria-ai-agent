@@ -1,4 +1,5 @@
-import Groq from 'groq-sdk';
+// Removed groq-sdk import - all API calls go through bridge proxy
+// import Groq from 'groq-sdk';
 import { searchTavily } from './tavilyService';
 import { CanvasPart, ChatMessage, TaskLogEntry, Source, SAFStatus, InlineAction } from '../types';
 import { contextService } from './ContextService';
@@ -6,20 +7,11 @@ import { contextService } from './ContextService';
 import { GROQ_API_KEY, API_KEY as GEMINI_API_KEY, OPENROUTER_API_KEY } from '../config';
 import { getBridgeUrl } from './bridgeClient';
 
-// Lazy Groq SDK instance - only created when actually needed and if API key is available
-let _groqInstance: Groq | null = null;
-
-export const getGroq = (): Groq | null => {
-    if (_groqInstance) return _groqInstance;
-    if (!GROQ_API_KEY) {
-        console.warn('[GROQ] No API key available - using bridge proxy only');
-        return null;
-    }
-    _groqInstance = new Groq({
-        apiKey: GROQ_API_KEY,
-        dangerouslyAllowBrowser: true,
-    });
-    return _groqInstance;
+// No direct Groq SDK - all calls go through bridge proxy
+// This prevents the SDK from throwing at import time when env vars are missing
+export const getGroq = (): any => {
+    console.warn('[GROQ] Direct SDK disabled - all calls go through bridge proxy');
+    return null;
 };
 
 
