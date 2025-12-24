@@ -6,13 +6,22 @@ import { contextService } from './ContextService';
 import { GROQ_API_KEY, API_KEY as GEMINI_API_KEY, OPENROUTER_API_KEY } from '../config';
 import { getBridgeUrl } from './bridgeClient';
 
-// Legacy direct instance for compatibility (Note: May hit CORS if not proxied)
-const groq = new Groq({
-    apiKey: GROQ_API_KEY,
-    dangerouslyAllowBrowser: true,
-});
+// Lazy Groq SDK instance - only created when actually needed and if API key is available
+let _groqInstance: Groq | null = null;
 
-export const getGroq = () => groq;
+export const getGroq = (): Groq | null => {
+    if (_groqInstance) return _groqInstance;
+    if (!GROQ_API_KEY) {
+        console.warn('[GROQ] No API key available - using bridge proxy only');
+        return null;
+    }
+    _groqInstance = new Groq({
+        apiKey: GROQ_API_KEY,
+        dangerouslyAllowBrowser: true,
+    });
+    return _groqInstance;
+};
+
 
 async function* streamFromBridge(body: any): AsyncGenerator<string> {
     const bridgeUrl = await getBridgeUrl();
