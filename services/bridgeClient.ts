@@ -27,12 +27,27 @@ export interface BridgeResult {
 const DEFAULT_BRIDGE_PORT = 3001;
 const DEFAULT_BRIDGE_URL = `http://localhost:${DEFAULT_BRIDGE_PORT}`;
 
+// Production Railway URL
+const PRODUCTION_BRIDGE_URL = 'https://web-production-b7fe.up.railway.app';
+
+// Detect if we're in production (Netlify or similar)
+const isProduction = typeof window !== 'undefined' &&
+    !window.eldoriaDesktop &&
+    (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
+
 // Cache for the dynamic port in Electron
 let cachedBridgeUrl: string | null = null;
 
 export async function getBridgeUrl(): Promise<string> {
     if (cachedBridgeUrl) return cachedBridgeUrl;
 
+    // Production web deployment - use Railway
+    if (isProduction) {
+        cachedBridgeUrl = PRODUCTION_BRIDGE_URL;
+        return cachedBridgeUrl;
+    }
+
+    // Electron desktop app - get dynamic port
     if (window.eldoriaDesktop?.getBridgePort) {
         try {
             const port = await window.eldoriaDesktop.getBridgePort();
@@ -42,6 +57,8 @@ export async function getBridgeUrl(): Promise<string> {
             console.warn('[BRIDGE] Failed to get dynamic port, falling back to default:', e);
         }
     }
+
+    // Local development fallback
     return DEFAULT_BRIDGE_URL;
 }
 
