@@ -241,7 +241,7 @@ export async function checkOriginality(content: string) {
             { model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } }
         );
 
-        const analysis = JSON.parse(response.choices[0].message.content || "{}");
+        const analysis = JSON.parse(response.choices?.[0]?.message?.content || "{}");
         const finalScore = analysis.finalSimilarityScore || 0;
 
         return {

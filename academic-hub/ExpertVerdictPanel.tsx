@@ -70,7 +70,7 @@ export const ExpertVerdictPanel: React.FC<ExpertVerdictPanelProps> = ({ project 
                 { model: "llama-3.3-70b-versatile", temperature: 0.7, response_format: { type: "json_object" } }
             );
 
-            const content = response.choices[0].message.content;
+            const content = response.choices?.[0]?.message?.content;
             if (content) {
                 setVerdict(JSON.parse(content));
             }

@@ -36,7 +36,7 @@ export const generateDefenseDeck = async (project: AcademicProject): Promise<str
             temperature: 0.5,
         });
 
-        return response.choices[0].message.content || "Failed to generate presentation outline.";
+        return response.choices?.[0]?.message?.content || "Failed to generate presentation outline.";
     } catch (e) {
         console.error("Defense deck generation failed", e);
         throw new Error("Eldoria failed to synthesize the defense deck.");

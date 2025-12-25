@@ -33,7 +33,7 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
         { model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } }
     );
 
-    const { queries } = JSON.parse(strategyCompletion.choices[0].message.content || '{"queries":[]}');
+    const { queries } = JSON.parse(strategyCompletion.choices?.[0]?.message?.content || '{"queries":[]}');
 
     // Step 2: Parallel Deep Searches
     const evidenceChain: ResearchEvidence[] = [];
@@ -55,7 +55,7 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
 
             evidenceChain.push({
                 query,
-                findings: synthCompletion.choices[0].message.content || 'No findings synthesized.',
+                findings: synthCompletion.choices?.[0]?.message?.content || 'No findings synthesized.',
                 sources: searchData.results.map(r => ({ title: r.title, url: r.url }))
             });
         } catch (e) {
@@ -80,7 +80,7 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
         { model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } }
     );
 
-    const finalResult = JSON.parse(finalCompletion.choices[0].message.content || '{"analysis": "", "suggestedUpdates": []}');
+    const finalResult = JSON.parse(finalCompletion.choices?.[0]?.message?.content || '{"analysis": "", "suggestedUpdates": []}');
 
     return {
         ...finalResult,

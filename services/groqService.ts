@@ -42,6 +42,7 @@ async function* streamFromBridge(body: any): AsyncGenerator<string> {
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let receivedContent = false;
 
     while (true) {
         const { done, value } = await reader.read();
@@ -59,12 +60,19 @@ async function* streamFromBridge(body: any): AsyncGenerator<string> {
                 try {
                     const data = JSON.parse(jsonStr);
                     const content = data.choices?.[0]?.delta?.content || data.choices?.[0]?.message?.content || "";
-                    if (content) yield content;
+                    if (content) {
+                        receivedContent = true;
+                        yield content;
+                    }
                 } catch (e) {
                     // console.warn('Stream parse error (safe to ignore if chunk is partial):', e);
                 }
             }
         }
+    }
+
+    if (!receivedContent) {
+        yield "[Error: The AI provider returned an empty response. This may be due to a model error or rate limit.]";
     }
 }
 
@@ -243,9 +251,17 @@ export async function* runGroqGenerateStream(
                 })
             });
 
-            if (!response.ok) throw new Error(`Bridge Error: ${response.statusText}`);
+            if (!response.ok) {
+                let detail = response.statusText;
+                try {
+                    const err = await response.json();
+                    if (err.detail) detail = err.detail;
+                } catch (e) { }
+                yield { textChunk: `\n\n**Bridge Error:** ${detail}` };
+                return;
+            }
             const data = await response.json();
-            const message = data.choices[0]?.message;
+            const message = data.choices?.[0]?.message;
             const toolCalls = message?.tool_calls;
 
             if (toolCalls && toolCalls.length > 0) {
@@ -344,7 +360,7 @@ export async function* runGroqConversationStream(
         if (msg.includes('Failed to fetch')) {
             msg = "Bridge Hub offline. Run 'npm run bridge' in your terminal.";
         }
-        yield { error: msg };
+        yield { textChunk: `\n\n**System Error:** ${msg}` };
     }
 }
 

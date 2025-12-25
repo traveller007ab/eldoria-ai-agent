@@ -217,11 +217,19 @@ async def proxy_groq(request_data: Any = Body(...)):
             "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=groq_payload,
-            stream=request_data.get("stream", False)
+            stream=request_data.get("stream", False),
+            timeout=60.0
         )
         
         if not response.ok:
-            return response.json()
+            try:
+                err_data = response.json()
+                error_msg = err_data.get("error", {}).get("message", "Unknown Groq error")
+            except:
+                error_msg = f"Groq Error: {response.status_code}"
+            
+            print(f"[BRIDGE] Groq Upstream Error: {error_msg}")
+            raise HTTPException(status_code=502, detail=error_msg)
 
         if request_data.get("stream", False):
             def generate():
@@ -262,19 +270,23 @@ async def proxy_openrouter(request_data: Any = Body(...)):
         }
         
         response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
+            "https://api.openrouter.ai/api/v1/chat/completions",
             headers=headers,
             json=payload,
-            stream=request_data.get("stream", False)
+            stream=request_data.get("stream", False),
+            timeout=60.0
         )
         
         if not response.ok:
             try:
-                err = response.json()
-                print(f"[BRIDGE] OpenRouter API Error: {err}")
-                return err
+                err_data = response.json()
+                # OpenRouter sometimes puts error inside error object, sometimes not
+                error_msg = err_data.get("error", {}).get("message") or err_data.get("error") or "Unknown OpenRouter error"
             except:
-                return {"error": f"OpenRouter status {response.status_code}"}
+                error_msg = f"OpenRouter Error: {response.status_code}"
+            
+            print(f"[BRIDGE] OpenRouter Upstream Error: {error_msg}")
+            raise HTTPException(status_code=502, detail=error_msg)
 
         if request_data.get("stream", False):
             def generate():
