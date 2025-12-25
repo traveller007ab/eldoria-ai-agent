@@ -30,5 +30,6 @@ ENV PORT=8000
 EXPOSE $PORT
 
 # Start the Bridge
-# Using host 0.0.0.0 is critical for Docker networking
-CMD ["sh", "-c", "uvicorn services.bridge:app --host 0.0.0.0 --port $PORT"]
+# Shell form allows proper variable expansion of $PORT
+CMD uvicorn services.bridge:app --host 0.0.0.0 --port $PORT
+
