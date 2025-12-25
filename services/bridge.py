@@ -108,6 +108,23 @@ async def index_codebase(root: str = "."):
         return {"files": files}
     except Exception as e:
         print(f"[BRIDGE] Indexing Error: {e}")
+        return {"files": []}
+
+@app.get("/system/default-path")
+async def get_default_path():
+    """Returns the default user documents path."""
+    try:
+        if os.name == 'nt': # Windows
+            import ctypes.wintypes
+            CSIDL_PERSONAL = 5       # My Documents
+            SHGFP_TYPE_CURRENT = 0   # Get current, not default value
+            buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
+            ctypes.windll.shell32.SHGetFolderPathW(None, CSIDL_PERSONAL, None, SHGFP_TYPE_CURRENT, buf)
+            return {"path": buf.value}
+        else: # Linux/Mac
+            return {"path": os.path.expanduser("~/Documents")}
+    except Exception:
+        return {"path": os.path.expanduser("~")}
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/execute")

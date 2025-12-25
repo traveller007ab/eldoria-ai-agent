@@ -44,10 +44,23 @@ export class CodebaseService {
      */
     static async indexProject(path?: string): Promise<string> {
         try {
-            const targetPath = path || this.activeProjectPath;
+            let targetPath = path || this.activeProjectPath;
+
+            // If default "." is active, try to upgrade to User Documents
+            // This prevents showing the app's own source code to the user
+            if (targetPath === "." || !targetPath) {
+                const defaultPath = await bridgeClient.getDefaultPath();
+                if (defaultPath) {
+                    targetPath = defaultPath;
+                    this.setProjectPath(targetPath); // Persist it for future use
+                    console.log(`[CODEBASE] Auto-updated workspace root to: ${targetPath}`);
+                }
+            }
+
             console.log(`[CODEBASE] Indexing project structure via Python Bridge... Path: ${targetPath}`);
 
             const result = await bridgeClient.indexProject(targetPath);
+
 
             if (result.files.length === 0) {
                 console.warn("[CODEBASE] Received empty index from bridge.");

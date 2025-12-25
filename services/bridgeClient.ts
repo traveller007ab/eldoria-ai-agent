@@ -142,6 +142,20 @@ export const bridgeClient = {
         return '1.0.0-mobile';
     },
 
+    getDefaultPath: async (): Promise<string | null> => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}/system/default-path`);
+            if (!response.ok) return null;
+            const data = await response.json();
+            return data.path || null;
+        } catch (e) {
+            console.error('[BRIDGE] getDefaultPath failed:', e);
+            return null;
+        }
+    },
+
+
     isElectron: () => !!window.eldoriaDesktop?.isElectron,
 
     isMobile: () => {
