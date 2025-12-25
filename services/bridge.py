@@ -218,6 +218,9 @@ async def debug_keys():
             results[k] = f"PLACEHOLDER DETECTED ⚠️ (Value: {val[:4]}...)"
         else:
             results[k] = "READY ✅"
+            
+    # Diagnosis: List all keys present (safely, no values) to check for typos/scoping
+    results["_ALL_ENV_KEYS"] = sorted(list(os.environ.keys()))
     return results
 
 @app.post("/proxy/groq")
