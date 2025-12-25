@@ -29,7 +29,12 @@ async function* streamFromBridge(body: any): AsyncGenerator<string> {
     });
 
     if (!response.ok) {
-        throw new Error(`Bridge Error: ${response.statusText}`);
+        let detail = response.statusText;
+        try {
+            const err = await response.json();
+            if (err.detail) detail = err.detail;
+        } catch (e) {}
+        throw new Error(`Bridge Error: ${detail}`);
     }
 
     const reader = response.body?.getReader();
@@ -482,7 +487,12 @@ export async function runGroqGenerate(
         });
 
         if (!response.ok) {
-            throw new Error(`Bridge Error: ${response.statusText}`);
+            let detail = response.statusText;
+            try {
+                const err = await response.json();
+                if (err.detail) detail = err.detail;
+            } catch (e) {}
+            throw new Error(`Bridge Error: ${detail}`);
         }
 
         const data = await response.json();
