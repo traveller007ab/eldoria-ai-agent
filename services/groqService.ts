@@ -6,6 +6,8 @@ import { contextService } from './ContextService';
 
 import { GROQ_API_KEY, API_KEY as GEMINI_API_KEY, OPENROUTER_API_KEY } from '../config';
 import { getBridgeUrl } from './bridgeClient';
+import { runGenerateStream as runGeminiGenerateStream } from './geminiService';
+
 
 // No direct Groq SDK - all calls go through bridge proxy
 // This prevents the SDK from throwing at import time when env vars are missing
@@ -201,6 +203,53 @@ export async function* runGroqGenerateStream(
     memoryContext?: string,
     executeTool?: (name: string, args: any) => Promise<any>
 ): AsyncGenerator<StreamEvent> {
+    // FALLBACK ORCHESTRATOR
+    try {
+        // 1. Attempt Groq (Primary)
+        for await (const event of executeGroqLogic(promptParts, memoryContext, executeTool)) {
+            yield event;
+        }
+    } catch (groqError: any) {
+        console.warn("Groq Error:", groqError);
+        const isAuthError = groqError.message?.includes("Invalid API Key") || groqError.message?.includes("401");
+
+        // If it's a bridge connection error, everything is down, don't failover
+        if (groqError.message?.includes("Bridge Hub offline")) {
+            yield { textChunk: `\n\n**System Connection Error:** ${groqError.message}` };
+            return;
+        }
+
+        yield { textChunk: `\n\n_(Primary AI unavailable [${isAuthError ? "Invalid Key" : "Error"}]. Switching to backup OpenRouter...)_\n\n` };
+
+        try {
+            // 2. Attempt OpenRouter (Backup)
+            // Use a reliable backup model
+            for await (const event of runOpenRouterGenerateStream(promptParts, "meta-llama/llama-3.1-70b-instruct", memoryContext)) {
+                yield event;
+            }
+        } catch (orError: any) {
+            console.warn("OpenRouter Error:", orError);
+            yield { textChunk: `\n\n_(OpenRouter unavailable. Switching to Gemini Emergency Backup...)_\n\n` };
+
+            try {
+                // 3. Attempt Gemini (Final Resort)
+                for await (const event of runGeminiGenerateStream(promptParts, memoryContext, executeTool)) {
+                    yield event;
+                }
+            } catch (geminiError: any) {
+                console.error("All Providers Failed:", geminiError);
+                yield { textChunk: `\n\n**System Failure:** All AI providers (Groq, OpenRouter, Gemini) failed to respond. Please check your API keys in Railway.` };
+            }
+        }
+    }
+}
+
+// Extracted internal logic for Groq to allow for clean try/catch wrapping
+async function* executeGroqLogic(
+    promptParts: CanvasPart[],
+    memoryContext?: string,
+    executeTool?: (name: string, args: any) => Promise<any>
+): AsyncGenerator<StreamEvent> {
     try {
         let systemPrompt = agentSystemInstruction;
         const ambientContext = contextService.getSystemContextString();
@@ -310,13 +359,14 @@ export async function* runGroqGenerateStream(
             }
         }
     } catch (error: any) {
-        console.error("Groq Proxy Error:", error);
-        yield { safStatus: 'idle' };
+        // Re-throw to be caught by the fallback orchestrator
+        console.error("Groq Logic Internal Error:", error);
         let msg = error.message;
         if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-            msg = "The Eldoria Bridge Hub is offline. Please open a terminal and run 'npm run bridge' to enable AI generation and terminal orchestration.";
+            msg = "Bridge Hub offline. Run 'npm run bridge'.";
         }
-        yield { textChunk: `\n\n**System Connection Error:** ${msg}` };
+        // Throw simple error for orchestrator to catch
+        throw new Error(msg);
     }
 }
 
