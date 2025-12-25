@@ -35,7 +35,7 @@ export const TerminalPanel: React.FC = () => {
         <div
             className={`
                 ${isTerminalExpanded ? 'h-[60vh]' : isTerminalMinimized ? 'h-11' : 'h-64'} 
-                w-full relative group flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) 
+                w-full relative group flex flex-col transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) shrink-0
                 overflow-hidden bg-[#0a0a0f]/80 backdrop-blur-xl border-t border-cyan-500/20
                 ${isTerminalMinimized ? 'hover:bg-cyan-500/5' : ''}
             `}

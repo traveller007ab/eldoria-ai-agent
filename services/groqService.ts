@@ -33,7 +33,7 @@ async function* streamFromBridge(body: any): AsyncGenerator<string> {
         try {
             const err = await response.json();
             if (err.detail) detail = err.detail;
-        } catch (e) {}
+        } catch (e) { }
         throw new Error(`Bridge Error: ${detail}`);
     }
 
@@ -54,7 +54,7 @@ async function* streamFromBridge(body: any): AsyncGenerator<string> {
                 if (jsonStr === '[DONE]') break;
                 try {
                     const data = JSON.parse(jsonStr);
-                    const content = data.choices[0]?.delta?.content || data.choices[0]?.message?.content || "";
+                    const content = data.choices?.[0]?.delta?.content || data.choices?.[0]?.message?.content || "";
                     if (content) yield content;
                 } catch (e) { }
             }
@@ -491,7 +491,7 @@ export async function runGroqGenerate(
             try {
                 const err = await response.json();
                 if (err.detail) detail = err.detail;
-            } catch (e) {}
+            } catch (e) { }
             throw new Error(`Bridge Error: ${detail}`);
         }
 
