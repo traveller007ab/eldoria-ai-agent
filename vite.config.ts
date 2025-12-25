@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
           description: 'Sentient Academic Co-Pilot & Research IDE',
           display: 'standalone',
           background_color: '#020617',
-          theme_color: '#06b6d4',
+          theme_color: '#0a0a0f',
           icons: [
             {
               src: 'favicon.svg',
