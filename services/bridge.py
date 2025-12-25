@@ -193,9 +193,11 @@ async def proxy_groq(request_data: Any = Body(...)):
     Proxies requests to the Groq API to avoid CORS issues in the browser.
     """
     try:
-        api_key = request_data.get("apiKey")
+        # Try request body first, then environment variable (Railway/Local env)
+        api_key = request_data.get("apiKey") or os.environ.get("GROQ_API_KEY")
+        
         if not api_key:
-            raise HTTPException(status_code=400, detail="apiKey is required")
+            raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set GROQ_API_KEY env var)")
         
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -251,9 +253,11 @@ async def proxy_openrouter(request_data: Any = Body(...)):
     Proxies requests to the OpenRouter API.
     """
     try:
-        api_key = request_data.get("apiKey")
+        # Try request body first, then environment variable (Railway/Local env)
+        api_key = request_data.get("apiKey") or os.environ.get("OPENROUTER_API_KEY")
+        
         if not api_key:
-            raise HTTPException(status_code=400, detail="apiKey is required")
+            raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set OPENROUTER_API_KEY env var)")
         
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -302,15 +306,57 @@ async def proxy_openrouter(request_data: Any = Body(...)):
         print(f"[BRIDGE] OpenRouter Proxy Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/proxy/gemini")
+async def proxy_gemini(request_data: Any = Body(...)):
+    """
+    Proxies requests to the Gemini API.
+    """
+    try:
+        api_key = request_data.get("apiKey") or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set GEMINI_API_KEY env var)")
+        
+        # Determine if it's a content-only request or specific model call
+        model = request_data.get("model", "gemini-1.5-flash")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": request_data.get("contents", []),
+            "generationConfig": request_data.get("generationConfig", {}),
+            "safetySettings": request_data.get("safetySettings", [])
+        }
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=60.0)
+        
+        if not response.ok:
+            try:
+                err_data = response.json()
+                # Gemini error format is deep
+                error_msg = err_data.get("error", {}).get("message") or "Unknown Gemini error"
+            except:
+                error_msg = f"Gemini Error: {response.status_code}"
+            
+            print(f"[BRIDGE] Gemini Upstream Error: {error_msg}")
+            raise HTTPException(status_code=502, detail=error_msg)
+
+        return response.json()
+            
+    except Exception as e:
+        print(f"[BRIDGE] Gemini Proxy Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/proxy/tavily")
 async def proxy_tavily(request_data: Any = Body(...)):
     """
     Proxies requests to the Tavily API to avoid CORS issues.
     """
     try:
-        api_key = request_data.get("api_key")
+        # Try request body first, then environment variable (Railway/Local env)
+        api_key = request_data.get("api_key") or os.environ.get("TAVILY_API_KEY")
+        
         if not api_key:
-            raise HTTPException(status_code=400, detail="api_key is required")
+            raise HTTPException(status_code=400, detail="api_key is required (pass in body or set TAVILY_API_KEY env var)")
         
         headers = {
             "Content-Type": "application/json"

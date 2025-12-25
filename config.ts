@@ -23,7 +23,7 @@ export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 /**
  * The API key for Gemini. Sourced from VITE_API_KEY environment variable.
  */
-export const API_KEY = (import.meta as any).env?.VITE_API_KEY || (process.env?.API_KEY as string);
+export const API_KEY = (import.meta as any).env?.VITE_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY || (process.env?.API_KEY as string);
 
 export const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || (process.env?.GROQ_API_KEY as string);
 export const TAVILY_API_KEY = (import.meta as any).env?.VITE_TAVILY_API_KEY || (process.env?.TAVILY_API_KEY as string);

@@ -4,16 +4,41 @@ import { contextService } from "./ContextService";
 import { supabase } from "./supabaseClient";
 import { API_KEY } from "../config";
 
+import { getBridgeUrl } from "./bridgeClient";
+
 let aiInstance: GoogleGenAI | null = null;
 const getAI = () => {
+  // Check if we should use Bridge Proxy (Production or manually enabled)
+  const isProduction = import.meta.env.PROD;
+
   if (!aiInstance) {
-    if (!API_KEY) {
+    if (!API_KEY && !isProduction) {
       throw new Error("Gemini API Key is not configured. Please set VITE_API_KEY in your .env.local file.");
     }
-    aiInstance = new GoogleGenAI({ apiKey: API_KEY });
+    aiInstance = new GoogleGenAI({ apiKey: API_KEY || "dummy_key_for_proxy" });
   }
   return aiInstance;
 };
+
+async function generateGeminiViaBridge(payload: any) {
+  const bridgeUrl = await getBridgeUrl();
+  const response = await fetch(`${bridgeUrl}/proxy/gemini`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, apiKey: API_KEY })
+  });
+
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const err = await response.json();
+      if (err.detail) detail = err.detail;
+    } catch (e) { }
+    throw new Error(`Bridge Error: ${detail}`);
+  }
+  return response.json();
+}
+
 
 const getSettings = () => {
   try {
