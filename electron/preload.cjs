@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('eldoriaDesktop', {
     // Restart bridge server
     restartBridge: () => ipcRenderer.invoke('bridge:restart'),
 
+    // Window Controls
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close'),
+
     // Platform info
     platform: process.platform,
 

@@ -16,6 +16,7 @@ import { OnboardingTour } from './components/onboarding/OnboardingTour';
 import { EldoriaLogo } from './components/Icons';
 import { DownloadHub } from './components/DownloadHub';
 import { useState } from 'react';
+import { TitleBar } from './components/TitleBar';
 
 const IdeWorkspace: React.FC = () => {
   const { isTerminalVisible, isTerminalExpanded } = useWorkspace();
@@ -90,8 +91,11 @@ const App: React.FC = () => {
     return <ConfigErrorOverlay />;
   }
 
+  // ... (other imports remain, auto-handled by simpler replacement if possible, but I need to be precise)
+
   return (
-    <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50">
+    <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50 pt-8">
+      <TitleBar />
       <div className="animated-bg"></div>
 
       {/* Sentient Watermark */}
