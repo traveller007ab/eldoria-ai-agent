@@ -341,6 +341,12 @@ async def restart_bridge(background_tasks: BackgroundTasks):
 @app.on_event("startup")
 async def startup_event():
     global zeroconf, info
+    
+    # Skip mDNS on Railway/Cloud (causes 502/hangs due to network restrictions)
+    if os.environ.get("RAILWAY_PUBLIC_DOMAIN") or os.environ.get("PORT"):
+        print("[BRIDGE] Cloud environment detected, skipping mDNS registry.")
+        return
+
     try:
         local_ip = socket.gethostbyname(socket.gethostname())
         info = ServiceInfo(

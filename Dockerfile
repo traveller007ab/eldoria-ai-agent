@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Prevent Python from buffering stdout/stderr (ensures logs show up immediately)
+ENV PYTHONUNBUFFERED=1
+
 # Copy requirements FIRST to leverage Docker cache
 COPY requirements.txt .
 
