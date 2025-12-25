@@ -678,7 +678,36 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       for await (const event of stream) {
         if (event.textChunk) {
           botResponse += event.textChunk;
-          botMessage.text = botResponse;
+
+          // --- SAF-ISO PARSING LOGIC ---
+          let displayResponse = botResponse;
+          const safMatch = botResponse.match(/<SAF_ISO>(.*?)<\/SAF_ISO>/s);
+
+          if (safMatch) {
+            try {
+              const safJson = JSON.parse(safMatch[1]);
+              const newBlueprint = safJson;
+
+              // Only update if it's new/different to avoid render thrashing
+              const currentBlueprint = activeCanvas.saf_blueprint;
+              if (JSON.stringify(newBlueprint) !== JSON.stringify(currentBlueprint)) {
+                dispatch({
+                  type: 'UPDATE_CANVAS',
+                  payload: { ...activeCanvas, saf_blueprint: newBlueprint }
+                });
+                // Persist to DB immediately so it sticks on reload
+                _updateCanvasDatabase(activeCanvas.id, { saf_blueprint: newBlueprint });
+              }
+
+              // Hide the JSON block from the chat UI
+              displayResponse = botResponse.replace(safMatch[0], '').trim();
+            } catch (jsonErr) {
+              console.warn("Incomplete or invalid SAF JSON:", jsonErr);
+            }
+          }
+          // -----------------------------
+
+          botMessage.text = displayResponse;
           dispatch({ type: 'UPDATE_CANVAS', payload: { ...activeCanvas, chat_history: [...finalHistory] } });
         }
         if (event.error) {

@@ -54,7 +54,7 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
             wizard_state: localState
         };
 
-        const command = `python services/academic-assistant/generate.py '${JSON.stringify(thesisPayload)}'`;
+        const command = `python services/academic_assistant/generate.py '${JSON.stringify(thesisPayload)}'`;
         await runManualCommand(command);
     };
 

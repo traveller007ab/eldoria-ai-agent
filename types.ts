@@ -116,6 +116,7 @@ export interface Canvas {
   parent_folder_id: string | null;
   insights: string[] | null;
   insight_metadata: Record<string, any>[] | null;
+  saf_blueprint?: any; // Stores the visual block architecture JSON
 }
 
 export interface Folder {

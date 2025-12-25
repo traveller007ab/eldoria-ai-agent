@@ -6,12 +6,15 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { Paperclip, X, FileText, Folder, Search } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { CodebaseService, FileNode } from '../services/codebaseService';
+import { SAFBlueprint } from './SAFBlueprint';
+
 
 interface ChatThreadProps {
     messages: ChatMessage[];
     isLoading: boolean;
     onSendMessage: (message: string, attachments?: Attachment[]) => void;
 }
+
 
 const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isUser = message.sender === 'user';
@@ -97,6 +100,19 @@ export const ChatThread: React.FC<ChatThreadProps> = ({ messages, isLoading, onS
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <div className="flex-grow overflow-y-auto custom-scrollbar pr-2">
+                {/* SAF Visualization Header */}
+                {(() => {
+                    const { activeCanvas } = useWorkspace();
+                    if (activeCanvas?.saf_blueprint) {
+                        return (
+                            <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-700">
+                                <SAFBlueprint data={activeCanvas.saf_blueprint} />
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
+
                 {messages.length === 0 && !isLoading && <WelcomeMessage />}
                 {messages.map((msg, index) => (
                     <ChatBubble key={index} message={msg} />
