@@ -28,7 +28,7 @@ const DEFAULT_BRIDGE_PORT = 3001;
 const DEFAULT_BRIDGE_URL = `http://localhost:${DEFAULT_BRIDGE_PORT}`;
 
 // Production Railway URL
-const PRODUCTION_BRIDGE_URL = 'https://web-production-b7fe.up.railway.app';
+const PRODUCTION_BRIDGE_URL = 'https://eldoria-ai-agent-production.up.railway.app';
 
 // Detect if we're in production (Netlify or similar)
 const isProduction = typeof window !== 'undefined' &&
