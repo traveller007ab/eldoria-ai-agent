@@ -212,7 +212,7 @@ export const bridgeClient = {
     checkBridgeHealth: async (): Promise<boolean> => {
         try {
             const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), 2000);
+            const id = setTimeout(() => controller.abort(), 5000);
 
             const url = await getBridgeUrl();
             const response = await fetch(`${url}/health`, {
@@ -220,6 +220,7 @@ export const bridgeClient = {
             });
             clearTimeout(id);
             return response.ok;
+
         } catch (e) {
             return false;
         }
