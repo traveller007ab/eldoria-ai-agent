@@ -9,7 +9,7 @@ import { getBridgeUrl } from "./bridgeClient";
 let aiInstance: GoogleGenAI | null = null;
 const getAI = () => {
   // Check if we should use Bridge Proxy (Production or manually enabled)
-  const isProduction = import.meta.env.PROD;
+  const isProduction = (import.meta as any).env?.PROD;
 
   if (!aiInstance) {
     if (!API_KEY && !isProduction) {
@@ -20,23 +20,54 @@ const getAI = () => {
   return aiInstance;
 };
 
-async function generateGeminiViaBridge(payload: any) {
-  const bridgeUrl = await getBridgeUrl();
-  const response = await fetch(`${bridgeUrl}/proxy/gemini`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...payload, apiKey: API_KEY })
-  });
+async function* streamProxyGemini(payload: any): AsyncGenerator<string> {
+  try {
+    const bridgeUrl = await getBridgeUrl();
+    const response = await fetch(`${bridgeUrl}/proxy/gemini`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, apiKey: API_KEY, stream: true })
+    });
 
-  if (!response.ok) {
-    let detail = response.statusText;
-    try {
-      const err = await response.json();
-      if (err.detail) detail = err.detail;
-    } catch (e) { }
-    throw new Error(`Bridge Error: ${detail}`);
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const err = await response.json();
+        if (err.detail) detail = err.detail;
+      } catch (e) { }
+      throw new Error(`Bridge Error: ${detail}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          // Gemini returns JSON chunks in an array [...] or individual objects
+          const cleanLine = line.trim().replace(/^,/, '').replace(/^\[/, '').replace(/\]$/, '');
+          if (!cleanLine) continue;
+
+          const data = JSON.parse(cleanLine);
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) yield text;
+        } catch (e) { }
+      }
+    }
+  } catch (err: any) {
+    yield `\n\n**System Error:** ${err.message}`;
   }
-  return response.json();
 }
 
 
@@ -208,33 +239,46 @@ export async function* runGenerateStream(
       { role: 'user', parts: convertCanvasPartsToGeminiParts(promptParts) },
     ];
 
+    const isProduction = (import.meta as any).env?.PROD;
+
     let continueLoop = true;
     while (continueLoop) {
       yield { safStatus: 'thinking' };
-      const responseStream = await getAI().models.generateContentStream({
-        model: 'gemini-1.5-flash-latest',
-        contents: contents,
-        config: {
-          systemInstruction: fullSystemInstruction,
-          tools: tools,
-        },
-      });
 
       let aggregatedResponseText = '';
       let aggregatedFunctionCalls: FunctionCall[] = [];
 
-      // This loop correctly processes the stream, which can contain both text and function calls.
-      for await (const chunk of responseStream) {
-        const response: GenerateContentResponse = chunk; // Explicitly type chunk for clarity
-
-        // FIX: Changed from `else if` to `if` to handle cases where a single chunk
-        // contains both a "thought" (text) and a tool call. This is crucial for
-        // reliable agent behavior and fixes the SDK warnings.
-        if (response.text) {
-          aggregatedResponseText += response.text;
+      if (isProduction) {
+        // PROXY MODE (Production)
+        const payload = {
+          contents,
+          generationConfig: { systemInstruction: fullSystemInstruction },
+          stream: true
+        };
+        for await (const chunk of streamProxyGemini(payload)) {
+          aggregatedResponseText += chunk;
+          yield { textChunk: chunk };
         }
-        if (response.functionCalls) {
-          aggregatedFunctionCalls.push(...response.functionCalls);
+      } else {
+        // DIRECT SDK MODE (Local)
+        const responseStream = await getAI().models.generateContentStream({
+          model: 'gemini-1.5-flash-latest',
+          contents: contents,
+          config: {
+            systemInstruction: fullSystemInstruction,
+            tools: tools,
+          },
+        });
+
+        for await (const chunk of responseStream) {
+          const response: GenerateContentResponse = chunk;
+          if (response.text) {
+            aggregatedResponseText += response.text;
+            yield { textChunk: response.text };
+          }
+          if (response.functionCalls) {
+            aggregatedFunctionCalls.push(...response.functionCalls);
+          }
         }
       }
 
@@ -310,20 +354,36 @@ export async function* runConversationStream(
       { text: newMessage }
     ];
 
-    const responseStream = await getAI().models.generateContentStream({
-      model: 'gemini-1.5-flash-latest',
-      contents: [
-        ...history,
-        { role: 'user', parts: fullContextParts }
-      ],
-      config: {
-        systemInstruction: getDynamicSystemInstruction(chatSystemInstruction),
-      },
-    });
+    const isProduction = (import.meta as any).env?.PROD;
 
-    for await (const chunk of responseStream) {
-      if (chunk.text) {
-        yield { textChunk: chunk.text };
+    if (isProduction) {
+      const payload = {
+        contents: [
+          ...history,
+          { role: 'user', parts: fullContextParts }
+        ],
+        generationConfig: { systemInstruction: getDynamicSystemInstruction(chatSystemInstruction) },
+        stream: true
+      };
+      for await (const chunk of streamProxyGemini(payload)) {
+        yield { textChunk: chunk };
+      }
+    } else {
+      const responseStream = await getAI().models.generateContentStream({
+        model: 'gemini-1.5-flash-latest',
+        contents: [
+          ...history,
+          { role: 'user', parts: fullContextParts }
+        ],
+        config: {
+          systemInstruction: getDynamicSystemInstruction(chatSystemInstruction),
+        },
+      });
+
+      for await (const chunk of responseStream) {
+        if (chunk.text) {
+          yield { textChunk: chunk.text };
+        }
       }
     }
   } catch (error) {

@@ -187,6 +187,18 @@ async def open_folder_dialog():
 
 # Vault endpoints moved to thesis_vault.py router
 
+def get_valid_key(body_key: Optional[str], env_name: str) -> Optional[str]:
+    """Extracts a valid key from body or environment, ignoring placeholders."""
+    key = body_key or os.environ.get(env_name)
+    if not key:
+        return None
+    
+    # Ignore common placeholders
+    placeholders = ["your_groq_api_key_here", "your_api_key_here", "enter_key_here", "dummy_key", "undefined"]
+    if any(p in key.lower() for p in placeholders) or len(key) < 5:
+        return os.environ.get(env_name)
+    return key
+
 @app.post("/proxy/groq")
 async def proxy_groq(request_data: Any = Body(...)):
     """
@@ -194,7 +206,7 @@ async def proxy_groq(request_data: Any = Body(...)):
     """
     try:
         # Try request body first, then environment variable (Railway/Local env)
-        api_key = request_data.get("apiKey") or os.environ.get("GROQ_API_KEY")
+        api_key = get_valid_key(request_data.get("apiKey"), "GROQ_API_KEY")
         
         if not api_key:
             raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set GROQ_API_KEY env var)")
@@ -254,7 +266,7 @@ async def proxy_openrouter(request_data: Any = Body(...)):
     """
     try:
         # Try request body first, then environment variable (Railway/Local env)
-        api_key = request_data.get("apiKey") or os.environ.get("OPENROUTER_API_KEY")
+        api_key = get_valid_key(request_data.get("apiKey"), "OPENROUTER_API_KEY")
         
         if not api_key:
             raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set OPENROUTER_API_KEY env var)")
@@ -312,13 +324,16 @@ async def proxy_gemini(request_data: Any = Body(...)):
     Proxies requests to the Gemini API.
     """
     try:
-        api_key = request_data.get("apiKey") or os.environ.get("GEMINI_API_KEY")
+        api_key = get_valid_key(request_data.get("apiKey"), "GEMINI_API_KEY")
         if not api_key:
             raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set GEMINI_API_KEY env var)")
         
         # Determine if it's a content-only request or specific model call
         model = request_data.get("model", "gemini-1.5-flash")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        is_stream = request_data.get("stream", False)
+        
+        endpoint = "streamGenerateContent" if is_stream else "generateContent"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:{endpoint}?key={api_key}"
         
         headers = {"Content-Type": "application/json"}
         payload = {
@@ -327,12 +342,17 @@ async def proxy_gemini(request_data: Any = Body(...)):
             "safetySettings": request_data.get("safetySettings", [])
         }
         
-        response = requests.post(url, headers=headers, json=payload, timeout=60.0)
+        response = requests.post(
+            url, 
+            headers=headers, 
+            json=payload, 
+            timeout=60.0,
+            stream=is_stream
+        )
         
         if not response.ok:
             try:
                 err_data = response.json()
-                # Gemini error format is deep
                 error_msg = err_data.get("error", {}).get("message") or "Unknown Gemini error"
             except:
                 error_msg = f"Gemini Error: {response.status_code}"
@@ -340,6 +360,13 @@ async def proxy_gemini(request_data: Any = Body(...)):
             print(f"[BRIDGE] Gemini Upstream Error: {error_msg}")
             raise HTTPException(status_code=502, detail=error_msg)
 
+        if is_stream:
+            def generate():
+                for line in response.iter_lines():
+                    if line:
+                        yield line.decode('utf-8') + "\n"
+            return StreamingResponse(generate(), media_type="text/event-stream")
+        
         return response.json()
             
     except Exception as e:
