@@ -187,17 +187,38 @@ async def open_folder_dialog():
 
 # Vault endpoints moved to thesis_vault.py router
 
+def is_placeholder(key: Optional[str]) -> bool:
+    if not key: return True
+    placeholders = ["your_groq_api_key_here", "your_api_key_here", "enter_key_here", "dummy_key", "undefined", "your_tavily_api_key_here", "your_openrouter_api_key_here", "your_api_key_here"]
+    return any(p in key.lower() for p in placeholders) or len(key) < 5
+
 def get_valid_key(body_key: Optional[str], env_name: str) -> Optional[str]:
     """Extracts a valid key from body or environment, ignoring placeholders."""
-    key = body_key or os.environ.get(env_name)
-    if not key:
-        return None
+    # Check body first
+    if body_key and not is_placeholder(body_key):
+        return body_key
     
-    # Ignore common placeholders
-    placeholders = ["your_groq_api_key_here", "your_api_key_here", "enter_key_here", "dummy_key", "undefined"]
-    if any(p in key.lower() for p in placeholders) or len(key) < 5:
-        return os.environ.get(env_name)
-    return key
+    # Check environment second
+    env_key = os.environ.get(env_name)
+    if env_key and not is_placeholder(env_key):
+        return env_key
+        
+    return None
+
+@app.get("/debug/keys")
+async def debug_keys():
+    """Tells the user which keys are set vs placeholders without revealing the secret."""
+    keys = ["GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "TAVILY_API_KEY"]
+    results = {}
+    for k in keys:
+        val = os.environ.get(k)
+        if not val:
+            results[k] = "MISSING ❌"
+        elif is_placeholder(val):
+            results[k] = f"PLACEHOLDER DETECTED ⚠️ (Value: {val[:4]}...)"
+        else:
+            results[k] = "READY ✅"
+    return results
 
 @app.post("/proxy/groq")
 async def proxy_groq(request_data: Any = Body(...)):
@@ -205,11 +226,13 @@ async def proxy_groq(request_data: Any = Body(...)):
     Proxies requests to the Groq API to avoid CORS issues in the browser.
     """
     try:
-        # Try request body first, then environment variable (Railway/Local env)
         api_key = get_valid_key(request_data.get("apiKey"), "GROQ_API_KEY")
         
         if not api_key:
-            raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set GROQ_API_KEY env var)")
+            raise HTTPException(
+                status_code=401, 
+                detail="Groq Key Missing: You are using a placeholder or haven't set GROQ_API_KEY in Railway Variables. Go to Railway -> Settings -> Variables and paste your real 'gsk_...' key."
+            )
         
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -265,11 +288,13 @@ async def proxy_openrouter(request_data: Any = Body(...)):
     Proxies requests to the OpenRouter API.
     """
     try:
-        # Try request body first, then environment variable (Railway/Local env)
         api_key = get_valid_key(request_data.get("apiKey"), "OPENROUTER_API_KEY")
         
         if not api_key:
-            raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set OPENROUTER_API_KEY env var)")
+            raise HTTPException(
+                status_code=401, 
+                detail="OpenRouter Key Missing: Paste your real 'sk-or-...' key in Railway Variables -> OPENROUTER_API_KEY."
+            )
         
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -326,7 +351,10 @@ async def proxy_gemini(request_data: Any = Body(...)):
     try:
         api_key = get_valid_key(request_data.get("apiKey"), "GEMINI_API_KEY")
         if not api_key:
-            raise HTTPException(status_code=400, detail="apiKey is required (pass in body or set GEMINI_API_KEY env var)")
+            raise HTTPException(
+                status_code=401, 
+                detail="Gemini Key Missing: Paste your Google AI key in Railway Variables -> GEMINI_API_KEY."
+            )
         
         # Determine if it's a content-only request or specific model call
         model = request_data.get("model", "gemini-1.5-flash")
