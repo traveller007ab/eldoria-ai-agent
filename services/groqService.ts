@@ -41,22 +41,28 @@ async function* streamFromBridge(body: any): AsyncGenerator<string> {
     if (!reader) return;
 
     const decoder = new TextDecoder();
+    let buffer = '';
+
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
 
-        // Parse SSE format: "data: {...}"
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep the last incomplete fragment
+
         for (const line of lines) {
-            if (line.startsWith('data: ')) {
-                const jsonStr = line.replace('data: ', '').trim();
-                if (jsonStr === '[DONE]') break;
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('data: ')) {
+                const jsonStr = trimmedLine.replace('data: ', '').trim();
+                if (jsonStr === '[DONE]') continue;
                 try {
                     const data = JSON.parse(jsonStr);
                     const content = data.choices?.[0]?.delta?.content || data.choices?.[0]?.message?.content || "";
                     if (content) yield content;
-                } catch (e) { }
+                } catch (e) {
+                    // console.warn('Stream parse error (safe to ignore if chunk is partial):', e);
+                }
             }
         }
     }
