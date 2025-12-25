@@ -75,6 +75,11 @@ async def health_check():
         "services": ["shell", "vault", "synthesis", "codebase"]
     }
 
+@app.get("/")
+async def root():
+    return {"message": "Eldoria Bridge Online"}
+
+
 @app.get("/codebase/index")
 async def index_codebase(root: str = "."):
     """
