@@ -1,12 +1,15 @@
-# Use Python 3.13 slim image
-FROM python:3.13-slim
+# Use Python 3.11 slim (More stable wheels than 3.13)
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (optional, but good practice for slim images)
-# bridge.py checks for tkinter (we don't need it on headless), but we might need gcc for some wheels.
-# Using standard defaults.
+# Install system dependencies
+# gcc and python3-dev are needed for building some python packages from source
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements FIRST to leverage Docker cache
 COPY requirements.txt .
