@@ -27,8 +27,8 @@ export interface BridgeResult {
 const DEFAULT_BRIDGE_PORT = 3001;
 const DEFAULT_BRIDGE_URL = `http://localhost:${DEFAULT_BRIDGE_PORT}`;
 
-// Production Railway URL
-const PRODUCTION_BRIDGE_URL = 'https://eldoria-ai-agent-production.up.railway.app';
+// Production Railway URL with Env Var override support
+const PRODUCTION_BRIDGE_URL = (import.meta.env && import.meta.env.VITE_API_URL) || 'https://eldoria-ai-agent-production.up.railway.app';
 
 // Detect if we're in production (Netlify or similar)
 const isProduction = typeof window !== 'undefined' &&

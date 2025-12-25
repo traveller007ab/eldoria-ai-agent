@@ -7,8 +7,9 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
-    const { resetOnboarding, isLowPerfMode, setLowPerfMode } = useWorkspace();
-    const [settings, setSettings] = useState({
+    const { resetOnboarding, isLowPerfMode, setLowPerfMode, updateGlobalSettings, globalSettings, reIndexWorkspace, isIndexing } = useWorkspace();
+    // Initialize local state from global context
+    const [localSettings, setLocalSettings] = useState(globalSettings || {
         witLevel: 50,
         reverence: 70,
         autonomousMode: true,
@@ -18,21 +19,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [showSavedFeedback, setShowSavedFeedback] = useState(false);
 
+    // Sync local state when global settings change (e.g. from another tab)
     useEffect(() => {
-        const saved = localStorage.getItem('eldoria_settings');
-        if (saved) {
-            try { setSettings(JSON.parse(saved)); } catch (e) { }
-        }
-    }, []);
+        if (globalSettings) setLocalSettings(globalSettings);
+    }, [globalSettings]);
 
     const handleSave = () => {
         setIsSaving(true);
-        localStorage.setItem('eldoria_settings', JSON.stringify(settings));
+        updateGlobalSettings(localSettings);
+
+        // Also trigger a re-index if proactive audit changed
+        if (localSettings.proactiveAudit !== globalSettings?.proactiveAudit) {
+            reIndexWorkspace();
+        }
+
         setTimeout(() => {
             setIsSaving(false);
             setShowSavedFeedback(true);
             setTimeout(() => setShowSavedFeedback(false), 2000);
-        }, 800);
+        }, 500);
     };
 
     return (
@@ -65,26 +70,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                             <div className="space-y-2">
                                 <div className="flex justify-between text-[10px] text-cyan-100 font-bold uppercase tracking-widest">
                                     <span>Wit Level</span>
-                                    <span className="text-cyan-400">{settings.witLevel}%</span>
+                                    <span className="text-cyan-400">{localSettings.witLevel}%</span>
                                 </div>
                                 <input
                                     type="range"
                                     className="w-full h-1 bg-white/5 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                                    value={settings.witLevel}
-                                    onChange={(e) => setSettings({ ...settings, witLevel: parseInt(e.target.value) })}
+                                    value={localSettings.witLevel}
+                                    onChange={(e) => setLocalSettings({ ...localSettings, witLevel: parseInt(e.target.value) })}
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <div className="flex justify-between text-[10px] text-cyan-100 font-bold uppercase tracking-widest">
                                     <span>Reverence Level</span>
-                                    <span className="text-cyan-400">{settings.reverence}%</span>
+                                    <span className="text-cyan-400">{localSettings.reverence}%</span>
                                 </div>
                                 <input
                                     type="range"
                                     className="w-full h-1 bg-white/5 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                                    value={settings.reverence}
-                                    onChange={(e) => setSettings({ ...settings, reverence: parseInt(e.target.value) })}
+                                    value={localSettings.reverence}
+                                    onChange={(e) => setLocalSettings({ ...localSettings, reverence: parseInt(e.target.value) })}
                                 />
                             </div>
                         </div>
@@ -93,8 +98,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                             {(['jarvis', 'concise', 'friendly'] as const).map(mode => (
                                 <button
                                     key={mode}
-                                    onClick={() => setSettings({ ...settings, personalityMode: mode })}
-                                    className={`p-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${settings.personalityMode === mode ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-100' : 'bg-black/40 border-cyan-500/10 text-cyan-500/40 hover:border-cyan-500/20'}`}
+                                    onClick={() => setLocalSettings({ ...localSettings, personalityMode: mode })}
+                                    className={`p-3 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all ${localSettings.personalityMode === mode ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-100' : 'bg-black/40 border-cyan-500/10 text-cyan-500/40 hover:border-cyan-500/20'}`}
                                 >
                                     {mode}
                                 </button>
@@ -115,23 +120,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                                 <p className="text-[9px] text-cyan-500/40">Allow Eldoria to execute terminal commands</p>
                             </div>
                             <button
-                                onClick={() => setSettings({ ...settings, autonomousMode: !settings.autonomousMode })}
-                                className={`w-10 h-5 rounded-full transition-all relative ${settings.autonomousMode ? 'bg-emerald-500/40' : 'bg-white/5'}`}
+                                onClick={() => setLocalSettings({ ...localSettings, autonomousMode: !localSettings.autonomousMode })}
+                                className={`w-10 h-5 rounded-full transition-all relative ${localSettings.autonomousMode ? 'bg-emerald-500/40' : 'bg-white/5'}`}
                             >
-                                <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${settings.autonomousMode ? 'right-1 bg-emerald-400' : 'left-1 bg-white/20'}`}></div>
+                                <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${localSettings.autonomousMode ? 'right-1 bg-emerald-400' : 'left-1 bg-white/20'}`}></div>
                             </button>
                         </div>
 
                         <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-cyan-500/5">
                             <div>
                                 <h4 className="text-[11px] font-bold text-cyan-100">Proactive Auditing</h4>
-                                <p className="text-[9px] text-cyan-500/40">Enable background intelligence scans</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-[9px] text-cyan-500/40">Enable background intelligence scans</p>
+                                    {isIndexing && (
+                                        <span className="flex items-center gap-1 text-[8px] text-amber-400 font-bold uppercase tracking-wider animate-pulse">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                            Syncing Index...
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <button
-                                onClick={() => setSettings({ ...settings, proactiveAudit: !settings.proactiveAudit })}
-                                className={`w-10 h-5 rounded-full transition-all relative ${settings.proactiveAudit ? 'bg-cyan-500/40' : 'bg-white/5'}`}
+                                onClick={() => setLocalSettings({ ...localSettings, proactiveAudit: !localSettings.proactiveAudit })}
+                                className={`w-10 h-5 rounded-full transition-all relative ${localSettings.proactiveAudit ? 'bg-cyan-500/40' : 'bg-white/5'}`}
                             >
-                                <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${settings.proactiveAudit ? 'right-1 bg-cyan-400' : 'left-1 bg-white/20'}`}></div>
+                                <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${localSettings.proactiveAudit ? 'right-1 bg-cyan-400' : 'left-1 bg-white/20'}`}></div>
                             </button>
                         </div>
                         <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-cyan-500/5">

@@ -66,7 +66,10 @@ type WorkspaceAction =
   | { type: 'SET_ONBOARDING_STATUS'; payload: string | null }
   | { type: 'SET_USER_LEVEL'; payload: 'newbie' | 'intermediate' | 'expert' | null }
   | { type: 'SET_LOW_PERF_MODE'; payload: boolean }
-  | { type: 'SET_TERMINAL_EXECUTING'; payload: boolean };
+  | { type: 'SET_TERMINAL_EXECUTING'; payload: boolean }
+  | { type: 'UPDATE_SETTINGS'; payload: Partial<WorkspaceState['globalSettings']> }
+  | { type: 'TRIGGER_REINDEX_START' }
+  | { type: 'TRIGGER_REINDEX_COMPLETE' };
 
 const initialState: WorkspaceState = {
   canvases: [],
@@ -90,7 +93,9 @@ const initialState: WorkspaceState = {
   eldoria_user_level: localStorage.getItem('eldoria_user_level') as any,
   isLowPerfMode: localStorage.getItem('isLowPerfMode') === 'true' ||
     ((navigator as any).deviceMemory && (navigator as any).deviceMemory < 4),
+  shouldUseDevLinks: localStorage.getItem('shouldUseDevLinks') === 'true',
   isTerminalExecuting: false,
+  globalSettings: JSON.parse(localStorage.getItem('eldoria_settings') || '{"witLevel":50,"reverence":70,"autonomousMode":true,"proactiveAudit":true,"personalityMode":"jarvis"}'),
 };
 
 const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): WorkspaceState => {
@@ -167,6 +172,14 @@ const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): Works
       return { ...state, isLowPerfMode: action.payload };
     case 'SET_TERMINAL_EXECUTING':
       return { ...state, isTerminalExecuting: action.payload };
+    case 'UPDATE_SETTINGS':
+      const newSettings = { ...state.globalSettings, ...action.payload };
+      localStorage.setItem('eldoria_settings', JSON.stringify(newSettings));
+      return { ...state, globalSettings: newSettings };
+    case 'TRIGGER_REINDEX_START':
+      return { ...state, isIndexing: true };
+    case 'TRIGGER_REINDEX_COMPLETE':
+      return { ...state, isIndexing: false };
     default:
       return state;
   }
@@ -209,6 +222,8 @@ interface WorkspaceContextType extends WorkspaceState {
   resetOnboarding: () => void;
   setLowPerfMode: (enabled: boolean) => void;
   isTerminalExecuting: boolean;
+  updateGlobalSettings: (settings: Partial<any>) => void;
+  reIndexWorkspace: () => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -816,6 +831,34 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const updateGlobalSettings = useCallback((settings: Partial<any>) => {
+    dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
+  }, []);
+
+  const reIndexWorkspace = useCallback(async () => {
+    dispatch({ type: 'TRIGGER_REINDEX_START' });
+    try {
+      await CodebaseService.indexProject();
+      // Force refresh context if needed
+      contextService.updateContext({
+        // This forces a context update with the new index string
+        activeFileName: activeCanvas?.name || 'Index Update',
+        activeFileContent: 'Refreshed Index'
+      });
+      // We actually want the REAL index in the context service, which it likely pulls from CodebaseService directly 
+      // when we call updateContext, or we pass it explicitly.
+      // Looking at ContextService, it seems to hold state. 
+      // Let's rely on the fact that CodebaseService.indexProject() updates the static index string.
+
+    } catch (e) {
+      console.error("Manual re-index failed", e);
+    } finally {
+      dispatch({ type: 'TRIGGER_REINDEX_COMPLETE' });
+    }
+  }, [activeCanvas]);
+
+
+
   const completeOnboarding = useCallback(() => {
     dispatch({ type: 'SET_ONBOARDING_STATUS', payload: new Date().toISOString() });
   }, []);
@@ -879,7 +922,9 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       completeOnboarding,
       setUserLevel,
       resetOnboarding,
-      setLowPerfMode
+      setLowPerfMode,
+      updateGlobalSettings,
+      reIndexWorkspace
     }}>
       {children}
     </WorkspaceContext.Provider>

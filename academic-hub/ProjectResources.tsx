@@ -9,7 +9,7 @@ interface ProjectResourcesProps {
 }
 
 export const ProjectResources: React.FC<ProjectResourcesProps> = ({ project }) => {
-    const { runManualCommand } = useWorkspace();
+    const { runManualCommand, reIndexWorkspace, isIndexing } = useWorkspace();
     const [resources, setResources] = useState<{ name: string, path: string, isDir: boolean }[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -73,9 +73,18 @@ export const ProjectResources: React.FC<ProjectResourcesProps> = ({ project }) =
                     <HardDrive className="w-4 h-4 text-cyan-400" />
                     <h4 className="text-[10px] font-bold text-cyan-100 uppercase tracking-widest">Resource Vault</h4>
                 </div>
-                <button onClick={fetchResources} className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-cyan-500/40 hover:text-cyan-100">
-                    <RefreshCcw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => reIndexWorkspace()}
+                        className={`p-1.5 hover:bg-white/5 rounded-lg transition-colors ${isIndexing ? 'text-amber-400 animate-pulse' : 'text-cyan-500/40 hover:text-cyan-100'}`}
+                        title="Re-index Global Knowledge"
+                    >
+                        <FileSearch className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={fetchResources} className="p-1.5 hover:bg-white/5 rounded-lg transition-colors text-cyan-500/40 hover:text-cyan-100" title="Refresh Folder">
+                        <RefreshCcw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
             <div className="flex-grow overflow-y-auto custom-scrollbar p-2 space-y-1">
