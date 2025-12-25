@@ -8,7 +8,7 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { StatusBar } from './components/StatusBar';
 import { Sidebar } from './components/Sidebar';
 import { AcademicHub } from './academic-hub/AcademicHub';
-import { API_KEY } from './config';
+import { API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY } from './config';
 import { useWorkspace } from './context/WorkspaceContext';
 import { SplashScreen } from './components/onboarding/SplashScreen';
 import { UserLevelModal } from './components/onboarding/UserLevelModal';
@@ -85,7 +85,8 @@ const App: React.FC = () => {
     }
   }, [onboarding_completed, onboardingPhase]);
 
-  if (!API_KEY) {
+  // Allow app to run if any supported AI key is present
+  if (!API_KEY && !GROQ_API_KEY && !OPENROUTER_API_KEY) {
     return <ConfigErrorOverlay />;
   }
 
