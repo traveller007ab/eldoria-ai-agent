@@ -120,14 +120,24 @@ export const OutputPanel: React.FC = () => {
             return;
         }
 
-        // --- Content Sanitization ---
-        let content = activeCanvas.output;
+        // --- Content Assembly & Robust Sanitization ---
+        let content = activeCanvas.output.trim();
 
-        // 1. Strip AI "Plan-speak" (e.g., "To perform... I will first...")
-        const preambleRegex = /^(To perform|I will|Sure,|I'll|Certainly|Here is|Then, I'll proceed).+?(\.\s+|\n\n)/gi;
-        content = content.replace(preambleRegex, '').trim();
+        // 1. Aggressive preamble removal (strips multiple AI planning sentences at the start)
+        const preambleRegex = /^(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me).+?(\. |\.\s+|\n)/gim;
 
-        // 2. Clean up SAF_ISO tags but keep JSON (make it look like a Technical Appendix)
+        let lastContent = "";
+        // Loop to catch consecutive sentences (e.g. "To perform... I will... Then I'll...")
+        while (content !== lastContent) {
+            lastContent = content;
+            content = content.replace(preambleRegex, '').trim();
+        }
+
+        // 2. Clean up SAF_ISO tags but keep JSON
+        // If it's already inside a code block, we strip the tags to avoid broken nesting
+        content = content.replace(/```json\n<SAF_ISO>/g, '```json');
+        content = content.replace(/<\/SAF_ISO>\n```/g, '```');
+        // If it's naked, we wrap it properly as a technical section
         content = content.replace(/<SAF_ISO>/g, '\n\n### Technical Specification (SAF-ISO)\n```json\n');
         content = content.replace(/<\/SAF_ISO>/g, '\n```\n');
 
@@ -205,31 +215,32 @@ export const OutputPanel: React.FC = () => {
                 <div class="header">
                     <div>
                         <div class="meta">Eldoria Strategic Analysis</div>
-                        <h1>${activeCanvas.name || "STRATEGIC BRIEF"}</h1>
+                        <h1>\${activeCanvas.name || "STRATEGIC BRIEF"}</h1>
                     </div>
                     <div style="text-align: right;">
                         <div class="meta">Timestamp</div>
-                        <div style="font-size: 12px; color: #475569;">${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
+                        <div style="font-size: 12px; color: #475569;">\${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
                     </div>
                 </div>
                 <div id="content"></div>
                 <div class="footer">
-                    Generated via Eldoria AI IDE &bull; Neural Context Layer v1.2 &bull; Project ID: ${activeCanvas.id}
+                    Generated via Eldoria AI IDE &bull; Neural Context Layer v1.2 &bull; Project ID: \${activeCanvas.id}
                 </div>
                 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
                 <script>
-                    const rawContent = \`${content.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
+                    const rawContent = \\\`\${content.replace(/\\\\/g, '\\\\\\\\').replace(/\\\`/g, '\\\\\\\`').replace(/\\\\$/g, '\\\\\\$')}\\\`;
                     document.getElementById('content').innerHTML = marked.parse(rawContent);
                     
                     window.onload = () => {
+                        // Wait for fonts and marked to settle
                         setTimeout(() => {
                             window.print();
-                        }, 5000); // 5s wait to ensure fonts and marked are ready
+                        }, 1200); 
                     };
                 </script>
             </body>
             </html>
-        `);
+        \`);
         printWindow.document.close();
     };
 
@@ -285,7 +296,7 @@ export const OutputPanel: React.FC = () => {
                                     title="Publish this strategic output to the Academic Hub"
                                 >
                                     Publish to Hub
-                                    <ChevronDown className={`w-3 h-3 transition-transform ${isPublishDropdownOpen ? 'rotate-180' : ''}`} />
+                                    <ChevronDown className={`w - 3 h - 3 transition - transform \${ isPublishDropdownOpen? 'rotate-180': '' }`} />
                                 </button>
 
                                 {isPublishDropdownOpen && (
@@ -297,7 +308,7 @@ export const OutputPanel: React.FC = () => {
                                                     key={proj.id}
                                                     onClick={() => {
                                                         const timestamp = new Date().toISOString().split('T')[0];
-                                                        publishToAcademicHub(proj.id, `Strategic_Brief_${timestamp}.md`, activeCanvas?.output || '');
+                                                        publishToAcademicHub(proj.id, \`Strategic_Brief_\${timestamp}.md\`, activeCanvas?.output || '');
                                                         setIsPublishDropdownOpen(false);
                                                     }}
                                                     className="w-full text-left px-4 py-2 hover:bg-emerald-500/10 transition-colors group flex items-center justify-between"
