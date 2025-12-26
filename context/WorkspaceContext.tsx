@@ -237,6 +237,8 @@ interface WorkspaceContextType extends WorkspaceState {
   isTerminalExecuting: boolean;
   updateGlobalSettings: (settings: Partial<any>) => void;
   reIndexWorkspace: () => Promise<void>;
+  state: WorkspaceState;
+  dispatch: React.Dispatch<WorkspaceAction>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -1021,7 +1023,9 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       resetOnboarding,
       setLowPerfMode,
       updateGlobalSettings,
-      reIndexWorkspace
+      reIndexWorkspace,
+      state,
+      dispatch
     }}>
       {children}
     </WorkspaceContext.Provider>
