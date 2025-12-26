@@ -137,7 +137,7 @@ export const AcademicHub: React.FC = () => {
             return;
         }
 
-        // Collect all draft content for a unified preview
+        // --- Selective Content Assembly & Sanitization ---
         const chapters = [
             { name: 'Front Matter', content: selectedProject.draft_content['Front Matter'] },
             { name: 'Abstract', content: selectedProject.draft_content['Abstract'] },
@@ -148,16 +148,23 @@ export const AcademicHub: React.FC = () => {
             { name: 'Chapter 5: Conclusion & Recommendations', content: selectedProject.draft_content['Chapter 5: Conclusion & Recommendations'] }
         ];
 
+        // Regex to strip AI preamble ("To perform...", "I will first...")
+        const preambleRegex = /^(To perform|I will|Sure,|I'll|Certainly|Here is|Then, I'll proceed).+?(\.\s+|\n\n)/gi;
+
         let markdownContent = `# ${selectedProject.wizard_state.basics.title || 'ACADEMIC RESEARCH REPORT'}\n\n`;
-        markdownContent += `**Author:** ${selectedProject.wizard_state.basics.author || 'N/A'}\n\n`;
+        markdownContent += `**Investigator:** ${selectedProject.wizard_state.basics.author || 'N/A'}\n\n`;
         if (selectedProject.wizard_state.basics.regNumber) {
             markdownContent += `**Reg Number:** ${selectedProject.wizard_state.basics.regNumber}\n\n`;
         }
-        markdownContent += `**Year:** ${selectedProject.wizard_state.basics.year || '2024'}\n\n---\n\n`;
+        markdownContent += `**Academic Year:** ${selectedProject.wizard_state.basics.year || '2024'}\n\n---\n\n`;
 
         chapters.forEach(ch => {
             if (ch.content) {
-                markdownContent += `## ${ch.name}\n\n${ch.content}\n\n`;
+                // Sanitize chapter content individually
+                const cleanedContent = ch.content.replace(preambleRegex, '').trim();
+                if (cleanedContent) {
+                    markdownContent += `## ${ch.name}\n\n${cleanedContent}\n\n`;
+                }
             }
         });
 
@@ -172,44 +179,99 @@ export const AcademicHub: React.FC = () => {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Thesis Preview - ${selectedProject.wizard_state.basics.title}</title>
+                <title>Draft Submission - ${selectedProject.wizard_state.basics.title}</title>
                 <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-                    body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #1a202c; max-width: 800px; margin: 40px auto; padding: 0 40px; background: white; }
-                    .header { text-align: center; margin-bottom: 60px; border-bottom: 3px double #06b6d4; padding-bottom: 30px; }
-                    .header .meta { font-size: 10px; color: #718096; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 800; margin-bottom: 10px; }
-                    .header h1 { margin: 0; font-size: 28px; color: #0891b2; line-height: 1.2; }
+                    @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;700&display=swap');
+                    body { 
+                        font-family: 'Crimson Pro', serif; 
+                        line-height: 1.8; 
+                        color: #1a202c; 
+                        max-width: 800px; 
+                        margin: 40px auto; 
+                        padding: 0 60px; 
+                        background: white; 
+                    }
+                    .header { 
+                        text-align: center; 
+                        margin-bottom: 60px; 
+                        border-bottom: 3px double #06b6d4; 
+                        padding-bottom: 30px; 
+                    }
+                    .header .meta { 
+                        font-family: 'Inter', sans-serif;
+                        font-size: 10px; 
+                        color: #718096; 
+                        text-transform: uppercase; 
+                        letter-spacing: 0.25em; 
+                        font-weight: 800; 
+                        margin-bottom: 15px; 
+                    }
+                    .header h1 { 
+                        margin: 0; 
+                        font-size: 32px; 
+                        color: #0c4a6e; 
+                        line-height: 1.1; 
+                        font-weight: 700;
+                    }
                     
-                    #content { font-size: 14px; text-align: justify; }
-                    h2 { font-size: 18px; border-bottom: 1px solid #edf2f7; padding-bottom: 10px; margin-top: 40px; color: #164e63; text-transform: uppercase; letter-spacing: 0.05em; }
-                    p { margin-bottom: 20px; text-indent: 0; }
+                    #content { font-size: 16px; text-align: justify; }
+                    h2 { 
+                        font-family: 'Inter', sans-serif;
+                        font-size: 18px; 
+                        border-bottom: 1px solid #e2e8f0; 
+                        padding-bottom: 10px; 
+                        margin-top: 50px; 
+                        color: #075985; 
+                        text-transform: uppercase; 
+                        letter-spacing: 0.1em; 
+                        font-weight: 700;
+                    }
+                    p { margin-bottom: 1.5em; text-indent: 0; }
                     
-                    blockquote { border-left: 4px solid #06b6d4; padding-left: 20px; font-style: italic; color: #475569; margin: 30px 0; background: #f0f9ff; padding-top: 15px; padding-bottom: 15px; }
-                    .footer { text-align: center; margin-top: 80px; font-size: 9px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; }
+                    blockquote { 
+                        border-left: 4px solid #06b6d4; 
+                        padding: 20px 30px; 
+                        font-style: italic; 
+                        color: #475569; 
+                        margin: 30px 0; 
+                        background: #f0f9ff; 
+                    }
+                    .footer { 
+                        font-family: 'Inter', sans-serif;
+                        text-align: center; 
+                        margin-top: 100px; 
+                        font-size: 9px; 
+                        color: #94a3b8; 
+                        border-top: 1px solid #f1f5f9; 
+                        padding-top: 30px; 
+                        font-weight: 600; 
+                        text-transform: uppercase; 
+                        letter-spacing: 0.2em; 
+                    }
                     
                     @media print {
-                        body { margin: 0; padding: 20mm; }
+                        body { margin: 0; padding: 25mm; }
                         h2 { page-break-before: always; }
                     }
                 </style>
             </head>
             <body>
                 <div class="header">
-                    <div class="meta">RSU Mechanical Engineering Thesis Draft</div>
+                    <div class="meta">Strategic Academic Framework &bull; Draft Submission</div>
                     <h1>${selectedProject.wizard_state.basics.title.toUpperCase() || 'UNTITLED RESEARCH'}</h1>
-                    <div style="margin-top: 20px; font-weight: 700; font-size: 13px;">BY ${selectedProject.wizard_state.basics.author.toUpperCase()}</div>
-                    <div style="font-size: 11px; color: #64748b; margin-top: 5px;">${selectedProject.wizard_state.basics.year}</div>
+                    <div style="margin-top: 25px; font-weight: 700; font-size: 14px; font-family: 'Inter', sans-serif; color: #1e293b;">PREPARED BY: ${selectedProject.wizard_state.basics.author.toUpperCase()}</div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 5px; font-family: 'Inter', sans-serif;">ACADEMIC SESSION: ${selectedProject.wizard_state.basics.year}</div>
                 </div>
                 <div id="content"></div>
                 <div class="footer">
-                    Eldoria AI Co-Pilot &bull; Strategic Academic Framework &bull; Port Harcourt, Nigeria
+                    Eldoria AI Co-Pilot &bull; Project ID: ${selectedProject.id} &bull; Validated Draft Output
                 </div>
                 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
                 <script>
                     const rawContent = \`${markdownContent.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
                     document.getElementById('content').innerHTML = marked.parse(rawContent);
                     window.onload = () => {
-                        setTimeout(() => { window.print(); }, 800);
+                        setTimeout(() => { window.print(); }, 2000);
                     };
                 </script>
             </body>

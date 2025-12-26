@@ -120,80 +120,111 @@ export const OutputPanel: React.FC = () => {
             return;
         }
 
-        // Generate a professional print document with the output content
+        // --- Content Sanitization ---
+        let content = activeCanvas.output;
+
+        // 1. Strip AI "Plan-speak" (e.g., "To perform... I will first...")
+        const preambleRegex = /^(To perform|I will|Sure,|I'll|Certainly|Here is|Then, I'll proceed).+?(\.\s+|\n\n)/gi;
+        content = content.replace(preambleRegex, '').trim();
+
+        // 2. Clean up SAF_ISO tags but keep JSON (make it look like a Technical Appendix)
+        content = content.replace(/<SAF_ISO>/g, '\n\n### Technical Specification (SAF-ISO)\n```json\n');
+        content = content.replace(/<\/SAF_ISO>/g, '\n```\n');
+
+        // 3. Normalize headers if they are too deep
+        if (!content.includes('# ')) {
+            content = content.replace(/^### /gm, '## '); // Shift H3 to H2 if no H1
+        }
+
         printWindow.document.write(`
             <!DOCTYPE html>
             <html>
             <head>
                 <title>Eldoria Hub - Strategic Brief</title>
                 <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono&display=swap');
                     body { 
-                        font-family: 'Inter', sans-serif; 
-                        line-height: 1.6; 
+                        font-family: 'IBM Plex Sans', sans-serif; 
+                        line-height: 1.7; 
                         color: #1a202c; 
-                        max-width: 800px; 
-                        margin: 40px auto; 
-                        padding: 0 40px;
+                        max-width: 850px; 
+                        margin: 50px auto; 
+                        padding: 0 50px;
                         background: white;
                     }
-                    .header { text-align: left; margin-bottom: 30px; border-bottom: 2px solid #06b6d4; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-end; }
-                    .header h1 { margin: 0; font-size: 24px; color: #0891b2; letter-spacing: -0.025em; }
-                    .header .meta { font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+                    .header { 
+                        text-align: left; 
+                        margin-bottom: 40px; 
+                        border-bottom: 2px solid #06b6d4; 
+                        padding-bottom: 20px; 
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: flex-end; 
+                    }
+                    .header h1 { margin: 0; font-size: 26px; color: #0e7490; font-weight: 600; letter-spacing: -0.01em; }
+                    .header .meta { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
                     
-                    #content { font-size: 14px; }
-                    h1, h2, h3 { color: #0e7490; margin-top: 1.5em; margin-bottom: 0.5em; }
-                    h1 { font-size: 22px; }
-                    h2 { font-size: 18px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px; }
-                    h3 { font-size: 16px; }
+                    #content { font-size: 15px; color: #334155; }
+                    h1 { font-size: 24px; color: #0f172a; margin-top: 1.5em; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }
+                    h2 { font-size: 20px; color: #1e293b; margin-top: 1.5em; }
+                    h3 { font-size: 17px; color: #334155; margin-top: 1.25em; text-transform: uppercase; letter-spacing: 0.05em; border-left: 3px solid #06b6d4; padding-left: 12px; }
                     
-                    p { margin-bottom: 1.25em; }
-                    ul, ol { margin-bottom: 1.25em; padding-left: 1.5em; }
-                    li { margin-bottom: 0.5em; }
+                    p { margin-bottom: 1.5em; text-align: justify; }
+                    ul, ol { margin-bottom: 1.5em; padding-left: 1.75em; }
+                    li { margin-bottom: 0.75em; }
                     
-                    pre { background: #f8fafc; padding: 1.25em; border-radius: 8px; font-size: 12px; overflow-x: auto; border: 1px solid #e2e8f0; margin: 1.5em 0; }
-                    code { background: #f1f5f9; padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: monospace; }
+                    pre { 
+                        background: #f8fafc; 
+                        padding: 20px; 
+                        border-radius: 10px; 
+                        font-family: 'IBM Plex Mono', monospace;
+                        font-size: 13px; 
+                        overflow-x: auto; 
+                        border: 1px solid #e2e8f0; 
+                        margin: 2em 0;
+                        color: #475569;
+                    }
+                    code { background: #f1f5f9; padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: 'IBM Plex Mono', monospace; }
                     
-                    blockquote { border-left: 4px solid #06b6d4; padding-left: 1.25em; font-style: italic; color: #475569; margin: 1.5em 0; background: #f0f9ff; padding-top: 0.5em; padding-bottom: 0.5em; }
+                    blockquote { border-left: 4px solid #06b6d4; padding: 15px 25px; font-style: italic; color: #475569; margin: 2em 0; background: #f0f9ff; border-radius: 0 10px 10px 0; }
                     
-                    table { border-collapse: collapse; width: 100%; margin: 2em 0; font-size: 12px; }
-                    th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
-                    th { background: #f8fafc; font-weight: 700; color: #334155; }
+                    table { border-collapse: collapse; width: 100%; margin: 2.5em 0; font-size: 13px; }
+                    th, td { border: 1px solid #e2e8f0; padding: 14px; text-align: left; }
+                    th { background: #f8fafc; font-weight: 700; color: #1e293b; text-transform: uppercase; font-size: 11px; }
                     
-                    .footer { text-align: center; margin-top: 60px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; }
+                    .footer { text-align: center; margin-top: 80px; font-size: 10px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 25px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; }
                     
                     @media print {
-                        body { margin: 0; padding: 20mm; }
+                        body { margin: 0; padding: 15mm; }
                         .no-print { display: none; }
+                        h1, h2 { page-break-after: avoid; }
                     }
                 </style>
             </head>
             <body>
                 <div class="header">
                     <div>
-                        <div class="meta">Strategic Output Document</div>
-                        <h1>ELDORIA HUB BRIEF</h1>
+                        <div class="meta">Eldoria Strategic Analysis</div>
+                        <h1>${activeCanvas.name || "STRATEGIC BRIEF"}</h1>
                     </div>
                     <div style="text-align: right;">
                         <div class="meta">Timestamp</div>
-                        <div style="font-size: 12px; color: #475569;">${new Date().toLocaleString()}</div>
+                        <div style="font-size: 12px; color: #475569;">${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
                     </div>
                 </div>
                 <div id="content"></div>
                 <div class="footer">
-                    Generated via Eldoria AI IDE &bull; Strategic Academic Framework
+                    Generated via Eldoria AI IDE &bull; Neural Context Layer v1.2 &bull; Project ID: ${activeCanvas.id}
                 </div>
                 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
                 <script>
-                    const rawContent = \`${activeCanvas.output.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
+                    const rawContent = \`${content.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
                     document.getElementById('content').innerHTML = marked.parse(rawContent);
                     
-                    // Trigger print after a short delay to ensure assets/fonts load
                     window.onload = () => {
                         setTimeout(() => {
                             window.print();
-                            // Optional: window.close(); // Some users prefer to keep it open to verify
-                        }, 500);
+                        }, 5000); // 5s wait to ensure fonts and marked are ready
                     };
                 </script>
             </body>
