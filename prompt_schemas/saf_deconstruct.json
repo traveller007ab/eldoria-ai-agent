@@ -1,0 +1,38 @@
+{
+    "id": "saf-deconstruct",
+    "name": "SAF System Deconstruction",
+    "category": "engineering",
+    "tags": [
+        "mechanical",
+        "thermodynamics",
+        "analysis",
+        "systems"
+    ],
+    "description": "Break down any physical, mathematical, or conceptual system into hierarchical components using SAF principles. Outputs a structured blueprint for modification and optimization.",
+    "variables": [
+        {
+            "name": "system_name",
+            "type": "string",
+            "required": true,
+            "label": "System Name",
+            "placeholder": "e.g., Rankine Cycle"
+        },
+        {
+            "name": "description",
+            "type": "string",
+            "required": true,
+            "label": "System Description",
+            "placeholder": "Describe the system's purpose and components"
+        },
+        {
+            "name": "modification_goal",
+            "type": "string",
+            "required": false,
+            "label": "Modification Goal",
+            "placeholder": "What to optimize or change"
+        }
+    ],
+    "prompt_template": "Using the SAF (Strategic Analysis Framework), perform a comprehensive deconstruction of the '{{system_name}}' system.\n\nSystem Description: {{description}}\n\n{{#modification_goal}}Optimization Goal: {{modification_goal}}\n\n{{/modification_goal}}Apply SAF principles:\n1. Identify all core, subcore, and micro components\n2. Map dependencies between components\n3. Highlight critical paths and potential bottlenecks\n4. Suggest modifications with cascading effect analysis\n\nOutput a SAF_ISO JSON blueprint with components, flows, and recommendations.",
+    "output_format": "SAF_ISO JSON Blueprint",
+    "icon": "Cpu"
+}

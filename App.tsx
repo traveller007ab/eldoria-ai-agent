@@ -5,8 +5,8 @@ import { FileExplorerPanel } from './components/FileExplorerPanel';
 import { EditorPanel } from './components/EditorPanel';
 import { OutputPanel } from './components/OutputPanel';
 import { TerminalPanel } from './components/TerminalPanel';
-import { StatusBar } from './components/StatusBar';
-import { Sidebar } from './components/Sidebar';
+import { StatusBar } from './components/layout/StatusBar';
+import { Sidebar } from './components/layout/Sidebar';
 import { AcademicHub } from './academic-hub/AcademicHub';
 import { API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY } from './config';
 import { useWorkspace } from './context/WorkspaceContext';
@@ -16,7 +16,7 @@ import { OnboardingTour } from './components/onboarding/OnboardingTour';
 import { EldoriaLogo } from './components/Icons';
 import { DownloadHub } from './components/DownloadHub';
 import { useState } from 'react';
-import { TitleBar } from './components/TitleBar';
+import { TitleBar } from './components/layout/TitleBar';
 
 const IdeWorkspace: React.FC = () => {
   const { isTerminalVisible, isTerminalExpanded } = useWorkspace();

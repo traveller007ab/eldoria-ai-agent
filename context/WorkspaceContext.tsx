@@ -452,6 +452,45 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
       }
       return { success: true, output: `Executed: ${command}` };
     }
+    if (name === 'deconstruct_system') {
+      // SAF System Deconstruction Tool
+      const safBlueprint = {
+        project_name: args.system_name,
+        modification_goal: args.modification_goal || 'Analysis only',
+        components: [
+          { id: 'core', name: `${args.system_name} Core`, type: 'core', dependencies: [] },
+          { id: 'input', name: 'Input Layer', type: 'subcore', dependencies: ['core'] },
+          { id: 'processing', name: 'Processing Unit', type: 'subcore', dependencies: ['core'] },
+          { id: 'output', name: 'Output Layer', type: 'subcore', dependencies: ['processing'] }
+        ],
+        flows: [
+          { from: 'input', to: 'processing', type: 'data_flow' },
+          { from: 'processing', to: 'output', type: 'data_flow' }
+        ],
+        description: args.description
+      };
+
+      // Create a new canvas with the blueprint for visualization
+      const blueprintContent = `# SAF Blueprint: ${args.system_name}\n\n## Goal\n${args.modification_goal || 'System Analysis'}\n\n## Description\n${args.description}\n\n## Component Tree\n\`\`\`json\n${JSON.stringify(safBlueprint, null, 2)}\n\`\`\`\n\n---\n*Use this blueprint to modify components and observe cascading effects.*`;
+      const newCanvas = await createCanvas(`SAF: ${args.system_name}`, [{ type: 'text', content: blueprintContent }], false);
+
+      return {
+        success: true,
+        blueprint: safBlueprint,
+        canvasId: newCanvas?.id,
+        message: `System "${args.system_name}" deconstructed. Blueprint saved to new canvas.`
+      };
+    }
+    if (name === 'suggest_prompt') {
+      // AI is recommending a prompt schema
+      return {
+        success: true,
+        message: `Suggested prompt schema: ${args.schema_id}. Reasoning: ${args.reasoning}`,
+        schema_id: args.schema_id,
+        suggested_variables: args.suggested_variables || {},
+        reasoning: args.reasoning
+      };
+    }
     // googleSearch is handled natively by the Gemini API.
     return { error: `Tool "${name}" is not implemented.` };
   }, [createCanvas, activeCanvas, state.activeCanvasId, _updateCanvasDatabase]);

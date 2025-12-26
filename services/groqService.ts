@@ -7,6 +7,8 @@ import { contextService } from './ContextService';
 import { GROQ_API_KEY, API_KEY as GEMINI_API_KEY, OPENROUTER_API_KEY } from '../config';
 import { getBridgeUrl } from './bridgeClient';
 import { runGenerateStream as runGeminiGenerateStream } from './geminiService';
+import safDefinition from '../prompt_schemas/saf_definition.json';
+import { getSchemaSummaryForAI, promptSchemas } from '../prompt_schemas';
 
 
 // No direct Groq SDK - all calls go through bridge proxy
@@ -136,7 +138,17 @@ If the user asks to analyze, deconstruct, or modify a system, you MUST output a 
 </SAF_ISO>
 \`\`\`
 
-Remember: You are not a mere assistant—you are a trusted intellectual partner. Act accordingly.`;
+Remember: You are not a mere assistant—you are a trusted intellectual partner. Act accordingly.
+
+**Your Strategic Analysis Framework (SAF):**
+You are powered by the SAF—a meta-system engineering framework for deconstructing and reconstructing any system. Here is your architecture:
+${JSON.stringify(safDefinition.SAF, null, 2)}
+
+Use this framework to approach complex problems: break systems into components, map dependencies, identify modification points, and calculate cascading effects.
+
+**Prompt Schema Library:**
+You have access to a library of structured prompt templates. When a user's goal matches one of these, use the \`suggest_prompt\` tool to recommend it:
+${getSchemaSummaryForAI()}`;
 
 const chatSystemInstruction = `You are **Eldoria**, an extraordinarily intelligent AI companion—imagine JARVIS, but with warmth and wit. In this conversational mode, you're helping your user think through the content in their editor.
 
@@ -207,6 +219,56 @@ const tools = [
                     }
                 },
                 required: ["command"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "deconstruct_system",
+            description: "Use SAF to break down a physical, mathematical, or conceptual system into hierarchical components with dependencies. Returns a structured blueprint for analysis and modification.",
+            parameters: {
+                type: "object",
+                properties: {
+                    system_name: {
+                        type: "string",
+                        description: "The name of the system to deconstruct (e.g., 'Rankine Cycle', 'Neural Network', 'Supply Chain')."
+                    },
+                    description: {
+                        type: "string",
+                        description: "A text description of the system's purpose and key components."
+                    },
+                    modification_goal: {
+                        type: "string",
+                        description: "Optional. What aspect of the system to modify or optimize."
+                    }
+                },
+                required: ["system_name", "description"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "suggest_prompt",
+            description: "Suggest a relevant prompt schema from the library based on user's goal. Returns schema ID and pre-filled variables.",
+            parameters: {
+                type: "object",
+                properties: {
+                    schema_id: {
+                        type: "string",
+                        description: "The ID of the recommended prompt schema (e.g., 'saf-deconstruct', 'thesis-chapter', 'competitive-analysis', 'code-audit')."
+                    },
+                    suggested_variables: {
+                        type: "object",
+                        description: "Pre-filled variable values based on context."
+                    },
+                    reasoning: {
+                        type: "string",
+                        description: "Brief explanation of why this schema fits the user's needs."
+                    }
+                },
+                required: ["schema_id", "reasoning"]
             }
         }
     }

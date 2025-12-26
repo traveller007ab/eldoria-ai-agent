@@ -1,0 +1,38 @@
+{
+    "id": "competitive-analysis",
+    "name": "Competitive Analysis Report",
+    "category": "business",
+    "tags": [
+        "market",
+        "research",
+        "strategy",
+        "comparison"
+    ],
+    "description": "Generate a structured competitive analysis of companies in a specific market segment. Includes product features, pricing, and strategic positioning.",
+    "variables": [
+        {
+            "name": "industry",
+            "type": "string",
+            "required": true,
+            "label": "Industry/Market",
+            "placeholder": "e.g., Cloud Data Warehousing"
+        },
+        {
+            "name": "num_competitors",
+            "type": "number",
+            "required": false,
+            "label": "Number of Competitors",
+            "placeholder": "3"
+        },
+        {
+            "name": "focus_areas",
+            "type": "string",
+            "required": false,
+            "label": "Focus Areas",
+            "placeholder": "e.g., pricing, features, announcements"
+        }
+    ],
+    "prompt_template": "Perform a comprehensive competitive analysis of the top {{#num_competitors}}{{num_competitors}}{{/num_competitors}}{{^num_competitors}}3{{/num_competitors}} companies in the {{industry}} space.\n\n{{#focus_areas}}Focus specifically on: {{focus_areas}}\n\n{{/focus_areas}}For each competitor, analyze:\n1. Company overview and market position\n2. Key product features and differentiators\n3. Pricing models and tiers\n4. Recent major announcements (last 6 months)\n5. Strengths and weaknesses\n\nSynthesize findings into a markdown report with:\n- Executive summary\n- Comparison table\n- Strategic recommendations",
+    "output_format": "Markdown Report with Tables",
+    "icon": "BarChart3"
+}

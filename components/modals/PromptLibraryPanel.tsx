@@ -1,0 +1,287 @@
+import React, { useState, useMemo } from 'react';
+import { Search, ChevronRight, Star, Cpu, BarChart3, GraduationCap, Shield, Play, Eye, X, BookOpen } from 'lucide-react';
+import { promptSchemas, searchSchemas, getCategories, composePrompt, PromptSchema } from '../../prompt_schemas';
+import { useWorkspace } from '../../context/WorkspaceContext';
+
+interface PromptLibraryPanelProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onExecute: (composedPrompt: string, schema: PromptSchema) => void;
+}
+
+const iconMap: Record<string, React.FC<{ className?: string }>> = {
+    Cpu: Cpu,
+    BarChart3: BarChart3,
+    GraduationCap: GraduationCap,
+    Shield: Shield,
+    BookOpen: BookOpen
+};
+
+const categoryColors: Record<string, string> = {
+    engineering: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
+    business: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    academic: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    development: 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+};
+
+export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, onClose, onExecute }) => {
+    const { academicProjects, activeCanvas } = useWorkspace();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedSchema, setSelectedSchema] = useState<PromptSchema | null>(null);
+    const [variables, setVariables] = useState<Record<string, string>>({});
+    const [showPreview, setShowPreview] = useState(false);
+    const [favorites, setFavorites] = useState<string[]>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('eldoria-favorite-prompts') || '[]');
+        } catch { return []; }
+    });
+
+    const categories = useMemo(() => getCategories(), []);
+    const filteredSchemas = useMemo(() => searchSchemas(searchQuery), [searchQuery]);
+
+    // Auto-prefill from context
+    const autoFillFromContext = (schema: PromptSchema) => {
+        const prefilled: Record<string, string> = {};
+        const activeProject = academicProjects[academicProjects.length - 1];
+
+        // Try to prefill common variables
+        if (schema.variables.some(v => v.name === 'thesis_topic') && activeProject) {
+            prefilled.thesis_topic = activeProject.wizard_state?.basics?.title || '';
+        }
+        if (schema.variables.some(v => v.name === 'system_name') && activeCanvas) {
+            // Try to extract from canvas content
+            const textContent = activeCanvas.content?.find(p => p.type === 'text');
+            if (textContent && 'content' in textContent) {
+                const firstLine = (textContent.content as string).split('\n')[0].slice(0, 50);
+                prefilled.system_name = firstLine || '';
+            }
+        }
+
+        return prefilled;
+    };
+
+    const handleSelectSchema = (schema: PromptSchema) => {
+        setSelectedSchema(schema);
+        setVariables(autoFillFromContext(schema));
+        setShowPreview(false);
+    };
+
+    const handleVariableChange = (name: string, value: string) => {
+        setVariables(prev => ({ ...prev, [name]: value }));
+    };
+
+    const toggleFavorite = (id: string) => {
+        const newFavorites = favorites.includes(id)
+            ? favorites.filter(f => f !== id)
+            : [...favorites, id];
+        setFavorites(newFavorites);
+        localStorage.setItem('eldoria-favorite-prompts', JSON.stringify(newFavorites));
+    };
+
+    const composedPrompt = selectedSchema ? composePrompt(selectedSchema, variables) : '';
+
+    const handleExecute = () => {
+        if (selectedSchema && composedPrompt) {
+            onExecute(composedPrompt, selectedSchema);
+            onClose();
+        }
+    };
+
+    if (!isOpen) return null;
+
+    const Icon = selectedSchema ? (iconMap[selectedSchema.icon] || BookOpen) : BookOpen;
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-[#0a1628] border border-cyan-500/20 rounded-3xl w-full max-w-5xl max-h-[85vh] overflow-hidden flex shadow-[0_0_60px_rgba(34,211,238,0.1)]">
+
+                {/* Left: Schema Browser */}
+                <div className="w-1/3 border-r border-cyan-500/10 flex flex-col">
+                    <div className="p-4 border-b border-cyan-500/10">
+                        <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-sm font-bold text-cyan-300 uppercase tracking-widest flex items-center gap-2">
+                                <BookOpen className="w-4 h-4" />
+                                Prompt Library
+                            </h2>
+                            <button onClick={onClose} className="p-1.5 hover:bg-white/5 rounded-lg text-cyan-500/50 hover:text-cyan-300 transition-colors">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-cyan-500/30" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Search prompts..."
+                                className="w-full bg-black/20 border border-cyan-500/10 rounded-lg py-2 pl-9 pr-4 text-xs text-cyan-100 placeholder:text-cyan-500/30 focus:outline-none focus:border-cyan-500/30"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex-grow overflow-y-auto custom-scrollbar p-3 space-y-4">
+                        {/* Favorites */}
+                        {favorites.length > 0 && (
+                            <div>
+                                <div className="text-[9px] font-bold text-yellow-500/60 uppercase tracking-widest px-2 mb-2 flex items-center gap-1">
+                                    <Star className="w-3 h-3" /> Favorites
+                                </div>
+                                {promptSchemas.filter(s => favorites.includes(s.id)).map(schema => (
+                                    <SchemaCard
+                                        key={schema.id}
+                                        schema={schema}
+                                        isSelected={selectedSchema?.id === schema.id}
+                                        isFavorite={true}
+                                        onSelect={() => handleSelectSchema(schema)}
+                                        onToggleFavorite={() => toggleFavorite(schema.id)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* By Category */}
+                        {categories.map(category => (
+                            <div key={category}>
+                                <div className="text-[9px] font-bold text-cyan-500/40 uppercase tracking-widest px-2 mb-2">
+                                    {category}
+                                </div>
+                                {filteredSchemas.filter(s => s.category === category).map(schema => (
+                                    <SchemaCard
+                                        key={schema.id}
+                                        schema={schema}
+                                        isSelected={selectedSchema?.id === schema.id}
+                                        isFavorite={favorites.includes(schema.id)}
+                                        onSelect={() => handleSelectSchema(schema)}
+                                        onToggleFavorite={() => toggleFavorite(schema.id)}
+                                    />
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Right: Composer */}
+                <div className="flex-grow flex flex-col">
+                    {selectedSchema ? (
+                        <>
+                            <div className="p-4 border-b border-cyan-500/10 bg-cyan-500/5">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2.5 rounded-xl ${categoryColors[selectedSchema.category] || 'bg-cyan-500/20'}`}>
+                                        <Icon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-cyan-100">{selectedSchema.name}</h3>
+                                        <p className="text-[10px] text-cyan-500/50 mt-0.5">{selectedSchema.description}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex-grow overflow-y-auto custom-scrollbar p-4">
+                                {showPreview ? (
+                                    <div className="space-y-3">
+                                        <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Composed Prompt Preview</div>
+                                        <pre className="bg-black/30 border border-cyan-500/10 rounded-xl p-4 text-xs text-cyan-200 whitespace-pre-wrap font-mono">
+                                            {composedPrompt}
+                                        </pre>
+                                        <p className="text-[9px] text-cyan-500/40 italic">
+                                            ⚠️ Review and edit the AI's output in your own words.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Fill Variables</div>
+                                        {selectedSchema.variables.map(variable => (
+                                            <div key={variable.name}>
+                                                <label className="block text-[10px] font-bold text-cyan-300 mb-1">
+                                                    {variable.label}
+                                                    {variable.required && <span className="text-red-400 ml-1">*</span>}
+                                                </label>
+                                                {variable.type === 'string' && variable.name.includes('description') ? (
+                                                    <textarea
+                                                        value={variables[variable.name] || ''}
+                                                        onChange={e => handleVariableChange(variable.name, e.target.value)}
+                                                        placeholder={variable.placeholder}
+                                                        rows={3}
+                                                        className="w-full bg-black/20 border border-cyan-500/10 rounded-lg py-2 px-3 text-xs text-cyan-100 placeholder:text-cyan-500/30 focus:outline-none focus:border-cyan-500/30 resize-none"
+                                                    />
+                                                ) : (
+                                                    <input
+                                                        type={variable.type === 'number' ? 'number' : 'text'}
+                                                        value={variables[variable.name] || ''}
+                                                        onChange={e => handleVariableChange(variable.name, e.target.value)}
+                                                        placeholder={variable.placeholder}
+                                                        className="w-full bg-black/20 border border-cyan-500/10 rounded-lg py-2 px-3 text-xs text-cyan-100 placeholder:text-cyan-500/30 focus:outline-none focus:border-cyan-500/30"
+                                                    />
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="p-4 border-t border-cyan-500/10 flex items-center gap-3">
+                                <button
+                                    onClick={() => setShowPreview(!showPreview)}
+                                    className="flex-1 py-2.5 px-4 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-xl text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                    {showPreview ? 'Edit Variables' : 'Preview'}
+                                </button>
+                                <button
+                                    onClick={handleExecute}
+                                    disabled={!composedPrompt}
+                                    className="flex-1 py-2.5 px-4 bg-cyan-500 hover:bg-cyan-400 disabled:bg-cyan-500/20 disabled:text-cyan-500/50 text-slate-900 rounded-xl text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(34,211,238,0.3)]"
+                                >
+                                    <Play className="w-4 h-4" />
+                                    Execute
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-grow flex items-center justify-center text-cyan-500/30 text-sm">
+                            Select a prompt schema to begin
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Schema Card Component
+const SchemaCard: React.FC<{
+    schema: PromptSchema;
+    isSelected: boolean;
+    isFavorite: boolean;
+    onSelect: () => void;
+    onToggleFavorite: () => void;
+}> = ({ schema, isSelected, isFavorite, onSelect, onToggleFavorite }) => {
+    const Icon = iconMap[schema.icon] || BookOpen;
+
+    return (
+        <button
+            onClick={onSelect}
+            className={`w-full p-3 rounded-xl text-left transition-all group mb-2 ${isSelected
+                ? 'bg-cyan-500/20 border border-cyan-500/40'
+                : 'bg-black/20 border border-transparent hover:bg-cyan-500/10 hover:border-cyan-500/20'
+                }`}
+        >
+            <div className="flex items-center gap-3">
+                <div className={`p-1.5 rounded-lg ${categoryColors[schema.category] || 'bg-cyan-500/20'}`}>
+                    <Icon className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex-grow min-w-0">
+                    <div className="text-[11px] font-bold text-cyan-100 truncate">{schema.name}</div>
+                    <div className="text-[9px] text-cyan-500/40 truncate">{schema.tags.slice(0, 3).join(', ')}</div>
+                </div>
+                <button
+                    onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
+                    className={`p-1 rounded transition-colors ${isFavorite ? 'text-yellow-400' : 'text-cyan-500/20 hover:text-yellow-400/50'}`}
+                >
+                    <Star className="w-3.5 h-3.5" fill={isFavorite ? 'currentColor' : 'none'} />
+                </button>
+                <ChevronRight className={`w-3.5 h-3.5 text-cyan-500/20 transition-transform ${isSelected ? 'text-cyan-400 translate-x-1' : ''}`} />
+            </div>
+        </button>
+    );
+};

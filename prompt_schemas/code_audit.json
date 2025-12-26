@@ -1,0 +1,39 @@
+{
+    "id": "code-audit",
+    "name": "Code Security & Performance Audit",
+    "category": "development",
+    "tags": [
+        "code",
+        "security",
+        "performance",
+        "review",
+        "programming"
+    ],
+    "description": "Perform a comprehensive audit of code for security vulnerabilities, performance issues, and best practices violations.",
+    "variables": [
+        {
+            "name": "code_context",
+            "type": "string",
+            "required": true,
+            "label": "Code/File Context",
+            "placeholder": "Paste code or describe the codebase"
+        },
+        {
+            "name": "language",
+            "type": "string",
+            "required": false,
+            "label": "Programming Language",
+            "placeholder": "e.g., TypeScript, Python"
+        },
+        {
+            "name": "focus_type",
+            "type": "string",
+            "required": false,
+            "label": "Audit Focus",
+            "placeholder": "security, performance, or both"
+        }
+    ],
+    "prompt_template": "Perform a {{#focus_type}}{{focus_type}}{{/focus_type}}{{^focus_type}}security and performance{{/focus_type}} audit on the following {{#language}}{{language}} {{/language}}code:\n\n```\n{{code_context}}\n```\n\nAnalyze for:\n1. **Security Issues**: SQL injection, XSS, authentication flaws, data exposure\n2. **Performance Issues**: N+1 queries, memory leaks, inefficient algorithms\n3. **Best Practices**: Code structure, error handling, documentation\n4. **Dependencies**: Known vulnerabilities, outdated packages\n\nProvide:\n- Severity rating for each issue (Critical/High/Medium/Low)\n- Specific line numbers or code snippets\n- Recommended fixes with code examples\n- Summary of overall code health score",
+    "output_format": "Structured Audit Report",
+    "icon": "Shield"
+}

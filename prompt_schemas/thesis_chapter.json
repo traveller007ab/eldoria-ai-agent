@@ -1,0 +1,53 @@
+{
+    "id": "thesis-chapter",
+    "name": "Thesis Chapter Generator",
+    "category": "academic",
+    "tags": [
+        "thesis",
+        "research",
+        "writing",
+        "university",
+        "RSU"
+    ],
+    "description": "Generate a structured thesis chapter following academic standards. Includes proper citations, methodology discussion, and formatted sections.",
+    "variables": [
+        {
+            "name": "chapter_number",
+            "type": "number",
+            "required": true,
+            "label": "Chapter Number",
+            "placeholder": "e.g., 2"
+        },
+        {
+            "name": "chapter_title",
+            "type": "string",
+            "required": true,
+            "label": "Chapter Title",
+            "placeholder": "e.g., Literature Review"
+        },
+        {
+            "name": "thesis_topic",
+            "type": "string",
+            "required": true,
+            "label": "Thesis Topic",
+            "placeholder": "Your research topic/title"
+        },
+        {
+            "name": "key_points",
+            "type": "string",
+            "required": false,
+            "label": "Key Points to Cover",
+            "placeholder": "Comma-separated list of topics"
+        },
+        {
+            "name": "word_count",
+            "type": "number",
+            "required": false,
+            "label": "Target Word Count",
+            "placeholder": "3000"
+        }
+    ],
+    "prompt_template": "Generate Chapter {{chapter_number}}: {{chapter_title}} for a thesis on '{{thesis_topic}}'.\n\n{{#key_points}}Key points to address: {{key_points}}\n\n{{/key_points}}{{#word_count}}Target approximately {{word_count}} words.\n\n{{/word_count}}Requirements:\n1. Follow academic writing standards\n2. Include properly formatted section headings ({{chapter_number}}.1, {{chapter_number}}.2, etc.)\n3. Cite relevant literature (use [Author, Year] format for placeholders)\n4. Maintain formal tone throughout\n5. Include transition paragraphs between sections\n6. End with a summary connecting to thesis objectives\n\n⚠️ REMINDER: Review and edit output in your own words. This is a starting draft.",
+    "output_format": "Formatted Academic Chapter",
+    "icon": "GraduationCap"
+}
