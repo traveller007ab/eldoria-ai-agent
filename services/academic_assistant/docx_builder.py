@@ -4,6 +4,8 @@ import os
 from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+import time
+from datetime import datetime
 
 def build_thesis(input_data):
     doc = Document()
@@ -90,6 +92,43 @@ def build_thesis(input_data):
     output_path = f"thesis_{input_data.get('id', 'temp')}.docx"
     doc.save(output_path)
     return output_path
+
+def build_simple_doc(title, content):
+    doc = Document()
+    
+    # Professional Header
+    header = doc.add_heading(title.upper(), level=0)
+    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Body Content
+    # Very basic markdown support (bolding and paragraphs)
+    for part in content.split('\n'):
+        if not part.strip():
+            doc.add_paragraph()
+            continue
+            
+        p = doc.add_paragraph()
+        # Handle bolding via **
+        segments = part.split('**')
+        for i, segment in enumerate(segments):
+            run = p.add_run(segment)
+            if i % 2 != 0: # Inside **
+                run.bold = True
+                
+    # Footer
+    for section in doc.sections:
+        footer = section.footer
+        p = footer.paragraphs[0]
+        p.text = f"Eldoria Strategic Brief | Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in p.runs:
+            run.font.size = Pt(8)
+            run.font.italic = True
+
+    filename = f"export_{int(time.time())}.docx"
+    output_path = os.path.join(os.getcwd(), filename)
+    doc.save(output_path)
+    return filename, output_path
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

@@ -6,7 +6,8 @@ import { ChatPanel } from './ChatPanel';
 const InsightsPanel = lazy(() => import('./InsightsPanel').then(m => ({ default: m.InsightsPanel })));
 import { useWorkspace } from '../context/WorkspaceContext';
 import { Source } from '../types';
-import { ChevronDown, Send } from 'lucide-react';
+import { ChevronDown, Send, Printer, FileText, Loader2 } from 'lucide-react';
+import { bridgeClient } from '../services/bridgeClient';
 
 const LoadingIndicator = () => (
     <div className="flex items-center justify-center h-full text-cyan-400">
@@ -81,6 +82,125 @@ export const OutputPanel: React.FC = () => {
 
     const [activeTab, setActiveTab] = useState<Tab>('output');
     const [isPublishDropdownOpen, setIsPublishDropdownOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExportDocx = async () => {
+        if (!activeCanvas?.output) return;
+        setIsExporting(true);
+        try {
+            const title = "Strategic Brief - " + (activeCanvas.name || "Eldoria Output");
+            const blob = await bridgeClient.exportToDocx(title, activeCanvas.output);
+
+            if (blob) {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Eldoria_${activeCanvas.name || 'Output'}_${Date.now()}.docx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } else {
+                alert("Word Export failed. Ensure the Python Bridge is running.");
+            }
+        } catch (e) {
+            console.error('Export failed:', e);
+            alert("Export error occurred.");
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handlePrint = () => {
+        if (!activeCanvas?.output) return;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert("Please allow popups to print output.");
+            return;
+        }
+
+        // Generate a professional print document with the output content
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Eldoria Hub - Strategic Brief</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+                    body { 
+                        font-family: 'Inter', sans-serif; 
+                        line-height: 1.6; 
+                        color: #1a202c; 
+                        max-width: 800px; 
+                        margin: 40px auto; 
+                        padding: 0 40px;
+                        background: white;
+                    }
+                    .header { text-align: left; margin-bottom: 30px; border-bottom: 2px solid #06b6d4; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-end; }
+                    .header h1 { margin: 0; font-size: 24px; color: #0891b2; letter-spacing: -0.025em; }
+                    .header .meta { font-size: 11px; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+                    
+                    #content { font-size: 14px; }
+                    h1, h2, h3 { color: #0e7490; margin-top: 1.5em; margin-bottom: 0.5em; }
+                    h1 { font-size: 22px; }
+                    h2 { font-size: 18px; border-bottom: 1px solid #edf2f7; padding-bottom: 5px; }
+                    h3 { font-size: 16px; }
+                    
+                    p { margin-bottom: 1.25em; }
+                    ul, ol { margin-bottom: 1.25em; padding-left: 1.5em; }
+                    li { margin-bottom: 0.5em; }
+                    
+                    pre { background: #f8fafc; padding: 1.25em; border-radius: 8px; font-size: 12px; overflow-x: auto; border: 1px solid #e2e8f0; margin: 1.5em 0; }
+                    code { background: #f1f5f9; padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: monospace; }
+                    
+                    blockquote { border-left: 4px solid #06b6d4; padding-left: 1.25em; font-style: italic; color: #475569; margin: 1.5em 0; background: #f0f9ff; padding-top: 0.5em; padding-bottom: 0.5em; }
+                    
+                    table { border-collapse: collapse; width: 100%; margin: 2em 0; font-size: 12px; }
+                    th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: left; }
+                    th { background: #f8fafc; font-weight: 700; color: #334155; }
+                    
+                    .footer { text-align: center; margin-top: 60px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; }
+                    
+                    @media print {
+                        body { margin: 0; padding: 20mm; }
+                        .no-print { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div>
+                        <div class="meta">Strategic Output Document</div>
+                        <h1>ELDORIA HUB BRIEF</h1>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="meta">Timestamp</div>
+                        <div style="font-size: 12px; color: #475569;">${new Date().toLocaleString()}</div>
+                    </div>
+                </div>
+                <div id="content"></div>
+                <div class="footer">
+                    Generated via Eldoria AI IDE &bull; Strategic Academic Framework
+                </div>
+                <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+                <script>
+                    const rawContent = \`${activeCanvas.output.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
+                    document.getElementById('content').innerHTML = marked.parse(rawContent);
+                    
+                    // Trigger print after a short delay to ensure assets/fonts load
+                    window.onload = () => {
+                        setTimeout(() => {
+                            window.print();
+                            // Optional: window.close(); // Some users prefer to keep it open to verify
+                        }, 500);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
 
     const hasOutput = !!activeCanvas?.output?.trim();
     const hasSources = !!activeCanvas?.output_sources && activeCanvas.output_sources.length > 0;
@@ -97,6 +217,21 @@ export const OutputPanel: React.FC = () => {
                 </div>
                 {hasOutput && !isLoading && activeTab === 'output' && (
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={handlePrint}
+                            className="p-1.5 text-cyan-400/60 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-md transition-all mr-1"
+                            title="Print output alone"
+                        >
+                            <Printer className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={handleExportDocx}
+                            disabled={isExporting}
+                            className="p-1.5 text-blue-400/60 hover:text-blue-300 hover:bg-blue-500/10 rounded-md transition-all mr-2 disabled:opacity-50"
+                            title="Export to Microsoft Word (.docx)"
+                        >
+                            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                        </button>
                         <button
                             onClick={appendOutput}
                             className="text-xs bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded-md transition-colors"

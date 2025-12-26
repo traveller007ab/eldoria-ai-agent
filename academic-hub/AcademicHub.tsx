@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, Loader2, Cog } from 'lucide-react';
+import { BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, Loader2, Cog, Printer } from 'lucide-react';
 import { AcademicDashboard } from './AcademicDashboard';
 import { AcademicWizard } from './AcademicWizard';
 import { ComplianceSidebar } from './ComplianceSidebar';
@@ -106,15 +106,116 @@ export const AcademicHub: React.FC = () => {
         if (!selectedProject) return;
         setIsSynthesizing(true);
         try {
-            const result = await bridgeClient.synthesizeThesis(selectedProject.id);
-            if (result.success) {
-                alert(`Thesis draft synthesized: ${result.filename}\nPath: ${result.path}`);
+            // Use the live project data from state for the direct synthesis
+            const blob = await bridgeClient.synthesizeDirect(selectedProject);
+            if (blob) {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Thesis_${selectedProject.wizard_state.basics.title.replace(/\s+/g, '_') || 'Draft'}.docx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } else {
+                alert("Thesis synthesis failed. Ensure the Python Bridge is running.");
             }
         } catch (e) {
             console.error("Synthesis failed", e);
+            alert("An error occurred during synthesis.");
         } finally {
             setIsSynthesizing(false);
         }
+    };
+
+    const handlePrintDraft = () => {
+        if (!selectedProject) return;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert("Please allow popups to print.");
+            return;
+        }
+
+        // Collect all draft content for a unified preview
+        const chapters = [
+            { name: 'Front Matter', content: selectedProject.draft_content['Front Matter'] },
+            { name: 'Abstract', content: selectedProject.draft_content['Abstract'] },
+            { name: 'Chapter 1: Introduction', content: selectedProject.draft_content['Chapter 1: Introduction'] },
+            { name: 'Chapter 2: Literature Review', content: selectedProject.draft_content['Chapter 2: Literature Review'] },
+            { name: 'Chapter 3: Materials & Methods', content: selectedProject.draft_content['Chapter 3: Materials & Methods'] },
+            { name: 'Chapter 4: Results & Discussion', content: selectedProject.draft_content['Chapter 4: Results & Discussion'] },
+            { name: 'Chapter 5: Conclusion & Recommendations', content: selectedProject.draft_content['Chapter 5: Conclusion & Recommendations'] }
+        ];
+
+        let markdownContent = `# ${selectedProject.wizard_state.basics.title || 'ACADEMIC RESEARCH REPORT'}\n\n`;
+        markdownContent += `**Author:** ${selectedProject.wizard_state.basics.author || 'N/A'}\n\n`;
+        if (selectedProject.wizard_state.basics.regNumber) {
+            markdownContent += `**Reg Number:** ${selectedProject.wizard_state.basics.regNumber}\n\n`;
+        }
+        markdownContent += `**Year:** ${selectedProject.wizard_state.basics.year || '2024'}\n\n---\n\n`;
+
+        chapters.forEach(ch => {
+            if (ch.content) {
+                markdownContent += `## ${ch.name}\n\n${ch.content}\n\n`;
+            }
+        });
+
+        if (selectedProject.references?.length > 0) {
+            markdownContent += `## REFERENCES\n\n`;
+            selectedProject.references.forEach(ref => {
+                markdownContent += `- ${ref.formattedApa || `${ref.authors} (${ref.year}). ${ref.title}.`}\n`;
+            });
+        }
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Thesis Preview - ${selectedProject.wizard_state.basics.title}</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+                    body { font-family: 'Inter', sans-serif; line-height: 1.6; color: #1a202c; max-width: 800px; margin: 40px auto; padding: 0 40px; background: white; }
+                    .header { text-align: center; margin-bottom: 60px; border-bottom: 3px double #06b6d4; padding-bottom: 30px; }
+                    .header .meta { font-size: 10px; color: #718096; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 800; margin-bottom: 10px; }
+                    .header h1 { margin: 0; font-size: 28px; color: #0891b2; line-height: 1.2; }
+                    
+                    #content { font-size: 14px; text-align: justify; }
+                    h2 { font-size: 18px; border-bottom: 1px solid #edf2f7; padding-bottom: 10px; margin-top: 40px; color: #164e63; text-transform: uppercase; letter-spacing: 0.05em; }
+                    p { margin-bottom: 20px; text-indent: 0; }
+                    
+                    blockquote { border-left: 4px solid #06b6d4; padding-left: 20px; font-style: italic; color: #475569; margin: 30px 0; background: #f0f9ff; padding-top: 15px; padding-bottom: 15px; }
+                    .footer { text-align: center; margin-top: 80px; font-size: 9px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; }
+                    
+                    @media print {
+                        body { margin: 0; padding: 20mm; }
+                        h2 { page-break-before: always; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="meta">RSU Mechanical Engineering Thesis Draft</div>
+                    <h1>${selectedProject.wizard_state.basics.title.toUpperCase() || 'UNTITLED RESEARCH'}</h1>
+                    <div style="margin-top: 20px; font-weight: 700; font-size: 13px;">BY ${selectedProject.wizard_state.basics.author.toUpperCase()}</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 5px;">${selectedProject.wizard_state.basics.year}</div>
+                </div>
+                <div id="content"></div>
+                <div class="footer">
+                    Eldoria AI Co-Pilot &bull; Strategic Academic Framework &bull; Port Harcourt, Nigeria
+                </div>
+                <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+                <script>
+                    const rawContent = \`${markdownContent.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`;
+                    document.getElementById('content').innerHTML = marked.parse(rawContent);
+                    window.onload = () => {
+                        setTimeout(() => { window.print(); }, 800);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     const handleCopyBib = () => {
@@ -255,6 +356,13 @@ export const AcademicHub: React.FC = () => {
                                         Warp to Workspace
                                     </NavLink>
                                     <button onClick={() => setIsWizardOpen(true)} className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/40 transition-all">Setup Wizard</button>
+                                    <button
+                                        onClick={handlePrintDraft}
+                                        className="p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/20 transition-all mr-1"
+                                        title="Print report preview"
+                                    >
+                                        <Printer className="w-4 h-4" />
+                                    </button>
                                     <button
                                         onClick={handleVaultArchive}
                                         disabled={isVaulting}

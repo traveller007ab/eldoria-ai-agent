@@ -8,9 +8,12 @@ from typing import Optional, List, Dict, Any
 
 # Import your docx builder
 try:
-    from .docx_builder import build_thesis
+    from .docx_builder import build_thesis, build_simple_doc
 except ImportError:
-    from docx_builder import build_thesis
+    from docx_builder import build_thesis, build_simple_doc
+
+from fastapi.responses import FileResponse
+import os
 
 router = APIRouter(prefix="/vault")
 
@@ -149,3 +152,40 @@ async def synthesize_thesis(project_id: str = Body(embed=True)):
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
+
+class ExportRequest(BaseModel):
+    title: str
+    content: str
+
+@router.post("/export-docx")
+async def export_docx(req: ExportRequest):
+    """
+    Exports a simple title + markdown content string to a DOCX file.
+    """
+    try:
+        filename, output_path = build_simple_doc(req.title, req.content)
+        return FileResponse(
+            path=output_path,
+            filename=filename,
+            media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@router.post("/synthesize-direct")
+async def synthesize_direct(req: Dict[str, Any]):
+    """
+    Synthesizes a thesis directly from the provided project JSON data.
+    Used for live export from the UI.
+    """
+    try:
+        # Ensure it's a dict
+        data = req
+        output_path = build_thesis(data)
+        return FileResponse(
+            path=os.path.abspath(output_path),
+            filename=os.path.basename(output_path),
+            media_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Direct synthesis failed: {str(e)}")

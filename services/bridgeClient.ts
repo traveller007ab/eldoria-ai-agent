@@ -212,6 +212,38 @@ export const bridgeClient = {
         }
     },
 
+    synthesizeDirect: async (projectData: any): Promise<Blob | null> => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}/vault/synthesize-direct`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(projectData)
+            });
+            if (!response.ok) return null;
+            return await response.blob();
+        } catch (e) {
+            console.error('Direct Synthesis failed:', e);
+            return null;
+        }
+    },
+
+    exportToDocx: async (title: string, content: string): Promise<Blob | null> => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}/vault/export-docx`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content })
+            });
+            if (!response.ok) return null;
+            return await response.blob();
+        } catch (e) {
+            console.error('Word Export failed:', e);
+            return null;
+        }
+    },
+
     checkBridgeHealth: async (): Promise<boolean> => {
         try {
             const controller = new AbortController();
