@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Search, ChevronRight, Star, Cpu, BarChart3, GraduationCap, Shield, Play, Eye, X, BookOpen } from 'lucide-react';
-import { promptSchemas, searchSchemas, getCategories, composePrompt, PromptSchema } from '../../prompt_schemas';
+import { promptSchemas, searchSchemas, getCategories, composePrompt, PromptSchema, getSchemaById } from '../../prompt_schemas';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { PromptMemoryService } from '../../services/PromptMemoryService';
 
 interface PromptLibraryPanelProps {
     isOpen: boolean;
@@ -25,7 +26,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, onClose, onExecute }) => {
-    const { academicProjects, activeCanvas } = useWorkspace();
+    const { academicProjects, activeCanvas, state, dispatch } = useWorkspace();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedSchema, setSelectedSchema] = useState<PromptSchema | null>(null);
     const [variables, setVariables] = useState<Record<string, string>>({});
@@ -37,7 +38,32 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
     });
 
     const categories = useMemo(() => getCategories(), []);
+    const [recentSchemaIds, setRecentSchemaIds] = useState<string[]>(() => PromptMemoryService.getRecentSchemas());
+
     const filteredSchemas = useMemo(() => searchSchemas(searchQuery), [searchQuery]);
+
+    // Externally triggered pre-fill
+    React.useEffect(() => {
+        if (isOpen && state.promptLibraryConfig.schemaId) {
+            const schema = getSchemaById(state.promptLibraryConfig.schemaId);
+            if (schema) {
+                setSelectedSchema(schema);
+                // Merge context auto-fill with explicitly suggested variables
+                const contextFill = autoFillFromContext(schema);
+                setVariables({ ...contextFill, ...state.promptLibraryConfig.variables });
+                setShowPreview(true);
+            }
+        }
+    }, [isOpen, state.promptLibraryConfig, academicProjects, activeCanvas]);
+
+    const handleClearHistory = () => {
+        if (confirm('Clear all prompt history and recent values?')) {
+            PromptMemoryService.clearMemory();
+            setFavorites([]);
+            setRecentSchemaIds([]);
+            alert('Prompt history cleared.');
+        }
+    };
 
     // Auto-prefill from context
     const autoFillFromContext = (schema: PromptSchema) => {
@@ -82,9 +108,21 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
 
     const handleExecute = () => {
         if (selectedSchema && composedPrompt) {
+            // Save to memory
+            PromptMemoryService.saveValues(selectedSchema.id, variables);
+            setRecentSchemaIds(PromptMemoryService.getRecentSchemas());
+
             onExecute(composedPrompt, selectedSchema);
+            // Reset config on execute
+            dispatch({ type: 'SET_PROMPT_LIBRARY_CONFIG', payload: { schemaId: null, variables: {} } });
             onClose();
         }
+    };
+
+    const handleClose = () => {
+        // Reset config on close
+        dispatch({ type: 'SET_PROMPT_LIBRARY_CONFIG', payload: { schemaId: null, variables: {} } });
+        onClose();
     };
 
     if (!isOpen) return null;
@@ -120,6 +158,29 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
                     </div>
 
                     <div className="flex-grow overflow-y-auto custom-scrollbar p-3 space-y-4">
+                        {/* Recently Used */}
+                        {recentSchemaIds.length > 0 && (
+                            <div className="mb-4">
+                                <div className="text-[9px] font-bold text-cyan-400 uppercase tracking-widest px-2 mb-2 flex items-center gap-1">
+                                    <Zap className="w-3 h-3" /> Recently Used
+                                </div>
+                                {recentSchemaIds.map(id => {
+                                    const schema = getSchemaById(id);
+                                    if (!schema) return null;
+                                    return (
+                                        <SchemaCard
+                                            key={`recent-${id}`}
+                                            schema={schema}
+                                            isSelected={selectedSchema?.id === id}
+                                            isFavorite={favorites.includes(id)}
+                                            onSelect={() => handleSelectSchema(schema)}
+                                            onToggleFavorite={() => toggleFavorite(id)}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         {/* Favorites */}
                         {favorites.length > 0 && (
                             <div>
@@ -158,7 +219,16 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
                             </div>
                         ))}
                     </div>
+                    <div className="p-3 border-t border-cyan-500/10">
+                        <button
+                            onClick={handleClearHistory}
+                            className="w-full py-2 text-[8px] font-bold text-cyan-500/40 hover:text-red-400 uppercase tracking-widest transition-all text-center"
+                        >
+                            Clear Prompt History
+                        </button>
+                    </div>
                 </div>
+
 
                 {/* Right: Composer */}
                 <div className="flex-grow flex flex-col">
@@ -213,9 +283,26 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
                                                         className="w-full bg-black/20 border border-cyan-500/10 rounded-lg py-2 px-3 text-xs text-cyan-100 placeholder:text-cyan-500/30 focus:outline-none focus:border-cyan-500/30"
                                                     />
                                                 )}
+
+                                                {/* Recent Chips */}
+                                                {PromptMemoryService.getRecentValues(selectedSchema.id, variable.name).length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-1.5 overflow-hidden max-h-12 overflow-y-auto custom-scrollbar">
+                                                        {PromptMemoryService.getRecentValues(selectedSchema.id, variable.name).map((val, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                onClick={() => handleVariableChange(variable.name, val)}
+                                                                title={`Paste: ${val}`}
+                                                                className="px-2 py-0.5 bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 rounded-md text-[8px] text-cyan-500/60 hover:text-cyan-400 transition-all truncate max-w-[120px]"
+                                                            >
+                                                                {val}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
+
                                 )}
                             </div>
 

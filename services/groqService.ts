@@ -164,7 +164,13 @@ const chatSystemInstruction = `You are **Eldoria**, an extraordinarily intellige
 - You can reference specific parts of their work
 - You suggest rather than command
 
-Be brilliant. Be helpful. Be *Eldoria*.`;
+Be brilliant. Be helpful. Be *Eldoria*.
+
+**Context Awareness & Proactivity:**
+- You have access to the user's **Prompt Memory** (recent files, topics, and specific prompt variables used).
+- If the user is working on a topic they previously used a prompt for (e.g., "Rankine Cycle" in SAF), refer to those past values.
+- Proactively use the \`suggest_prompt\` tool to recommend relevant templates based on their current activity and memory.
+- When suggesting a prompt, you can recommend specific values for its variables based on their history or current editor context.`;
 
 const tools = [
     {
@@ -280,6 +286,11 @@ interface StreamEvent {
     safStatus?: SAFStatus;
     taskLogEntry?: TaskLogEntry;
     error?: string;
+    promptSuggestion?: {
+        schema_id: string;
+        variables: Record<string, string>;
+        reasoning: string;
+    };
 }
 
 export async function* runGroqGenerateStream(
@@ -451,6 +462,17 @@ async function* executeGroqLogic(
                         } else if (executeTool) {
                             const result = await executeTool(functionName, functionArgs);
                             functionResponse = JSON.stringify(result);
+
+                            // Special case: Suggest Prompt event
+                            if (functionName === 'suggest_prompt' && result.success) {
+                                yield {
+                                    promptSuggestion: {
+                                        schema_id: result.schema_id,
+                                        variables: result.suggested_variables,
+                                        reasoning: result.reasoning
+                                    }
+                                };
+                            }
                         } else {
                             functionResponse = "Error: Tool execution not available.";
                         }

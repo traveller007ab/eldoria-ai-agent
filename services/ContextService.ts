@@ -1,3 +1,5 @@
+import { PromptMemoryService } from './PromptMemoryService';
+
 export interface ActiveContext {
     activeFileName?: string;
     activeFileContent?: string;
@@ -61,6 +63,11 @@ class ContextService {
 
         if (ctx.recentFiles.length > 0) {
             contextBuffer += `RECENTLY VISITED: ${ctx.recentFiles.join(', ')}\n`;
+        }
+
+        const promptHistory = PromptMemoryService.getMemorySummary();
+        if (promptHistory !== "No recent prompt usage.") {
+            contextBuffer += `RECENT PROMPT USAGE: ${promptHistory}\n`;
         }
 
         contextBuffer += "--- END CONTEXT ---\n";

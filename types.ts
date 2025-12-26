@@ -50,6 +50,11 @@ export interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   attachments?: Attachment[];
+  prompt_suggestion?: {
+    schema_id: string;
+    variables: Record<string, string>;
+    reasoning: string;
+  };
 }
 
 export interface Source {

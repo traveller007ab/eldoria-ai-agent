@@ -18,11 +18,39 @@ interface ChatThreadProps {
 
 const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const isUser = message.sender === 'user';
+    const { dispatch } = useWorkspace();
+
     return (
         <div className={`flex items-start gap-3 my-4 ${isUser ? 'justify-end' : ''}`}>
             {!isUser && <EldoriaLogo className="w-7 h-7 text-cyan-400 shrink-0 mt-1 text-glow" />}
             <div className={`w-full max-w-xl p-3 rounded-lg text-sm ${isUser ? 'bg-cyan-500/10 text-cyan-200' : 'bg-transparent'}`}>
                 <MarkdownRenderer>{message.text}</MarkdownRenderer>
+
+                {message.prompt_suggestion && (
+                    <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl animate-in slide-in-from-left-2 duration-300">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="p-1 bg-amber-500/20 rounded text-amber-400">
+                                <BookOpen className="w-3.5 h-3.5" />
+                            </div>
+                            <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">Suggested Prompt</span>
+                        </div>
+                        <p className="text-xs text-amber-200/70 mb-3 italic">"{message.prompt_suggestion.reasoning}"</p>
+                        <button
+                            onClick={() => {
+                                dispatch({
+                                    type: 'SET_PROMPT_LIBRARY_CONFIG', payload: {
+                                        schemaId: message.prompt_suggestion!.schema_id,
+                                        variables: message.prompt_suggestion!.variables || {}
+                                    }
+                                });
+                                dispatch({ type: 'SET_PROMPT_LIBRARY_OPEN', payload: true });
+                            }}
+                            className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                        >
+                            Use This Prompt
+                        </button>
+                    </div>
+                )}
                 {message.attachments && message.attachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                         {message.attachments.map((attr, i) => (

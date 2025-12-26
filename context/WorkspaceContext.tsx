@@ -33,6 +33,11 @@ interface WorkspaceState {
   eldoria_user_level: 'newbie' | 'intermediate' | 'expert' | null;
   isLowPerfMode: boolean;
   isTerminalExecuting: boolean;
+  isPromptLibraryOpen: boolean;
+  promptLibraryConfig: {
+    schemaId: string | null;
+    variables: Record<string, string>;
+  };
 }
 
 type WorkspaceAction =
@@ -69,7 +74,9 @@ type WorkspaceAction =
   | { type: 'SET_TERMINAL_EXECUTING'; payload: boolean }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<WorkspaceState['globalSettings']> }
   | { type: 'TRIGGER_REINDEX_START' }
-  | { type: 'TRIGGER_REINDEX_COMPLETE' };
+  | { type: 'TRIGGER_REINDEX_COMPLETE' }
+  | { type: 'SET_PROMPT_LIBRARY_OPEN'; payload: boolean }
+  | { type: 'SET_PROMPT_LIBRARY_CONFIG'; payload: WorkspaceState['promptLibraryConfig'] };
 
 const initialState: WorkspaceState = {
   canvases: [],
@@ -96,6 +103,8 @@ const initialState: WorkspaceState = {
   shouldUseDevLinks: localStorage.getItem('shouldUseDevLinks') === 'true',
   isTerminalExecuting: false,
   globalSettings: JSON.parse(localStorage.getItem('eldoria_settings') || '{"witLevel":50,"reverence":70,"autonomousMode":true,"proactiveAudit":true,"personalityMode":"jarvis"}'),
+  isPromptLibraryOpen: false,
+  promptLibraryConfig: { schemaId: null, variables: {} }
 };
 
 const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): WorkspaceState => {
@@ -148,6 +157,10 @@ const workspaceReducer = (state: WorkspaceState, action: WorkspaceAction): Works
     }
     case 'SET_TERMINAL_VISIBLE':
       return { ...state, isTerminalVisible: action.payload };
+    case 'SET_PROMPT_LIBRARY_OPEN':
+      return { ...state, isPromptLibraryOpen: action.payload };
+    case 'SET_PROMPT_LIBRARY_CONFIG':
+      return { ...state, promptLibraryConfig: action.payload };
     case 'SET_TERMINAL_EXPANDED':
       return { ...state, isTerminalExpanded: action.payload, isTerminalMinimized: action.payload ? false : state.isTerminalMinimized };
     case 'TOGGLE_TERMINAL_EXPANSION':
@@ -762,6 +775,10 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
           // -----------------------------
 
           botMessage.text = displayResponse;
+          dispatch({ type: 'UPDATE_CANVAS', payload: { ...activeCanvas, chat_history: [...finalHistory] } });
+        }
+        if (event.promptSuggestion) {
+          botMessage.prompt_suggestion = event.promptSuggestion;
           dispatch({ type: 'UPDATE_CANVAS', payload: { ...activeCanvas, chat_history: [...finalHistory] } });
         }
         if (event.error) {

@@ -11,8 +11,7 @@ export const Sidebar: React.FC = () => {
     const [isIndexOpen, setIsIndexOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
-    const { isIndexing, addCanvasPart, activeCanvas } = useWorkspace();
-    const [isPromptLibraryOpen, setIsPromptLibraryOpen] = useState(false);
+    const { isIndexing, addCanvasPart, activeCanvas, state, dispatch } = useWorkspace();
 
     const handlePromptExecute = (composedPrompt: string) => {
         if (activeCanvas) {
@@ -58,7 +57,7 @@ export const Sidebar: React.FC = () => {
 
                 <button
                     id="nav-prompt-library"
-                    onClick={() => setIsPromptLibraryOpen(true)}
+                    onClick={() => dispatch({ type: 'SET_PROMPT_LIBRARY_OPEN', payload: true })}
                     className="p-3 rounded-xl transition-all duration-300 group text-cyan-500/40 hover:text-amber-400 hover:bg-amber-500/5"
                     title="Prompt Schema Library"
                 >
@@ -93,8 +92,8 @@ export const Sidebar: React.FC = () => {
             {isIndexOpen && <KnowledgeIndexModal onClose={() => setIsIndexOpen(false)} />}
             {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
             <PromptLibraryPanel
-                isOpen={isPromptLibraryOpen}
-                onClose={() => setIsPromptLibraryOpen(false)}
+                isOpen={state.isPromptLibraryOpen}
+                onClose={() => dispatch({ type: 'SET_PROMPT_LIBRARY_OPEN', payload: false })}
                 onExecute={handlePromptExecute}
             />
         </>
