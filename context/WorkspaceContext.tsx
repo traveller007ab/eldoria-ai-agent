@@ -863,12 +863,7 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     await WorkspaceService.deleteAcademicProject(id);
   }, []);
 
-  const publishToAcademicHub = useCallback(async (projectId: string, fileName: string, content: string) => {
-    const success = await WorkspaceService.publishToAcademicHub(projectId, fileName, content);
-    if (success) {
-      console.log("Published to hub successfully.");
-    }
-  }, []);
+
 
   const updateGlobalSettings = useCallback((settings: Partial<any>) => {
     dispatch({ type: 'UPDATE_SETTINGS', payload: settings });
