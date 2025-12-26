@@ -183,6 +183,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                                 Retake Tour
                             </button>
                         </div>
+
+                        <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-cyan-500/5 hover:border-emerald-500/20 transition-all group">
+                            <div>
+                                <h4 className="text-[11px] font-bold text-cyan-100 uppercase tracking-tight">Help & Documentation</h4>
+                                <p className="text-[9px] text-cyan-500/40 uppercase font-medium">Full guide, tutorials, and FAQ</p>
+                            </div>
+                            <button
+                                onClick={() => window.open('https://eldoria-docs.netlify.app', '_blank')}
+                                className="px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-400/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[8px] font-bold uppercase tracking-widest transition-all flex items-center gap-1.5"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                Open Docs
+                            </button>
+                        </div>
                     </div>
                 </div>
 
