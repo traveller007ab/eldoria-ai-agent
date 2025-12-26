@@ -17,22 +17,40 @@ hero:
       link: /features/editor
 
 features:
-  - icon: 🧠
+  - icon:
+      src: /icon-ai.png
+      width: 48
+      height: 48
     title: Multi-Model AI
     details: Powered by Groq (Llama 3.3), Gemini, and OpenRouter with automatic failover
-  - icon: 📚
+  - icon:
+      src: /icon-prompts.png
+      width: 48
+      height: 48
     title: Prompt Schema Library
     details: Structured templates for SAF analysis, thesis chapters, competitive research, and code audits
-  - icon: 🎓
+  - icon:
+      src: /icon-academic.png
+      width: 48
+      height: 48
     title: Academic Hub
     details: Thesis Wizard, Defense Deck Generator, Autonomous Researcher, and Integrity Guardian
-  - icon: ⚡
+  - icon:
+      src: /icon-saf.png
+      width: 48
+      height: 48
     title: SAF Framework
     details: Strategic Analysis Framework for deconstructing and reconstructing any system
-  - icon: 🖥️
+  - icon:
+      src: /icon-bridge.png
+      width: 48
+      height: 48
     title: Python Bridge
     details: Phoenix Protocol with auto-restart, port resilience, and Railway deployment
-  - icon: 🌐
+  - icon:
+      src: /icon-pwa.png
+      width: 48
+      height: 48
     title: PWA Ready
     details: Installable web app with offline support and cross-platform compatibility
 ---
