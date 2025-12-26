@@ -915,6 +915,54 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: 'SET_LOW_PERF_MODE', payload: enabled });
   }, []);
 
+  const publishToAcademicHub = useCallback(async (projectId?: string, fileName?: string, content?: string) => {
+    // If no arguments, use the active canvas content
+    if (!activeCanvas) {
+      console.warn('No active canvas to publish');
+      return;
+    }
+
+    // Extract text content from the active canvas
+    const textParts = activeCanvas.content
+      ?.filter(part => part.type === 'text' && part.content?.trim())
+      .map(part => (part as any).content)
+      .join('\n\n') || '';
+
+    if (!textParts.trim()) {
+      console.warn('No text content to publish');
+      return;
+    }
+
+    // If we have academic projects, add to the most recent one or create a new resource
+    if (state.academicProjects.length > 0) {
+      const targetProject = projectId
+        ? state.academicProjects.find(p => p.id === projectId)
+        : state.academicProjects[state.academicProjects.length - 1];
+
+      if (targetProject) {
+        const updatedProject = {
+          ...targetProject,
+          resources: [
+            ...(targetProject.resources || []),
+            {
+              id: Date.now().toString(),
+              name: fileName || activeCanvas.name || 'Published Content',
+              type: 'note' as const,
+              content: textParts,
+              created_at: new Date().toISOString()
+            }
+          ]
+        };
+        dispatch({ type: 'UPDATE_ACADEMIC_PROJECT', payload: updatedProject });
+        await WorkspaceService.updateAcademicProject(updatedProject.id, updatedProject);
+        console.log('Published to Academic Hub:', updatedProject.name);
+      }
+    } else {
+      console.warn('No academic projects found. Create a project in Academic Hub first.');
+    }
+  }, [activeCanvas, state.academicProjects]);
+
+
   return (
     <WorkspaceContext.Provider value={{
       ...state,
