@@ -134,10 +134,8 @@ export const OutputPanel: React.FC = () => {
         }
 
         // 2. Clean up SAF_ISO tags but keep JSON
-        // If it's already inside a code block, we strip the tags to avoid broken nesting
         content = content.replace(/```json\n<SAF_ISO>/g, '```json');
         content = content.replace(/<\/SAF_ISO>\n```/g, '```');
-        // If it's naked, we wrap it properly as a technical section
         content = content.replace(/<SAF_ISO>/g, '\n\n### Technical Specification (SAF-ISO)\n```json\n');
         content = content.replace(/<\/SAF_ISO>/g, '\n```\n');
 
@@ -215,24 +213,23 @@ export const OutputPanel: React.FC = () => {
                 <div class="header">
                     <div>
                         <div class="meta">Eldoria Strategic Analysis</div>
-                        <h1>\${activeCanvas.name || "STRATEGIC BRIEF"}</h1>
+                        <h1>${activeCanvas.name || "STRATEGIC BRIEF"}</h1>
                     </div>
                     <div style="text-align: right;">
                         <div class="meta">Timestamp</div>
-                        <div style="font-size: 12px; color: #475569;">\${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
+                        <div style="font-size: 12px; color: #475569;">${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
                     </div>
                 </div>
                 <div id="content"></div>
                 <div class="footer">
-                    Generated via Eldoria AI IDE &bull; Neural Context Layer v1.2 &bull; Project ID: \${activeCanvas.id}
+                    Generated via Eldoria AI IDE &bull; Neural Context Layer v1.2 &bull; Project ID: ${activeCanvas.id}
                 </div>
                 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
                 <script>
-                    const rawContent = \\\`\${content.replace(/\\\\/g, '\\\\\\\\').replace(/\\\`/g, '\\\\\\\`').replace(/\\\\$/g, '\\\\\\$')}\\\`;
+                    const rawContent = ${JSON.stringify(content)};
                     document.getElementById('content').innerHTML = marked.parse(rawContent);
                     
                     window.onload = () => {
-                        // Wait for fonts and marked to settle
                         setTimeout(() => {
                             window.print();
                         }, 1200); 
@@ -240,7 +237,7 @@ export const OutputPanel: React.FC = () => {
                 </script>
             </body>
             </html>
-        \`);
+        `);
         printWindow.document.close();
     };
 
@@ -296,7 +293,7 @@ export const OutputPanel: React.FC = () => {
                                     title="Publish this strategic output to the Academic Hub"
                                 >
                                     Publish to Hub
-                                    <ChevronDown className={`w - 3 h - 3 transition - transform \${ isPublishDropdownOpen? 'rotate-180': '' }`} />
+                                    <ChevronDown className={`w-3 h-3 transition-transform ${isPublishDropdownOpen ? 'rotate-180' : ''}`} />
                                 </button>
 
                                 {isPublishDropdownOpen && (
@@ -308,7 +305,7 @@ export const OutputPanel: React.FC = () => {
                                                     key={proj.id}
                                                     onClick={() => {
                                                         const timestamp = new Date().toISOString().split('T')[0];
-                                                        publishToAcademicHub(proj.id, \`Strategic_Brief_\${timestamp}.md\`, activeCanvas?.output || '');
+                                                        publishToAcademicHub(proj.id, `Strategic_Brief_${timestamp}.md`, activeCanvas?.output || '');
                                                         setIsPublishDropdownOpen(false);
                                                     }}
                                                     className="w-full text-left px-4 py-2 hover:bg-emerald-500/10 transition-colors group flex items-center justify-between"
