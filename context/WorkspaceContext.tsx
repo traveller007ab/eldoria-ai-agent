@@ -911,20 +911,17 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const publishToAcademicHub = useCallback(async (projectId?: string, fileName?: string, content?: string) => {
-    // If no arguments, use the active canvas content
+    // Use the active canvas OUTPUT (generated content), not input
     if (!activeCanvas) {
       console.warn('No active canvas to publish');
       return;
     }
 
-    // Extract text content from the active canvas
-    const textParts = activeCanvas.content
-      ?.filter(part => part.type === 'text' && part.content?.trim())
-      .map(part => (part as any).content)
-      .join('\n\n') || '';
+    // Use the OUTPUT from the canvas (what was generated), not the input
+    const outputContent = content || activeCanvas.output || '';
 
-    if (!textParts.trim()) {
-      console.warn('No text content to publish');
+    if (!outputContent.trim()) {
+      console.warn('No output content to publish. Generate content first.');
       return;
     }
 
@@ -941,21 +938,22 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
             ...(targetProject.resources || []),
             {
               id: Date.now().toString(),
-              name: fileName || activeCanvas.name || 'Published Content',
+              name: fileName || `${activeCanvas.name} - Output` || 'Generated Content',
               type: 'note' as const,
-              content: textParts,
+              content: outputContent,
               created_at: new Date().toISOString()
             }
           ]
         };
         dispatch({ type: 'UPDATE_ACADEMIC_PROJECT', payload: updatedProject });
         await WorkspaceService.updateAcademicProject(updatedProject.id, updatedProject);
-        console.log('Published to Academic Hub:', updatedProject.name);
+        console.log('Published OUTPUT to Academic Hub:', updatedProject.name);
       }
     } else {
       console.warn('No academic projects found. Create a project in Academic Hub first.');
     }
   }, [activeCanvas, state.academicProjects]);
+
 
 
   return (

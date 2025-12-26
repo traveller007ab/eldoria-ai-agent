@@ -460,6 +460,118 @@ async def restart_bridge(background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============ RESEARCH MEDIA EXTRACTION ============
+
+class MediaExtractRequest(BaseModel):
+    url: str
+    type: str = "all"  # "images", "tables", or "all"
+
+@app.post("/research/extract-media")
+async def extract_media(req: MediaExtractRequest):
+    """
+    Extract images and tables from a web page using BeautifulSoup.
+    Used by the Enhanced Research Pipeline (Phase 44).
+    """
+    try:
+        from bs4 import BeautifulSoup
+        from urllib.parse import urljoin, urlparse
+        
+        # Fetch the page
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) EldoriaResearchBot/1.0'
+        }
+        response = requests.get(req.url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        base_url = f"{urlparse(req.url).scheme}://{urlparse(req.url).netloc}"
+        
+        result = {"images": [], "tables": []}
+        
+        # Extract images
+        if req.type in ["images", "all"]:
+            for img in soup.find_all('img', src=True):
+                src = img.get('src', '')
+                
+                # Skip tiny/tracking images
+                if any(skip in src.lower() for skip in ['1x1', 'pixel', 'tracking', 'data:image/gif']):
+                    continue
+                
+                # Resolve relative URLs
+                if src.startswith('/'):
+                    src = urljoin(base_url, src)
+                elif not src.startswith('http'):
+                    src = urljoin(req.url, src)
+                
+                # Get caption from figcaption or alt
+                caption = None
+                parent = img.find_parent('figure')
+                if parent:
+                    fig_caption = parent.find('figcaption')
+                    if fig_caption:
+                        caption = fig_caption.get_text(strip=True)
+                
+                result["images"].append({
+                    "src": src,
+                    "alt": img.get('alt', ''),
+                    "caption": caption
+                })
+            
+            # Limit to 20 images
+            result["images"] = result["images"][:20]
+        
+        # Extract tables
+        if req.type in ["tables", "all"]:
+            for table in soup.find_all('table'):
+                headers = []
+                rows = []
+                caption = None
+                
+                # Get table caption
+                cap = table.find('caption')
+                if cap:
+                    caption = cap.get_text(strip=True)
+                
+                # Extract headers
+                thead = table.find('thead')
+                if thead:
+                    for th in thead.find_all('th'):
+                        headers.append(th.get_text(strip=True))
+                else:
+                    # Try first row as headers
+                    first_row = table.find('tr')
+                    if first_row:
+                        for th in first_row.find_all(['th', 'td']):
+                            headers.append(th.get_text(strip=True))
+                
+                # Extract rows
+                tbody = table.find('tbody') or table
+                for tr in tbody.find_all('tr'):
+                    cells = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
+                    if cells and cells != headers:
+                        rows.append(cells)
+                
+                if headers or rows:
+                    result["tables"].append({
+                        "headers": headers,
+                        "rows": rows[:50],  # Limit rows
+                        "caption": caption
+                    })
+            
+            # Limit to 10 tables
+            result["tables"] = result["tables"][:10]
+        
+        return result
+        
+    except ImportError:
+        raise HTTPException(status_code=500, detail="BeautifulSoup not installed. Run: pip install beautifulsoup4")
+    except requests.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Startup events
 @app.on_event("startup")
 async def startup_event():

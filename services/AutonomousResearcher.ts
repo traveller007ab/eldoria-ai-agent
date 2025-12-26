@@ -1,11 +1,14 @@
 import { AcademicProject } from '../types';
 import { runGroqGenerate } from './groqService';
 import { advancedSearchTavily } from './tavilyService';
+import { ResearchService, ResearchResult } from './researchService';
+import { MediaExtractor, ExtractedMedia } from './mediaExtractor';
 
 export interface ResearchEvidence {
     query: string;
     findings: string;
-    sources: { title: string; url: string }[];
+    sources: (ResearchResult | { title: string; url: string })[];
+    media?: ExtractedMedia;
 }
 
 export interface DeepResearchResult {
@@ -19,12 +22,13 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
 
     // Step 1: Initial Analysis & Strategy Generation
     const strategyPrompt = `
-        You are a Deep Research Orchestrator. 
+        You are a Deep Research Orchestrator for Academic Engineering. 
         Thesis Title: "${wizard.basics.title}"
         Aim: "${wizard.objectives.aim}"
         Objectives: ${wizard.objectives.specificObjectives.join(', ')}
         
         Generate 3 highly specific, technical search queries to build a rigorous engineering evidence base for this research.
+        Focus on finding peer-reviewed papers, experimental data, and mathematical models.
         Output as JSON: { queries: string[] }
     `;
 
@@ -35,17 +39,32 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
 
     const { queries } = JSON.parse(strategyCompletion.choices?.[0]?.message?.content || '{"queries":[]}');
 
-    // Step 2: Parallel Deep Searches
+    // Step 2: Parallel Deep Searches across multiple sources
     const evidenceChain: ResearchEvidence[] = [];
     for (const query of queries.slice(0, 3)) {
         try {
-            const searchData = await advancedSearchTavily(query);
+            // Core Academic Search (Semantic Scholar + arXiv)
+            const academicResults = await ResearchService.searchResearch(query, 'all', { limit: 5 });
+
+            // Web Search for cutting edge/industry developments
+            const webSearchData = await advancedSearchTavily(query);
+
+            const combinedSources = [
+                ...academicResults,
+                ...webSearchData.results.map(r => ({
+                    title: r.title,
+                    url: r.url,
+                    type: 'web' as const,
+                    abstract: r.content
+                }))
+            ];
+
             const synthesisPrompt = `
                 Synthesize the following research data for an engineering thesis.
                 Query: ${query}
-                Data: ${JSON.stringify(searchData.results)}
+                Sources: ${JSON.stringify(combinedSources.map(s => ({ title: s.title, abstract: s.abstract || (s as any).content })))}
                 
-                Provide a technical summary of findings and how they support the thesis objectives.
+                Provide a technical summary of findings (limit 150 words) and how they support the thesis objectives.
             `;
 
             const synthCompletion = await runGroqGenerate(
@@ -53,10 +72,22 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
                 { model: "llama-3.3-70b-versatile", temperature: 0.5 }
             );
 
+            // Extract media from the top academic source if available
+            let media: ExtractedMedia | undefined = undefined;
+            const topPaper = academicResults.find(p => p.url && p.openAccess);
+            if (topPaper) {
+                console.log(`[Researcher] Extracting media from top paper: ${topPaper.title}`);
+                media = await MediaExtractor.extractMediaFromUrl(topPaper.url);
+            } else if (webSearchData.results.length > 0) {
+                console.log(`[Researcher] Extracting media from top web result`);
+                media = await MediaExtractor.extractMediaFromUrl(webSearchData.results[0].url);
+            }
+
             evidenceChain.push({
                 query,
                 findings: synthCompletion.choices?.[0]?.message?.content || 'No findings synthesized.',
-                sources: searchData.results.map(r => ({ title: r.title, url: r.url }))
+                sources: combinedSources,
+                media
             });
         } catch (e) {
             console.error(`Research step failed for query: ${query}`, e);
@@ -66,7 +97,7 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
     // Step 3: Final Synthesis & Suggested Updates
     const finalPrompt = `
         Consolidate the following research evidence for the thesis "${wizard.basics.title}".
-        Evidence: ${JSON.stringify(evidenceChain)}
+        Evidence: ${JSON.stringify(evidenceChain.map(e => ({ query: e.query, findings: e.findings })))}
         
         Provide:
         1. A high-level research analysis (2 paragraphs).
@@ -87,3 +118,4 @@ export const runAutonomousResearch = async (project: AcademicProject): Promise<D
         evidenceChain
     };
 };
+

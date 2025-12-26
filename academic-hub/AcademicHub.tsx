@@ -6,13 +6,15 @@ import { AcademicWizard } from './AcademicWizard';
 import { ComplianceSidebar } from './ComplianceSidebar';
 import { AcademicProject } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { ResearchService, BibliographyStyle } from '../services/researchService';
 import { generateDefenseDeck } from '../services/DefenseDeckGenerator';
 import { FormulaEditor } from '../components/FormulaEditor';
 import { DefenseDeckUI } from './DefenseDeckUI';
-import { runAutonomousResearch, DeepResearchResult } from '../services/AutonomousResearcher';
-import { Sigma, X, Microscope, Info, Terminal, Link, Zap, HardDrive } from 'lucide-react';
+import { runAutonomousResearch, DeepResearchResult, ResearchEvidence } from '../services/AutonomousResearcher';
+import { Sigma, X, Microscope, Info, Terminal, Link, Zap, HardDrive, Image as ImageIcon, Table as TableIcon, Plus, ExternalLink } from 'lucide-react';
 import { ProjectResources } from './ProjectResources';
 import { bridgeClient } from '../services/bridgeClient';
+import { runGroqGenerate } from '../services/groqService';
 import { ModelCreator } from './ModelCreator';
 import { AcademicModel } from '../models/AcademicModels';
 
@@ -30,6 +32,7 @@ export const AcademicHub: React.FC = () => {
     const [isVaulting, setIsVaulting] = useState(false);
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [isModelCreatorOpen, setIsModelCreatorOpen] = useState(false);
+    const [bibStyle, setBibStyle] = useState<BibliographyStyle>('apa');
 
     const handleSaveNewModel = (model: AcademicModel) => {
         try {
@@ -111,6 +114,44 @@ export const AcademicHub: React.FC = () => {
             console.error("Synthesis failed", e);
         } finally {
             setIsSynthesizing(false);
+        }
+    };
+
+    const handleCopyBib = () => {
+        if (!researchResult) return;
+        const allSources = researchResult.evidenceChain.flatMap(ev => ev.sources);
+        const bib = ResearchService.generateBibliography(allSources as any[], bibStyle);
+        navigator.clipboard.writeText(bib);
+        alert(`Bibliography (${bibStyle.toUpperCase()}) copied to clipboard!`);
+    };
+
+    const handleRunSAF = async (findings: string) => {
+        if (!selectedProject) return;
+
+        const systemPrompt = `You are Eldoria's SAF Analyst. Break down the following research findings into their core components using the Strategic Analysis Framework (SAF).
+        Focus on:
+        1. Core System (The main technical discovery)
+        2. Dependencies (What makes this work?)
+        3. Cascading Effects (Consequences of modifying this info)
+        4. Academic Value (How it fits the thesis)
+        
+        Format as a structured technical deconstruction.`;
+
+        try {
+            alert("Eldoria is deconstructing these findings through the SAF framework...");
+            const completion = await runGroqGenerate(
+                [{ role: "user", content: `DECONSTRUCT THIS: ${findings}` }],
+                { model: "llama-3.3-70b-versatile", system_prompt: systemPrompt }
+            );
+
+            const content = completion.choices?.[0]?.message?.content || "Deconstruction failed.";
+            const name = `SAF Analysis: ${selectedProject.wizard_state.basics.title.substring(0, 20)}...`;
+
+            await createCanvas(name, [{ type: 'text', content }], false);
+            alert("SAF Deconstruction complete! A new canvas has been created with the analysis.");
+        } catch (e) {
+            console.error("SAF Deconstruction failed", e);
+            alert("SAF Deconstruction failed. Check console for details.");
         }
     };
 
@@ -404,23 +445,119 @@ export const AcademicHub: React.FC = () => {
                                                 <div key={i} className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
                                                     <div className="text-[9px] font-black text-purple-400 uppercase tracking-widest mb-2">Query: {ev.query}</div>
                                                     <p className="text-[11px] text-white/60 leading-relaxed italic mb-4">"{ev.findings}"</p>
-                                                    <div className="flex flex-wrap gap-2">
+                                                    <div className="flex gap-2 mb-4">
+                                                        <button
+                                                            onClick={() => handleRunSAF(ev.findings)}
+                                                            className="px-2 py-0.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded text-[7px] font-black text-purple-400 uppercase tracking-widest transition-all"
+                                                        >
+                                                            RUN SAF DECONSTRUCTION
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const bib = ResearchService.generateCitation(ev.sources[0] as any, bibStyle);
+                                                                await createCanvas(`Source: ${ev.sources[0].title.substring(0, 20)}`, [{ type: 'text', content: `# ${ev.sources[0].title}\n\n## Findings\n${ev.findings}\n\n## Citation (${bibStyle.toUpperCase()})\n${bib}\n\n## Source\n${'url' in ev.sources[0] ? ev.sources[0].url : ''}` }], false);
+                                                            }}
+                                                            className="px-2 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded text-[7px] font-black text-cyan-400 uppercase tracking-widest transition-all"
+                                                        >
+                                                            INSERT INTO CANVAS
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2 mb-4">
                                                         {ev.sources.map((src, j) => (
-                                                            <a key={j} href={src.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[9px] text-cyan-400 transition-all flex items-center gap-2">
-                                                                <Link className="w-2.5 h-2.5" />
+                                                            <a key={j} href={src.url} target="_blank" rel="noopener noreferrer" className={`px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[9px] transition-all flex items-center gap-2 ${'type' in src && src.type !== 'web' ? 'text-purple-400 border-purple-500/30' : 'text-cyan-400'}`}>
+                                                                {'type' in src && src.type !== 'web' ? <GraduationCap className="w-2.5 h-2.5" /> : <Link className="w-2.5 h-2.5" />}
                                                                 {src.title}
                                                             </a>
                                                         ))}
                                                     </div>
+
+                                                    {ev.media && (
+                                                        <div className="space-y-4">
+                                                            {ev.media.images.length > 0 && (
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 mb-2 text-[8px] font-bold text-white/40 uppercase tracking-widest">
+                                                                        <ImageIcon className="w-3 h-3 text-purple-400" />
+                                                                        Extracted Visuals
+                                                                    </div>
+                                                                    <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                                                                        {ev.media.images.map((img, k) => (
+                                                                            <div key={k} className="shrink-0 group relative">
+                                                                                <img
+                                                                                    src={img.src}
+                                                                                    alt={img.alt}
+                                                                                    className="h-24 rounded-lg border border-white/10 bg-black/20 object-cover hover:border-purple-500/50 transition-all cursor-pointer"
+                                                                                    onClick={() => window.open(img.src, '_blank')}
+                                                                                />
+                                                                                <button
+                                                                                    title="Insert into active canvas"
+                                                                                    className="absolute top-1 right-1 p-1 bg-purple-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                >
+                                                                                    <Plus className="w-3 h-3 text-white" />
+                                                                                </button>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {ev.media.tables.length > 0 && (
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 mb-2 text-[8px] font-bold text-white/40 uppercase tracking-widest">
+                                                                        <TableIcon className="w-3 h-3 text-cyan-400" />
+                                                                        Extracted Tables
+                                                                    </div>
+                                                                    <div className="grid gap-2">
+                                                                        {ev.media.tables.map((tab, k) => (
+                                                                            <div key={k} className="p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg flex items-center justify-between group">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="p-2 bg-cyan-500/20 rounded-md">
+                                                                                        <TableIcon className="w-3 h-3 text-cyan-400" />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <div className="text-[9px] font-bold text-cyan-100">{tab.caption || `Table ${k + 1}`}</div>
+                                                                                        <div className="text-[8px] text-cyan-400/50">{tab.headers.length} columns • {tab.rows.length} rows</div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                    <button className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-[8px] font-bold text-cyan-400 rounded-md border border-cyan-500/30">VIEW DATA</button>
+                                                                                    <button className="p-1 bg-cyan-500 text-white rounded-md"><Plus className="w-3 h-3" /></button>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
                                     </section>
 
+
                                     <section>
-                                        <div className="flex items-center gap-2 mb-4 text-emerald-400">
-                                            <Zap className="w-4 h-4" />
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest">Suggested Thesis Updates</h4>
+                                        <div className="flex items-center justify-between mb-4 text-emerald-400">
+                                            <div className="flex items-center gap-2">
+                                                <Zap className="w-4 h-4" />
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest">Suggested Thesis Updates</h4>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <select
+                                                    value={bibStyle}
+                                                    onChange={(e) => setBibStyle(e.target.value as BibliographyStyle)}
+                                                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[8px] font-bold text-cyan-400 uppercase tracking-widest outline-none hover:border-cyan-500/30 transition-all"
+                                                >
+                                                    <option value="apa">APA</option>
+                                                    <option value="ieee">IEEE</option>
+                                                    <option value="bibtex">BibTeX</option>
+                                                </select>
+                                                <button
+                                                    onClick={handleCopyBib}
+                                                    className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-[8px] font-black text-emerald-400 rounded-lg border border-emerald-500/30 transition-all"
+                                                >
+                                                    COPY BIBLIOGRAPHY
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             {researchResult.suggestedUpdates.map((upd, i) => (
@@ -430,6 +567,7 @@ export const AcademicHub: React.FC = () => {
                                             ))}
                                         </div>
                                     </section>
+
                                 </div>
                             </div>
                         </div>

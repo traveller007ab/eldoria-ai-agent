@@ -27,3 +27,6 @@ pydantic>=2.10.0
 
 # Additional utilities
 requests>=2.32.0
+
+# HTML Parsing for Research Pipeline
+beautifulsoup4>=4.12.0
