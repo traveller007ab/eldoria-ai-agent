@@ -328,6 +328,41 @@ async function* executeGroqLogic(
                     const err = await response.json();
                     if (err.detail) detail = err.detail;
                 } catch (e) { }
+
+                // FALLBACK: If tool calling failed, retry without tools
+                if (detail.includes('Failed to call a function') || detail.includes('failed_generation')) {
+                    yield { textChunk: `\n\n_Tool calling failed. Switching to text-only mode..._\n\n` };
+                    yield { safStatus: 'thinking' };
+
+                    const retryResponse = await fetch(`${bridgeUrl}/proxy/groq`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            messages,
+                            model: "llama-3.3-70b-versatile",
+                            temperature: 0.7,
+                            stream: true,
+                            apiKey: GROQ_API_KEY
+                            // NOTE: No tools parameter - pure text generation
+                        })
+                    });
+
+                    if (!retryResponse.ok) {
+                        yield { textChunk: `\n\n**Bridge Error (Retry Failed):** ${detail}` };
+                        return;
+                    }
+
+                    // Stream the response directly
+                    for await (const chunk of streamFromBridge({
+                        messages,
+                        model: "llama-3.3-70b-versatile",
+                        stream: true
+                    })) {
+                        yield { textChunk: chunk };
+                    }
+                    return;
+                }
+
                 yield { textChunk: `\n\n**Bridge Error:** ${detail}` };
                 return;
             }
