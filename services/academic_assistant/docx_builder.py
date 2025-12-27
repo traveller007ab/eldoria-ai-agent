@@ -127,6 +127,9 @@ def build_thesis(input_data):
 def build_simple_doc(title, content):
     doc = Document()
     
+    # Sanitize content before adding to doc
+    content = _sanitize_content(content)
+    
     # Professional Header
     header = doc.add_heading(title.upper(), level=0)
     header.alignment = WD_ALIGN_PARAGRAPH.CENTER
