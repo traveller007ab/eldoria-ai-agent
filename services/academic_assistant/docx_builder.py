@@ -113,6 +113,29 @@ def _create_vertical_bar_header(doc, text, level=2):
     run.font.size = Pt(14 if level > 1 else 16)
     
     doc.add_paragraph() # Spacer after header
+
+def _setup_styles(doc):
+    """Configures document styles to match Eldoria's web aesthetic (Blue/Sans-Serif)"""
+    # 1. Normal Text
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Arial'
+    font.size = Pt(11)
+    
+    # 2. Headings (Blue #007BFF)
+    for i in range(1, 4):
+        style_name = f'Heading {i}'
+        try:
+            style = doc.styles[style_name]
+        except KeyError:
+            style = doc.styles.add_style(style_name, 1) # 1 = Paragraph Style
+            
+        font = style.font
+        font.name = 'Arial'
+        font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
+        if i == 1: font.size = Pt(18) # Web H1
+        if i == 2: font.size = Pt(16) # Web H2
+        if i == 3: font.size = Pt(14) # Web H3
 def _set_shading(element, color_hex):
     """Helper to add background color to a table cell or paragraph"""
     shading_elm = OxmlElement('w:shd')
