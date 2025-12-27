@@ -19,6 +19,66 @@ def _sanitize_content(content):
         last = cleaned
         cleaned = preamble_pattern.sub('', cleaned).strip()
     return cleaned
+    
+def _setup_page_layout(doc):
+    for section in doc.sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+
+def _add_header(doc, right_text="Eldoria Hub - Strategic Brief"):
+    section = doc.sections[0]
+    header = section.header
+    table = header.add_table(1, 2, width=Inches(6.5))
+    table.autofit = False
+    
+    cell_left = table.cell(0, 0)
+    p = cell_left.paragraphs[0]
+    p.text = datetime.now().strftime("%m/%d/%y, %I:%M %p")
+    p.style.font.name = 'Arial'
+    p.style.font.size = Pt(9)
+    p.style.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+
+    cell_right = table.cell(0, 1)
+    p = cell_right.paragraphs[0]
+    p.text = right_text
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.style.font.name = 'Arial'
+    p.style.font.size = Pt(9)
+    p.style.font.bold = True
+    p.style.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
+
+def _add_footer(doc, page_num=True):
+    section = doc.sections[0]
+    footer = section.footer
+    p = footer.paragraphs[0]
+    p.text = "GENERATED VIA ELDORIA AI IDE"
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.style.font.name = 'Arial'
+    p.style.font.size = Pt(8)
+    p.style.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+
+def _create_vertical_bar_header(doc, text, level=2):
+    table = doc.add_table(rows=1, cols=2)
+    table.autofit = False
+    
+    col0 = table.columns[0]
+    col0.width = Inches(0.05)
+    cell0 = table.cell(0, 0)
+    _set_shading(cell0._tc.get_or_add_tcPr(), "007BFF")
+    
+    col1 = table.columns[1]
+    col1.width = Inches(6.0)
+    cell1 = table.cell(0, 1)
+    p = cell1.paragraphs[0]
+    run = p.add_run(text.upper())
+    run.font.name = 'Arial'
+    run.font.bold = True
+    run.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
+    run.font.size = Pt(14 if level > 1 else 16)
+    
+    doc.add_paragraph()
 
 def _setup_styles(doc):
     """Configures document styles to match Eldoria's web aesthetic (Cyan/Sans-Serif)"""
@@ -33,7 +93,7 @@ def _setup_styles(doc):
             style = doc.styles.add_style(style_name, 1)
             
         style.font.name = 'Arial'
-        style.font.color.rgb = RGBColor(0x06, 0xB6, 0xD4)
+        style.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
         if i == 1: style.font.size = Pt(18)
         if i == 2: style.font.size = Pt(16)
         if i == 3: style.font.size = Pt(14)
@@ -105,9 +165,9 @@ def _add_markdown_content(doc, content):
             p.style.font.size = Pt(9)
             continue
 
-        if stripped.startswith('# '): doc.add_heading(stripped[2:], level=1)
-        elif stripped.startswith('## '): doc.add_heading(stripped[3:], level=2)
-        elif stripped.startswith('### '): doc.add_heading(stripped[4:], level=3)
+        if stripped.startswith('# '): _create_vertical_bar_header(doc, stripped[2:], level=1)
+        elif stripped.startswith('## '): _create_vertical_bar_header(doc, stripped[3:], level=2)
+        elif stripped.startswith('### '): _create_vertical_bar_header(doc, stripped[4:], level=3)
         elif stripped.startswith('- ') or stripped.startswith('* '):
             try: p = doc.add_paragraph(style='List Bullet')
             except: p = doc.add_paragraph(style='List Paragraph')
@@ -128,7 +188,10 @@ def _process_bold(paragraph, text):
 
 def build_thesis(input_data):
     doc = Document()
+    _setup_page_layout(doc)
     _setup_styles(doc)
+    _add_header(doc, right_text="ACADEMIC DRAFT")
+    _add_footer(doc)
     
     # 1. Title Page
     title = input_data.get('basics', {}).get('title', 'UNTITLED THESIS').upper()

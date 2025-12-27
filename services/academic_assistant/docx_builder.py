@@ -38,29 +38,81 @@ def _sanitize_content(content):
         
     return cleaned_content
 
-def _setup_styles(doc):
-    """Configures document styles to match Eldoria's web aesthetic (Cyan/Sans-Serif)"""
-    # 1. Normal Text
-    style = doc.styles['Normal']
-    font = style.font
-    font.name = 'Arial'
-    font.size = Pt(11)
+def _setup_page_layout(doc):
+    """Applies standard A4/Letter margins (1 inch)"""
+    sections = doc.sections
+    for section in sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+        
+def _add_header(doc, right_text="Eldoria Hub - Strategic Brief"):
+    """Adds standard header with timestamp and title"""
+    section = doc.sections[0]
+    header = section.header
     
-    # 2. Headings (Cyan #06b6d4)
-    for i in range(1, 4):
-        style_name = f'Heading {i}'
-        try:
-            style = doc.styles[style_name]
-        except KeyError:
-            style = doc.styles.add_style(style_name, 1) # 1 = Paragraph Style
-            
-        font = style.font
-        font.name = 'Arial'
-        font.color.rgb = RGBColor(0x06, 0xB6, 0xD4)
-        if i == 1: font.size = Pt(18) # Web H1
-        if i == 2: font.size = Pt(16) # Web H2
-        if i == 3: font.size = Pt(14) # Web H3
+    # Use a table for left/right alignment
+    table = header.add_table(1, 2, width=Inches(6.5))
+    table.autofit = False
+    
+    # Left: Timestamp
+    cell_left = table.cell(0, 0)
+    p = cell_left.paragraphs[0]
+    p.text = datetime.now().strftime("%m/%d/%y, %I:%M %p")
+    p.style.font.name = 'Arial'
+    p.style.font.size = Pt(9)
+    p.style.font.color.rgb = RGBColor(0x64, 0x74, 0x8B) # Slate gray
 
+    # Right: Title
+    cell_right = table.cell(0, 1)
+    p = cell_right.paragraphs[0]
+    p.text = right_text
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.style.font.name = 'Arial'
+    p.style.font.size = Pt(9)
+    p.style.font.bold = True
+    p.style.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF) # Blue
+
+def _add_footer(doc, page_num=True):
+    """Adds footer with generation info and page numbers"""
+    section = doc.sections[0]
+    footer = section.footer
+    
+    p = footer.paragraphs[0]
+    p.text = "GENERATED VIA ELDORIA AI IDE"
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.style.font.name = 'Arial'
+    p.style.font.size = Pt(8)
+    p.style.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+
+def _create_vertical_bar_header(doc, text, level=2):
+    """
+    Simulates a 'Vertical Bar Header' using a table with a colored left border cell.
+    [ | ] [ HEADING TEXT ]
+    """
+    table = doc.add_table(rows=1, cols=2)
+    table.autofit = False
+    table.allow_autofit = False
+    
+    # Column 1: The Bar (Width tiny)
+    col0 = table.columns[0]
+    col0.width = Inches(0.05)
+    cell0 = table.cell(0, 0)
+    _set_shading(cell0._tc.get_or_add_tcPr(), "007BFF") # Blue fill acts as bar
+    
+    # Column 2: The Text
+    col1 = table.columns[1]
+    col1.width = Inches(6.0)
+    cell1 = table.cell(0, 1)
+    p = cell1.paragraphs[0]
+    run = p.add_run(text.upper())
+    run.font.name = 'Arial'
+    run.font.bold = True
+    run.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
+    run.font.size = Pt(14 if level > 1 else 16)
+    
+    doc.add_paragraph() # Spacer after header
 def _set_shading(element, color_hex):
     """Helper to add background color to a table cell or paragraph"""
     shading_elm = OxmlElement('w:shd')
@@ -148,13 +200,13 @@ def _add_markdown_content(doc, content):
             p.style.font.size = Pt(9)
             continue
 
-        # Headers
+        # Headers - Use Special Vertical Bar Style
         if stripped.startswith('# '):
-            doc.add_heading(stripped[2:], level=1)
+            _create_vertical_bar_header(doc, stripped[2:], level=1)
         elif stripped.startswith('## '):
-            doc.add_heading(stripped[3:], level=2)
+            _create_vertical_bar_header(doc, stripped[3:], level=2)
         elif stripped.startswith('### '):
-            doc.add_heading(stripped[4:], level=3)
+            _create_vertical_bar_header(doc, stripped[4:], level=3)
         
         # List Items - Bullet
         elif stripped.startswith('- ') or stripped.startswith('* '):
@@ -195,7 +247,10 @@ def _process_bold(paragraph, text):
 
 def build_thesis(input_data):
     doc = Document()
-    _setup_styles(doc)
+    _setup_page_layout(doc)
+    _setup_styles(doc) # Keep valid for fallbacks
+    _add_header(doc, right_text="ACADEMIC DRAFT")
+    _add_footer(doc)
     
     # 1. Title Page
     title = input_data.get('basics', {}).get('title', 'UNTITLED THESIS').upper()
@@ -263,14 +318,7 @@ def build_thesis(input_data):
             p.style.font.size = Pt(11)
     
     # 4. Ethical Watermark (Footer)
-    for section in doc.sections:
-        footer = section.footer
-        p = footer.paragraphs[0]
-        p.text = f"Eldoria-Assisted Research Draft | Project ID: {input_data.get('id', 'N/A')} | Ethical Transparency Log Active"
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in p.runs:
-            run.font.size = Pt(8)
-            run.font.italic = True
+    # Footer handled by _add_footer
 
     output_path = f"thesis_{input_data.get('id', 'temp')}.docx"
     doc.save(output_path)
@@ -278,24 +326,30 @@ def build_thesis(input_data):
 
 def build_simple_doc(title, content):
     doc = Document()
-    _setup_styles(doc)
+    _setup_page_layout(doc)
+    _setup_styles(doc) # Fallbacks
+    _add_header(doc, right_text="Eldoria Hub - Strategic Brief")
+    _add_footer(doc)
     
-    # Professional Header
-    header = doc.add_heading(title.upper(), level=0)
-    header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Professional Header Title Block
+    p = doc.add_paragraph("ELDORIA STRATEGIC ANALYSIS")
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.runs[0].font.name = 'Arial'
+    p.runs[0].font.size = Pt(22)
+    p.runs[0].font.bold = True
+    p.runs[0].font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
+    
+    p2 = doc.add_paragraph(title.upper())
+    p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p2.runs[0].font.size = Pt(14)
+    p2.runs[0].font.bold = True
+    
+    doc.add_paragraph() # Spacer
     
     # Body Content via Parser
     _add_markdown_content(doc, content)
                 
-    # Footer
-    for section in doc.sections:
-        footer = section.footer
-        p = footer.paragraphs[0]
-        p.text = f"Eldoria Strategic Brief | Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in p.runs:
-            run.font.size = Pt(8)
-            run.font.italic = True
+    # Footer is handled by _add_footer
 
     filename = f"export_{int(time.time())}.docx"
     output_path = os.path.join(os.getcwd(), filename)
