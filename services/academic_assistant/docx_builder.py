@@ -89,38 +89,32 @@ def _add_footer(doc, page_num=True):
         r.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
         return r
 
+    # helper to create field run
+    def create_field_run(instr):
+        r = p.add_run()
+        r.font.name = 'Arial' 
+        r.font.size = Pt(8)
+        
+        # Begin
+        fldChar1 = OxmlElement('w:fldChar')
+        fldChar1.set(qn('w:fldCharType'), 'begin')
+        r._r.append(fldChar1)
+        
+        # Instruction
+        instrText = OxmlElement('w:instrText')
+        instrText.set(qn('xml:space'), 'preserve')
+        instrText.text = instr
+        r._r.append(instrText)
+        
+        # End
+        fldChar2 = OxmlElement('w:fldChar')
+        fldChar2.set(qn('w:fldCharType'), 'end')
+        r._r.append(fldChar2)
+
     add_run("Page ")
-    
-    # Field: PAGE
-    fldChar1 = OxmlElement('w:fldChar')
-    fldChar1.set(qn('w:fldCharType'), 'begin')
-    p._p.append(fldChar1)
-    
-    instrText = OxmlElement('w:instrText')
-    instrText.set(qn('xml:space'), 'preserve')
-    instrText.text = "PAGE"
-    p._p.append(instrText)
-    
-    fldChar2 = OxmlElement('w:fldChar')
-    fldChar2.set(qn('w:fldCharType'), 'end')
-    p._p.append(fldChar2)
-    
+    create_field_run("PAGE")
     add_run(" of ")
-    
-    # Field: NUMPAGES
-    fldChar3 = OxmlElement('w:fldChar')
-    fldChar3.set(qn('w:fldCharType'), 'begin')
-    p._p.append(fldChar3)
-    
-    instrText2 = OxmlElement('w:instrText')
-    instrText2.set(qn('xml:space'), 'preserve')
-    instrText2.text = "NUMPAGES"
-    p._p.append(instrText2)
-    
-    fldChar4 = OxmlElement('w:fldChar')
-    fldChar4.set(qn('w:fldCharType'), 'end')
-    p._p.append(fldChar4)
-    
+    create_field_run("NUMPAGES")
     add_run(" | GENERATED VIA ELDORIA AI IDE")
 
 def _create_vertical_bar_header(doc, text, level=2):
