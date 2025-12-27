@@ -46,12 +46,16 @@ def _add_markdown_content(doc, content):
     # 1. Sanitize preambles first
     content = _sanitize_content(content)
 
-    # 2. Remove SAF/JSON blocks (Optional: Keep if user wants, but default clear)
-    # Removing <SAF_ISO>...<SAF_ISO> blocks
-    saf_pattern = re.compile(r"```json\s*<SAF_ISO>[\s\S]*?</SAF_ISO>\s*```", re.IGNORECASE | re.MULTILINE)
-    content = saf_pattern.sub('', content)
-    # Also remove just <SAF_ISO> tags if unmatched
-    content = re.sub(r"<SAF_ISO>[\s\S]*?</SAF_ISO>", "", content, flags=re.MULTILINE)
+    # 2. Transform SAF/JSON blocks to match Print View ("Technical Specification")
+    # Instead of deleting, we reformat to a Header + Code Block
+    
+    # Handle wrapped cases first: ```json<SAF_ISO> -> ```json
+    content = re.sub(r"```json\s*<SAF_ISO>", "```json", content, flags=re.IGNORECASE)
+    content = re.sub(r"</SAF_ISO>\s*```", "```", content, flags=re.IGNORECASE)
+    
+    # Handle bare tags: <SAF_ISO> -> ### Header + ```json
+    content = re.sub(r"<SAF_ISO>", "\n\n### Technical Specification (SAF-ISO)\n```json\n", content, flags=re.IGNORECASE)
+    content = re.sub(r"</SAF_ISO>", "\n```\n", content, flags=re.IGNORECASE)
 
     lines = content.split('\n')
     

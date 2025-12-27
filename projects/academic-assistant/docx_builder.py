@@ -25,9 +25,12 @@ def _add_markdown_content(doc, content):
     """
     if not content: return
     content = _sanitize_content(content)
-    # Remove SAF blocks
-    content = re.sub(r"```json\s*<SAF_ISO>[\s\S]*?</SAF_ISO>\s*```", "", content, flags=re.IGNORECASE|re.MULTILINE)
-    content = re.sub(r"<SAF_ISO>[\s\S]*?</SAF_ISO>", "", content, flags=re.MULTILINE)
+    
+    # Transform SAF blocks (Match Print View)
+    content = re.sub(r"```json\s*<SAF_ISO>", "```json", content, flags=re.IGNORECASE)
+    content = re.sub(r"</SAF_ISO>\s*```", "```", content, flags=re.IGNORECASE)
+    content = re.sub(r"<SAF_ISO>", "\n\n### Technical Specification (SAF-ISO)\n```json\n", content, flags=re.IGNORECASE)
+    content = re.sub(r"</SAF_ISO>", "\n```\n", content, flags=re.IGNORECASE)
 
     lines = content.split('\n')
     in_code = False
