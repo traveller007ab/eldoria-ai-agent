@@ -75,16 +75,53 @@ def _add_header(doc, right_text="Eldoria Hub - Strategic Brief"):
     p.style.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF) # Blue
 
 def _add_footer(doc, page_num=True):
-    """Adds footer with generation info and page numbers"""
+    """Adds footer with Page X of Y and generation info"""
     section = doc.sections[0]
     footer = section.footer
-    
     p = footer.paragraphs[0]
-    p.text = "GENERATED VIA ELDORIA AI IDE"
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p.style.font.name = 'Arial'
-    p.style.font.size = Pt(8)
-    p.style.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+    
+    # helper for gray text runs
+    def add_run(text):
+        r = p.add_run(text)
+        r.font.name = 'Arial'
+        r.font.size = Pt(8)
+        r.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)
+        return r
+
+    add_run("Page ")
+    
+    # Field: PAGE
+    fldChar1 = OxmlElement('w:fldChar')
+    fldChar1.set(qn('w:fldCharType'), 'begin')
+    p._p.append(fldChar1)
+    
+    instrText = OxmlElement('w:instrText')
+    instrText.set(qn('xml:space'), 'preserve')
+    instrText.text = "PAGE"
+    p._p.append(instrText)
+    
+    fldChar2 = OxmlElement('w:fldChar')
+    fldChar2.set(qn('w:fldCharType'), 'end')
+    p._p.append(fldChar2)
+    
+    add_run(" of ")
+    
+    # Field: NUMPAGES
+    fldChar3 = OxmlElement('w:fldChar')
+    fldChar3.set(qn('w:fldCharType'), 'begin')
+    p._p.append(fldChar3)
+    
+    instrText2 = OxmlElement('w:instrText')
+    instrText2.set(qn('xml:space'), 'preserve')
+    instrText2.text = "NUMPAGES"
+    p._p.append(instrText2)
+    
+    fldChar4 = OxmlElement('w:fldChar')
+    fldChar4.set(qn('w:fldCharType'), 'end')
+    p._p.append(fldChar4)
+    
+    add_run(" | GENERATED VIA ELDORIA AI IDE")
 
 def _create_vertical_bar_header(doc, text, level=2):
     """
@@ -92,19 +129,24 @@ def _create_vertical_bar_header(doc, text, level=2):
     [ | ] [ HEADING TEXT ]
     """
     table = doc.add_table(rows=1, cols=2)
-    table.autofit = False
+    table.autofit = False 
     table.allow_autofit = False
     
-    # Column 1: The Bar (Width tiny)
-    col0 = table.columns[0]
-    col0.width = Inches(0.05)
-    cell0 = table.cell(0, 0)
-    _set_shading(cell0._tc.get_or_add_tcPr(), "007BFF") # Blue fill acts as bar
+    # Force column constraints
+    col0_w = Inches(0.05)
+    col1_w = Inches(6.0)
     
-    # Column 2: The Text
-    col1 = table.columns[1]
-    col1.width = Inches(6.0)
+    # Apply to columns
+    table.columns[0].width = col0_w
+    table.columns[1].width = col1_w
+    
+    # Apply to cells (Required for Word to respect it)
+    cell0 = table.cell(0, 0)
+    cell0.width = col0_w
+    _set_shading(cell0._tc.get_or_add_tcPr(), "007BFF") # Blue fill
+    
     cell1 = table.cell(0, 1)
+    cell1.width = col1_w
     p = cell1.paragraphs[0]
     run = p.add_run(text.upper())
     run.font.name = 'Arial'
@@ -121,6 +163,7 @@ def _setup_styles(doc):
     font = style.font
     font.name = 'Arial'
     font.size = Pt(11)
+    font.color.rgb = RGBColor(0, 0, 0) # Force Black to prevent style bleeding
     
     # 2. Headings (Blue #007BFF)
     for i in range(1, 4):
