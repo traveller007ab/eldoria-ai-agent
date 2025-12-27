@@ -4,6 +4,19 @@ import os
 from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+import re
+
+def _sanitize_content(content):
+    if not content: return ""
+    preamble_pattern = re.compile(r"^([\s\*\-_>]*)(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me)[\s\S]+?(\.|:|\n)", re.IGNORECASE | re.MULTILINE)
+    cleaned = content.strip()
+    last = ""
+    pass_count = 0
+    while cleaned != last and pass_count < 20:
+        pass_count += 1
+        last = cleaned
+        cleaned = preamble_pattern.sub('', cleaned).strip()
+    return cleaned
 
 def build_thesis(input_data):
     doc = Document()
@@ -51,7 +64,7 @@ def build_thesis(input_data):
     drafts = input_data.get('draft_content', {})
     for chapter_name, content in drafts.items():
         doc.add_heading(chapter_name, level=1)
-        doc.add_paragraph(content)
+        doc.add_paragraph(_sanitize_content(content))
         doc.add_page_break()
     
     output_path = f"thesis_{input_data.get('id', 'temp')}.docx"
