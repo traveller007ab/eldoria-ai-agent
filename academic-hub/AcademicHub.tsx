@@ -165,9 +165,7 @@ export const AcademicHub: React.FC = () => {
                 // Sanitize chapter content individually (Multi-pass)
                 let cleanedContent = ch.content.trim();
                 let lastCleaned = "";
-                let pass = 0;
-                while (cleanedContent !== lastCleaned && pass < 20) {
-                    pass++;
+                while (cleanedContent !== lastCleaned) {
                     lastCleaned = cleanedContent;
                     cleanedContent = cleanedContent.replace(preambleRegex, '').trim();
                 }

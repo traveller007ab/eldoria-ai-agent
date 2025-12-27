@@ -6,6 +6,35 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import time
 from datetime import datetime
+import re
+
+def _sanitize_content(content):
+    """
+    Robustly strips AI preambles using a multi-pass regex loop.
+    Matches the logic in OutputPanel.tsx and AcademicHub.tsx.
+    """
+    if not content:
+        return ""
+        
+    # Aggressive preamble regex
+    # Handles Markdown prefixes (e.g. **Here is...) and colons, AND newlines ([\s\S])
+    # Note: In Python, re.DOTALL makes '.' match newlines, but we use [\s\S] equivalent logic or just standard multiline
+    
+    preamble_pattern = re.compile(r"^([\s\*\-_>]*)(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me)[\s\S]+?(\.|:|\n)", re.IGNORECASE | re.MULTILINE)
+    
+    cleaned_content = content.strip()
+    last_cleaned = ""
+    
+    # Multi-pass loop to catch consecutive/nested preambles
+    pass_count = 0
+    while cleaned_content != last_cleaned and pass_count < 20:
+        pass_count += 1
+        last_cleaned = cleaned_content
+        # re.sub replaces all occurrences, but since we are anchoring to ^ (start of line), 
+        # it effectively removes leading preambles.
+        cleaned_content = preamble_pattern.sub('', cleaned_content).strip()
+        
+    return cleaned_content
 
 def build_thesis(input_data):
     doc = Document()
@@ -62,6 +91,8 @@ def build_thesis(input_data):
     for chapter_name in ordered_chapters:
         content = drafts.get(chapter_name)
         if content:
+            # Sanitize content before adding to doc
+            content = _sanitize_content(content)
             doc.add_heading(chapter_name.upper(), level=1)
             # Placeholder for complex markdown parsing
             # Split by double newlines for basic paragraph handling
