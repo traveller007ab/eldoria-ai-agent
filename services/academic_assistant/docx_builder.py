@@ -396,50 +396,108 @@ def _process_bold(paragraph, text):
             run.bold = True
 
 def build_thesis(input_data):
+    """
+    PREMIUM Thesis Builder with professional styling.
+    """
     doc = Document()
     _setup_page_layout(doc)
-    _setup_styles(doc) # Keep valid for fallbacks
-    # For thesis we don't need a running header, just the footer
+    _setup_styles(doc)
     _add_footer(doc)
     
-    # 1. Title Page
+    # === EXTRACT DATA ===
     title = input_data.get('basics', {}).get('title', 'UNTITLED THESIS').upper()
     author = input_data.get('basics', {}).get('author', 'UNKNOWN AUTHOR')
     reg_num = input_data.get('basics', {}).get('regNumber', '')
     year = input_data.get('basics', {}).get('year', '2024')
+    department = input_data.get('basics', {}).get('department', 'MECHANICAL ENGINEERING')
+    university = input_data.get('basics', {}).get('university', 'RIVERS STATE UNIVERSITY, PORT HARCOURT')
     
-    # Simple Title Page Logic
-    for _ in range(5): doc.add_paragraph()
-    p = doc.add_paragraph(title)
+    # === TITLE PAGE ===
+    
+    # 1. University Branding Bar
+    bar_table = doc.add_table(rows=1, cols=1)
+    bar_table.autofit = False
+    bar_table.allow_autofit = False
+    bar_table.columns[0].width = Inches(6.5)
+    bar_cell = bar_table.cell(0, 0)
+    bar_cell.width = Inches(6.5)
+    _set_shading(bar_cell._tc.get_or_add_tcPr(), "0891B2")  # Cyan-600
+    
+    p = bar_cell.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.runs[0]
-    run.bold = True
-    run.font.size = Pt(16)
+    p.paragraph_format.space_before = Pt(4)
+    p.paragraph_format.space_after = Pt(4)
+    r = p.add_run(university.upper())
+    r.font.name = 'Arial'
+    r.font.size = Pt(10)
+    r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    r.font.bold = True
     
+    # 2. Spacer
     for _ in range(3): doc.add_paragraph()
+    
+    # 3. Shaded Title Container
+    title_table = doc.add_table(rows=1, cols=1)
+    title_table.autofit = False
+    title_table.columns[0].width = Inches(6.5)
+    title_cell = title_table.cell(0, 0)
+    title_cell.width = Inches(6.5)
+    _set_shading(title_cell._tc.get_or_add_tcPr(), "F8FAFC")  # Slate-50
+    
+    p = title_cell.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(24)
+    p.paragraph_format.space_after = Pt(24)
+    r = p.add_run(title)
+    r.font.name = 'Arial'
+    r.font.size = Pt(18)
+    r.font.bold = True
+    r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)  # Slate-900
+    
+    # 4. "BY" and Author
+    for _ in range(2): doc.add_paragraph()
+    
     p = doc.add_paragraph("BY")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.runs[0].font.size = Pt(11)
+    p.runs[0].font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
     
-    p = doc.add_paragraph(author)
+    doc.add_paragraph()
+    
+    p = doc.add_paragraph(author.upper())
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.runs[0].bold = True
+    p.runs[0].font.size = Pt(14)
+    p.runs[0].font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
     
-    p = doc.add_paragraph(reg_num)
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if reg_num:
+        p = doc.add_paragraph(reg_num)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.runs[0].font.size = Pt(11)
+        p.runs[0].font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
     
-    for _ in range(5): doc.add_paragraph()
-    p = doc.add_paragraph("A THESIS SUBMITTED TO THE DEPARTMENT OF MECHANICAL ENGINEERING")
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # 5. Submission Info
+    for _ in range(4): doc.add_paragraph()
     
-    p = doc.add_paragraph("RIVERS STATE UNIVERSITY, PORT HARCOURT")
+    p = doc.add_paragraph(f"A THESIS SUBMITTED TO THE DEPARTMENT OF {department.upper()}")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.runs[0].font.size = Pt(10)
+    
+    p = doc.add_paragraph("IN PARTIAL FULFILLMENT OF THE REQUIREMENTS FOR THE DEGREE")
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.runs[0].font.size = Pt(10)
+    p.runs[0].font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+    
+    for _ in range(2): doc.add_paragraph()
     
     p = doc.add_paragraph(year)
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.runs[0].bold = True
+    p.runs[0].font.size = Pt(14)
     
     doc.add_page_break()
     
-    # 2. Content Sections
+    # === CONTENT SECTIONS ===
     ordered_chapters = [
         'Front Matter',
         'Abstract', 
@@ -454,17 +512,10 @@ def build_thesis(input_data):
     for chapter_name in ordered_chapters:
         content = drafts.get(chapter_name)
         if content:
-            # We can use the simple header or just a page break + heading
-            # For consistency with the Thesis look, let's just use the markdown parser
-            # The parser handles H1/H2 etc.
-            # If we want a specific "Title Page" for each chapter, we could do:
-            # _add_title_block(doc, chapter_name) 
-            # But that might be too heavy. Let's stick to standard flow:
+            # Add premium chapter header
+            _create_vertical_bar_header(doc, chapter_name, level=1)
             
-            # _add_markdown_content will parse the headers in the content.
-            # If the content doesn't have a header, we might want to add one.
-            # But safely, let's just dump the content.
-            
+            # Add content (skip internal headers that duplicate chapter name)
             _add_markdown_content(doc, content)
             doc.add_page_break()
 
