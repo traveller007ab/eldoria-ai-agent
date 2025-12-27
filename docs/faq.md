@@ -37,13 +37,21 @@ EmeraldMind is Eldoria's persistent memory system. It remembers context across s
 
 ### What is SAF (Strategic Analysis Framework)?
 
-SAF is a meta-system engineering framework for:
-- **Deconstructing** systems into components
-- **Mapping** dependencies between parts
-- **Identifying** modification points
-- **Calculating** cascading effects
+SAF is Eldoria's cognitive backbone—a meta-system engineering framework that powers every AI interaction. While invisible in the interface, SAF is what makes Eldoria feel "deeply intelligent."
 
-It's especially useful for engineering analysis and complex system design.
+**The 8-Stage Workflow:**
+1. **INGEST** — Absorb query, context, and intent
+2. **DECONSTRUCT** — Break into core/subcore/micro components
+3. **MAP** — Identify dependencies and critical paths
+4. **BIND** — Apply logical rules and constraints
+5. **MODIFY** — Consider parameter changes
+6. **RECALCULATE** — Compute cascading effects
+7. **RECONSTRUCT** — Assemble coherent response
+8. **COMPARE** — Consider alternatives and edge cases
+
+SAF automatically applies this reasoning to every response, making thesis chapters feel cohesive and analyses feel thorough.
+
+👉 [Learn more about SAF](/features/saf-framework)
 
 ### Can AI access the internet?
 

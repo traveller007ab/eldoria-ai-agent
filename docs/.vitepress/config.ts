@@ -34,6 +34,7 @@ export default defineConfig({
                 {
                     text: 'Core Features',
                     items: [
+                        { text: 'SAF Framework', link: '/features/saf-framework' },
                         { text: 'Editor Panel', link: '/features/editor' },
                         { text: 'Chat Interface', link: '/features/chat' },
                         { text: 'Prompt Library', link: '/features/prompt-library' },

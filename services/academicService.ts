@@ -269,32 +269,130 @@ export async function checkOriginality(content: string) {
 
 // ============================================
 // CHAPTER SYNTHESIS (Via Bridge Proxy)
+// SAF-Powered: Each chapter uses specialized reasoning stages
 // ============================================
+
+// Define SAF emphasis per chapter
+const CHAPTER_SAF_CONFIG: Record<string, {
+    emphasis: string[];
+    specialInstructions: string;
+    guardrails: string;
+}> = {
+    'Chapter 1: Introduction': {
+        emphasis: ['INGEST', 'DECONSTRUCT'],
+        specialInstructions: `Focus on clear problem framing, research gap identification, and scope definition.
+Break down the research topic into:
+- Core problem statement
+- Research questions derived from the problem
+- Justification for the study
+- Thesis outline overview`,
+        guardrails: 'Establish a compelling hook. Define scope precisely. Avoid methodology details.'
+    },
+    'Chapter 2: Literature Review': {
+        emphasis: ['DECONSTRUCT', 'MAP'],
+        specialInstructions: `Ruthlessly tear down existing literature:
+- Identify conceptual clusters
+- Map contradictions and agreements between sources
+- Highlight critical gaps that justify this research
+- Trace theoretical evolution
+Structure thematically, not chronologically.`,
+        guardrails: 'Cite 15-30 sources minimum. Always identify gaps. Show how this study fills them.'
+    },
+    'Chapter 3: Materials & Methods': {
+        emphasis: ['MAP', 'BIND'],
+        specialInstructions: `Apply rigorous logical binding:
+- Step-by-step methodology justification
+- Alternatives considered and why rejected
+- Constraints and assumptions explicitly stated
+- Reproducibility is paramount
+Include: equipment specifications, procedures, mathematical models, data collection methods.`,
+        guardrails: 'Justify every choice. Include pros/cons of alternatives. Enable replication.'
+    },
+    'Chapter 4: Results & Discussion': {
+        emphasis: ['RECALCULATE', 'MODIFY'],
+        specialInstructions: `Present data with cascading analysis:
+- Raw results first, then computed/derived values
+- If variables change, show how results cascade
+- Statistical significance where applicable
+- Compare with literature findings
+- Discuss unexpected results and their implications`,
+        guardrails: 'No raw data dumps. Every result needs interpretation. Link back to objectives.'
+    },
+    'Chapter 5: Conclusion & Recommendations': {
+        emphasis: ['RECONSTRUCT', 'COMPARE'],
+        specialInstructions: `Full synthesis:
+- Reconstruct findings into a coherent narrative
+- Compare achieved outcomes vs. stated objectives
+- Acknowledge limitations honestly
+- Propose concrete future work
+- End with impact statement`,
+        guardrails: 'No new data. Tie everything to introduction. Be definitive, not tentative.'
+    },
+    'Abstract': {
+        emphasis: ['RECONSTRUCT'],
+        specialInstructions: `Ultra-concise synthesis of the entire thesis:
+- One sentence for problem/background
+- One sentence for objective/aim
+- Two sentences for methodology
+- Two sentences for key findings
+- One sentence for conclusion/significance`,
+        guardrails: '200-350 words maximum. No citations. Standalone readability.'
+    },
+    'Front Matter': {
+        emphasis: ['INGEST'],
+        specialInstructions: `Generate institutional front matter:
+- Title page formatting
+- Declaration of authenticity
+- Dedication (optional placeholder)
+- Acknowledgments template
+- Table of Contents structure`,
+        guardrails: 'Follow RSU formatting standards. Formal, impersonal tone.'
+    }
+};
 
 export async function* synthesizeChapter(project: AcademicProject, chapterName: string) {
     const wizard = project.wizard_state;
+    const config = CHAPTER_SAF_CONFIG[chapterName] || {
+        emphasis: ['INGEST', 'DECONSTRUCT'],
+        specialInstructions: 'Generate this chapter with scholarly depth.',
+        guardrails: 'Maintain academic rigor.'
+    };
 
     const prompt = `
-        You are an elite academic architect specializing in Rivers State University (RSU) thesis standards.
-        You are tasked with writing **${chapterName}** for a thesis titled: "${wizard.basics.title}".
-        
-        STUDENT METADATA:
-        Author: ${wizard.basics.author}
-        Department: Mechanical Engineering
-        
-        RESEARCH PARAMETERS:
-        Aim: ${wizard.objectives.aim}
-        Objectives: ${wizard.objectives.specificObjectives.join(', ')}
-        Scope: ${wizard.scope.scopeOfWork}
-        Significance: ${wizard.scope.significance}
-        Keywords: ${wizard.literature.keywords.join(', ')}
-        
-        REQUIREMENTS:
-        - Use professional, scholarly language (APA 7th style).
-        - Ensure logical flow and rigorous technical depth.
-        - Target word count for this chapter: ~1000 - 1500 words.
-        - Format in valid Markdown.
-        - Focus exclusively on ${chapterName}.
+You are an elite academic architect specializing in Rivers State University (RSU) thesis standards.
+You are tasked with writing **${chapterName}** for a thesis titled: "${wizard.basics.title}".
+
+STUDENT METADATA:
+Author: ${wizard.basics.author}
+Department: Mechanical Engineering
+Registration: ${wizard.basics.regNumber || 'N/A'}
+
+RESEARCH PARAMETERS:
+Aim: ${wizard.objectives.aim}
+Objectives: ${wizard.objectives.specificObjectives?.join(', ') || 'Not defined'}
+Scope: ${wizard.scope?.scopeOfWork || 'Not defined'}
+Significance: ${wizard.scope?.significance || 'Not defined'}
+Keywords: ${wizard.literature?.keywords?.join(', ') || 'Not defined'}
+
+---
+
+**COGNITIVE APPROACH FOR THIS CHAPTER:**
+Apply deep analysis with emphasis on: ${config.emphasis.join(' → ')}
+
+${config.specialInstructions}
+
+**GUARDRAILS:**
+${config.guardrails}
+
+---
+
+REQUIREMENTS:
+- Use professional, scholarly language (APA 7th style).
+- Ensure logical flow and rigorous technical depth.
+- Target word count: 1000 - 2000 words for main chapters, 250-350 for Abstract.
+- Format in valid Markdown with proper heading hierarchy.
+- Focus exclusively on ${chapterName}.
+- Your response should demonstrate that you've considered the problem deeply, mapped dependencies, and anticipated follow-up questions.
     `;
 
     try {
@@ -304,7 +402,7 @@ export async function* synthesizeChapter(project: AcademicProject, chapterName: 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 messages: [
-                    { role: "system", content: "You are a senior academic supervisor and expert thesis writer." },
+                    { role: "system", content: `You are a senior academic supervisor and expert thesis writer. You think deeply about problems, considering dependencies, alternatives, and cascading effects before writing. Your outputs are polished, comprehensive, and publication-ready.` },
                     { role: "user", content: prompt }
                 ],
                 model: "llama-3.3-70b-versatile",

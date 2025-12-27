@@ -122,6 +122,8 @@ export interface Canvas {
   insights: string[] | null;
   insight_metadata: Record<string, any>[] | null;
   saf_blueprint?: any; // Stores the visual block architecture JSON
+  reasoning_depth?: 'surface' | 'structured' | 'deep'; // Analysis depth indicator
+  reasoning_tree?: object; // Optional structured reasoning metadata
 }
 
 export interface Folder {

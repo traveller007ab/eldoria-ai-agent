@@ -28,12 +28,13 @@ const MemoryStatusIndicator: React.FC<{ status: MemoryStatus }> = ({ status }) =
 };
 
 const SAFStatusIndicator: React.FC<{ status: SAFStatus }> = ({ status }) => {
+  // Invisible Intelligence - no "SAF" branding, just subtle depth cues
   const config = {
-    idle: { text: 'SAF Engine Active', visible: true, color: 'text-cyan-500/20', animate: false },
-    planning: { text: 'SAF: Planning Strategy...', visible: true, color: 'text-cyan-400/80', animate: true },
-    thinking: { text: 'SAF: Reasoning...', visible: true, color: 'text-cyan-400/80', animate: true },
-    executing_tool: { text: 'SAF: Tool Execution...', visible: true, color: 'text-cyan-400/80', animate: true },
-    responding: { text: 'SAF: Finalizing...', visible: true, color: 'text-cyan-400/80', animate: true },
+    idle: { text: 'Ready', visible: true, color: 'text-cyan-500/20', animate: false },
+    planning: { text: 'Analyzing...', visible: true, color: 'text-cyan-400/80', animate: true },
+    thinking: { text: 'Deep Analysis', visible: true, color: 'text-cyan-400/80', animate: true },
+    executing_tool: { text: 'Executing...', visible: true, color: 'text-emerald-400/80', animate: true },
+    responding: { text: 'Synthesizing', visible: true, color: 'text-cyan-400/80', animate: true },
   };
   const current = config[status];
   return (

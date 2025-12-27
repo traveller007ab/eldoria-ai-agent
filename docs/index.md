@@ -39,8 +39,8 @@ features:
       src: /icon-saf.png
       width: 48
       height: 48
-    title: SAF Framework
-    details: Strategic Analysis Framework for deconstructing and reconstructing any system
+    title: SAF Intelligence Engine
+    details: 8-stage deep analysis powers every response—INGEST, DECONSTRUCT, MAP, BIND, MODIFY, RECALCULATE, RECONSTRUCT, COMPARE
   - icon:
       src: /icon-bridge.png
       width: 48
@@ -62,6 +62,7 @@ Eldoria is an **AI-powered Integrated Development Environment** designed specifi
 ## Quick Links
 
 - 🚀 [Getting Started](/guide/getting-started) - Set up in 5 minutes
+- 🧠 [SAF Framework](/features/saf-framework) - Understand the intelligence engine
 - 📝 [Editor Guide](/features/editor) - Master the canvas system
 - 💬 [Chat Interface](/features/chat) - Leverage AI assistance
 - 📚 [Prompt Library](/features/prompt-library) - Use structured templates

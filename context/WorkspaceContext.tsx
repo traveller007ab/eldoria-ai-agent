@@ -774,6 +774,28 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
               console.warn("Incomplete or invalid SAF JSON:", jsonErr);
             }
           }
+
+          // --- REASONING BLOCK PARSING (For future "Show Reasoning" toggle) ---
+          const reasoningMatch = displayResponse.match(/<REASONING>(.*?)<\/REASONING>/s);
+          if (reasoningMatch) {
+            try {
+              const reasoningJson = JSON.parse(reasoningMatch[1]);
+              // Store reasoning tree as canvas metadata
+              dispatch({
+                type: 'UPDATE_CANVAS',
+                payload: {
+                  ...activeCanvas,
+                  reasoning_tree: reasoningJson,
+                  reasoning_depth: 'deep' // Mark as deep analysis
+                }
+              });
+              // Hide from display
+              displayResponse = displayResponse.replace(reasoningMatch[0], '').trim();
+            } catch {
+              // If not valid JSON, store as string for debugging
+              console.log("Reasoning block present but not JSON:", reasoningMatch[1]);
+            }
+          }
           // -----------------------------
 
           botMessage.text = displayResponse;
