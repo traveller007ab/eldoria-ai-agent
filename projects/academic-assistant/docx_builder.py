@@ -2,9 +2,10 @@ import sys
 import json
 import os
 from docx import Document
-from docx.shared import Pt, Inches
+from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-import re
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElementimport re
 
 def _sanitize_content(content):
     if not content: return ""
@@ -17,6 +18,26 @@ def _sanitize_content(content):
         last = cleaned
         cleaned = preamble_pattern.sub('', cleaned).strip()
     return cleaned
+
+def _setup_styles(doc):
+    """Configures document styles to match Eldoria's web aesthetic (Cyan/Sans-Serif)"""
+    style = doc.styles['Normal']
+    style.font.name = 'Arial'
+    style.font.size = Pt(11)
+    for i in range(1, 4):
+        style = doc.styles.get(f'Heading {i}', doc.styles.add_style(f'Heading {i}', 1))
+        style.font.name = 'Arial'
+        style.font.color.rgb = RGBColor(0x06, 0xB6, 0xD4)
+        if i == 1: style.font.size = Pt(18)
+        if i == 2: style.font.size = Pt(16)
+        if i == 3: style.font.size = Pt(14)
+
+def _set_shading(element, color_hex):
+    shading_elm = OxmlElement('w:shd')
+    shading_elm.set(qn('w:val'), 'clear')
+    shading_elm.set(qn('w:color'), 'auto')
+    shading_elm.set(qn('w:fill'), color_hex)
+    element.append(shading_elm)
 
 def _add_markdown_content(doc, content):
     """
@@ -33,17 +54,49 @@ def _add_markdown_content(doc, content):
     content = re.sub(r"</SAF_ISO>", "\n```\n", content, flags=re.IGNORECASE)
 
     lines = content.split('\n')
-    in_code = False
+    in_code_block = False
+    table_buffer = []
+
+    def flush_table():
+        if not table_buffer: return
+        rows = len(table_buffer)
+        cols = len(table_buffer[0].split('|')) - 2
+        if cols < 1: return
+        table = doc.add_table(rows=rows, cols=cols)
+        table.style = 'Table Grid'
+        for r_idx, row_str in enumerate(table_buffer):
+            cells = [c.strip() for c in row_str.split('|')[1:-1]]
+            for c_idx, cell_text in enumerate(cells):
+                if c_idx < cols:
+                    cell = table.cell(r_idx, c_idx)
+                    cell.text = cell_text
+                    if r_idx == 0:
+                         _set_shading(cell._tc.get_or_add_tcPr(), "F8FAFC")
+                         for paragraph in cell.paragraphs:
+                             for run in paragraph.runs:
+                                 run.font.bold = True
+        doc.add_paragraph()
+        table_buffer.clear()
+
     for line in lines:
         stripped = line.strip()
-        if stripped.startswith('```'):
-            in_code = not in_code
+        if stripped.startswith('|'):
+            table_buffer.append(stripped)
             continue
-        if in_code:
-            p = doc.add_paragraph(stripped)
-            try: p.style = 'Quote' 
-            except: pass
+        elif table_buffer:
+             flush_table()
+
+        if stripped.startswith('```'):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            t = doc.add_table(rows=1, cols=1)
+            cell = t.cell(0, 0)
+            _set_shading(cell._tc.get_or_add_tcPr(), "F1F5F9")
+            p = cell.paragraphs[0]
+            p.text = stripped
             p.style.font.name = 'Courier New'
+            p.style.font.size = Pt(9)
             continue
 
         if stripped.startswith('# '): doc.add_heading(stripped[2:], level=1)
@@ -53,13 +106,12 @@ def _add_markdown_content(doc, content):
             try: p = doc.add_paragraph(style='List Bullet')
             except: p = doc.add_paragraph(style='List Paragraph')
             _process_bold(p, stripped[2:])
-        elif stripped.startswith('|'):
-            p = doc.add_paragraph(stripped)
-            p.style.font.name = 'Courier New'
         else:
             if not stripped: continue
             p = doc.add_paragraph()
             _process_bold(p, stripped)
+    
+    if table_buffer: flush_table()
 
 def _process_bold(paragraph, text):
     segments = text.split('**')
@@ -70,6 +122,7 @@ def _process_bold(paragraph, text):
 
 def build_thesis(input_data):
     doc = Document()
+    _setup_styles(doc)
     
     # 1. Title Page
     title = input_data.get('basics', {}).get('title', 'UNTITLED THESIS').upper()

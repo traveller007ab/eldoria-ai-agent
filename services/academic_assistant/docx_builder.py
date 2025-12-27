@@ -2,9 +2,10 @@ import sys
 import json
 import os
 from docx import Document
-from docx.shared import Pt, Inches
+from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-import time
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElementimport time
 from datetime import datetime
 import re
 
@@ -36,6 +37,32 @@ def _sanitize_content(content):
         
     return cleaned_content
 
+def _setup_styles(doc):
+    """Configures document styles to match Eldoria's web aesthetic (Cyan/Sans-Serif)"""
+    # 1. Normal Text
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Arial'
+    font.size = Pt(11)
+    
+    # 2. Headings (Cyan #06b6d4)
+    for i in range(1, 4):
+        style = doc.styles.get(f'Heading {i}', doc.styles.add_style(f'Heading {i}', 1))
+        font = style.font
+        font.name = 'Arial'
+        font.color.rgb = RGBColor(0x06, 0xB6, 0xD4)
+        if i == 1: font.size = Pt(18) # Web H1
+        if i == 2: font.size = Pt(16) # Web H2
+        if i == 3: font.size = Pt(14) # Web H3
+
+def _set_shading(element, color_hex):
+    """Helper to add background color to a table cell or paragraph"""
+    shading_elm = OxmlElement('w:shd')
+    shading_elm.set(qn('w:val'), 'clear')
+    shading_elm.set(qn('w:color'), 'auto')
+    shading_elm.set(qn('w:fill'), color_hex)
+    element.append(shading_elm)
+
 def _add_markdown_content(doc, content):
     """
     Parses basic Markdown (Headers, Lists, Tables, Bold) into Docx elements.
@@ -59,23 +86,60 @@ def _add_markdown_content(doc, content):
 
     lines = content.split('\n')
     
-    # Simple state machine for tables/code
+    # State flags
     in_code_block = False
+    table_buffer = []
     
+    def flush_table():
+        if not table_buffer: return
+        # Create table
+        rows = len(table_buffer)
+        cols = len(table_buffer[0].split('|')) - 2 # Assuming | val | val | format
+        if cols < 1: return
+        
+        table = doc.add_table(rows=rows, cols=cols)
+        table.style = 'Table Grid'
+        
+        for r_idx, row_str in enumerate(table_buffer):
+            # Split and clean empty start/end
+            cells = [c.strip() for c in row_str.split('|')[1:-1]]
+            for c_idx, cell_text in enumerate(cells):
+                if c_idx < cols:
+                    cell = table.cell(r_idx, c_idx)
+                    cell.text = cell_text
+                    if r_idx == 0: # Header shading
+                         _set_shading(cell._tc.get_or_add_tcPr(), "F8FAFC")
+                         for paragraph in cell.paragraphs:
+                             for run in paragraph.runs:
+                                 run.font.bold = True
+        
+        doc.add_paragraph() # Spacer
+        table_buffer.clear()
+
     for line in lines:
         stripped = line.strip()
         
+        # Table Detection
+        if stripped.startswith('|'):
+            table_buffer.append(stripped)
+            continue
+        elif table_buffer:
+             flush_table()
+
         # Code block toggle
         if stripped.startswith('```'):
             in_code_block = not in_code_block
             continue
             
         if in_code_block:
-            p = doc.add_paragraph(stripped)
-            try:
-                p.style = 'Quote' # Use Quote style for code fallback
-            except: pass
+            # Render code inside a shaded table cell for background color
+            t = doc.add_table(rows=1, cols=1)
+            cell = t.cell(0, 0)
+            _set_shading(cell._tc.get_or_add_tcPr(), "F1F5F9") # Slate-100
+            p = cell.paragraphs[0]
+            p.text = stripped
             p.style.font.name = 'Courier New'
+            p.style.font.size = Pt(9)
             continue
 
         # Headers
@@ -104,17 +168,15 @@ def _add_markdown_content(doc, content):
             text_content = re.sub(r'^\d+\.\s', '', stripped)
             _process_bold(p, text_content)
             
-        # Tables (Basic row dumping, not real table yet to save complexity/errors)
-        elif stripped.startswith('|'):
-            # TODO: Real table parsing if requested, for now print as monospace
-            p = doc.add_paragraph(stripped)
-            p.style.font.name = 'Courier New'
-            
         # Standard Paragraph
         else:
             if not stripped: continue
             p = doc.add_paragraph()
             _process_bold(p, stripped)
+    
+    # Flush any remaining table
+    if table_buffer: flush_table()
+
 
 def _process_bold(paragraph, text):
     """Refactored bold processing"""
@@ -127,6 +189,7 @@ def _process_bold(paragraph, text):
 
 def build_thesis(input_data):
     doc = Document()
+    _setup_styles(doc)
     
     # 1. Title Page
     title = input_data.get('basics', {}).get('title', 'UNTITLED THESIS').upper()
@@ -209,6 +272,7 @@ def build_thesis(input_data):
 
 def build_simple_doc(title, content):
     doc = Document()
+    _setup_styles(doc)
     
     # Professional Header
     header = doc.add_heading(title.upper(), level=0)
