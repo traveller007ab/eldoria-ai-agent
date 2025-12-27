@@ -26,7 +26,12 @@ def _setup_styles(doc):
     style.font.name = 'Arial'
     style.font.size = Pt(11)
     for i in range(1, 4):
-        style = doc.styles.get(f'Heading {i}', doc.styles.add_style(f'Heading {i}', 1))
+        style_name = f'Heading {i}'
+        try:
+            style = doc.styles[style_name]
+        except KeyError:
+            style = doc.styles.add_style(style_name, 1)
+            
         style.font.name = 'Arial'
         style.font.color.rgb = RGBColor(0x06, 0xB6, 0xD4)
         if i == 1: style.font.size = Pt(18)

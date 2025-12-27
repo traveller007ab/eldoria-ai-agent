@@ -48,7 +48,12 @@ def _setup_styles(doc):
     
     # 2. Headings (Cyan #06b6d4)
     for i in range(1, 4):
-        style = doc.styles.get(f'Heading {i}', doc.styles.add_style(f'Heading {i}', 1))
+        style_name = f'Heading {i}'
+        try:
+            style = doc.styles[style_name]
+        except KeyError:
+            style = doc.styles.add_style(style_name, 1) # 1 = Paragraph Style
+            
         font = style.font
         font.name = 'Arial'
         font.color.rgb = RGBColor(0x06, 0xB6, 0xD4)
