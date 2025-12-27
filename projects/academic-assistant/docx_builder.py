@@ -7,6 +7,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import re
+from datetime import datetime
 
 def _sanitize_content(content):
     if not content: return ""
@@ -266,7 +267,7 @@ def build_thesis(input_data):
     doc = Document()
     _setup_page_layout(doc)
     _setup_styles(doc)
-    _add_header(doc, right_text="ACADEMIC DRAFT")
+    # For thesis we don't need a running header, just the footer
     _add_footer(doc)
     
     # 1. Title Page

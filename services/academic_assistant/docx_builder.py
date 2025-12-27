@@ -372,7 +372,7 @@ def build_thesis(input_data):
     doc = Document()
     _setup_page_layout(doc)
     _setup_styles(doc) # Keep valid for fallbacks
-    _add_header(doc, right_text="ACADEMIC DRAFT")
+    # For thesis we don't need a running header, just the footer
     _add_footer(doc)
     
     # 1. Title Page
@@ -462,6 +462,7 @@ def build_simple_doc(title, content):
     _setup_page_layout(doc)
     _setup_styles(doc) # Fallbacks
     _add_title_block(doc, title)
+    _add_footer(doc)
     
     # Body Content via Parser
     _add_markdown_content(doc, content)

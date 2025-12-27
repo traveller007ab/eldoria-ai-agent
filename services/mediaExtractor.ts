@@ -4,6 +4,7 @@
  */
 
 import { ExtractedImage, ExtractedTable } from './researchService';
+import { getBridgeUrl } from './bridgeClient';
 
 // ============ IMAGE EXTRACTION ============
 
@@ -13,7 +14,7 @@ import { ExtractedImage, ExtractedTable } from './researchService';
 export async function extractImagesFromUrl(url: string): Promise<ExtractedImage[]> {
     try {
         // Use the Python bridge for HTML parsing (BeautifulSoup)
-        const bridgeUrl = localStorage.getItem('bridge_url') || 'http://localhost:8000';
+        const bridgeUrl = await getBridgeUrl();
 
         const response = await fetch(`${bridgeUrl}/research/extract-media`, {
             method: 'POST',
@@ -110,7 +111,7 @@ function parseImagesFromHtml(html: string, baseUrl: string): ExtractedImage[] {
  */
 export async function extractTablesFromUrl(url: string): Promise<ExtractedTable[]> {
     try {
-        const bridgeUrl = localStorage.getItem('bridge_url') || 'http://localhost:8000';
+        const bridgeUrl = await getBridgeUrl();
 
         const response = await fetch(`${bridgeUrl}/research/extract-media`, {
             method: 'POST',
