@@ -58,84 +58,105 @@ def _setup_page_layout(doc):
 
 def _add_title_block(doc, title, project_id=""):
     """
-    Creates the 'Strategic Analysis' title block from the reference image.
-    Row 1: ELDORIA STRATEGIC ANALYSIS (Left) | TIMESTAMP (Right)
-    Row 2: [Title] (Left, Big Blue)           | [Date] (Right)
-    Line:  Cyan Horizontal Rule
+    Creates a PREMIUM 'Strategic Analysis' title block.
+    - Full-width cyan accent bar at top
+    - Shaded title container
+    - Professional typography hierarchy
     """
-    table = doc.add_table(rows=2, cols=2)
-    table.autofit = False
-    table.allow_autofit = False
+    # === 1. FULL-WIDTH ACCENT BAR (Letterhead Style) ===
+    accent_table = doc.add_table(rows=1, cols=1)
+    accent_table.autofit = False
+    accent_table.allow_autofit = False
+    accent_table.columns[0].width = Inches(6.5)
+    accent_cell = accent_table.cell(0, 0)
+    accent_cell.width = Inches(6.5)
+    _set_shading(accent_cell._tc.get_or_add_tcPr(), "0891B2")  # Cyan-600
     
-    # Widths: Text acts as 70%, Date acts as 30%
-    table.columns[0].width = Inches(4.5)
-    table.columns[1].width = Inches(2.0)
-    
-    # --- Row 1 ---
-    # Top Left
-    c00 = table.cell(0, 0)
-    p = c00.paragraphs[0]
-    r = p.add_run("ELDORIA STRATEGIC ANALYSIS")
+    # Add small text inside the bar
+    p = accent_cell.paragraphs[0]
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(2)
+    r = p.add_run("  ELDORIA AI IDE  •  STRATEGIC ANALYSIS FRAMEWORK  •  NEURAL CONTEXT LAYER v1.2")
     r.font.name = 'Arial'
-    r.font.size = Pt(8)
-    r.font.color.rgb = RGBColor(0x64, 0x74, 0x8B) # Slate-500
-    r.font.all_caps = True
-    p.paragraph_format.space_after = Pt(0)
+    r.font.size = Pt(7)
+    r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)  # White
+    r.font.bold = True
     
-    # Top Right
-    c01 = table.cell(0, 1)
+    # Small spacer
+    spacer = doc.add_paragraph()
+    spacer.paragraph_format.space_after = Pt(6)
+    
+    # === 2. MAIN TITLE BLOCK WITH SHADED BACKGROUND ===
+    title_table = doc.add_table(rows=2, cols=2)
+    title_table.autofit = False
+    title_table.allow_autofit = False
+    
+    # Widths
+    title_table.columns[0].width = Inches(4.8)
+    title_table.columns[1].width = Inches(1.7)
+    
+    # Apply subtle background to all cells
+    for row in title_table.rows:
+        for cell in row.cells:
+            _set_shading(cell._tc.get_or_add_tcPr(), "F8FAFC")  # Slate-50
+    
+    # --- Row 1: Labels ---
+    c00 = title_table.cell(0, 0)
+    p = c00.paragraphs[0]
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(0)
+    r = p.add_run("STRATEGIC BRIEF")
+    r.font.name = 'Arial'
+    r.font.size = Pt(9)
+    r.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)  # Slate-500
+    r.font.bold = True
+    
+    c01 = title_table.cell(0, 1)
     p = c01.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    r = p.add_run("TIMESTAMP")
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(0)
+    r = p.add_run("GENERATED")
     r.font.name = 'Arial'
     r.font.size = Pt(8)
-    r.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
-    r.font.all_caps = True
-    p.paragraph_format.space_after = Pt(0)
+    r.font.color.rgb = RGBColor(0x94, 0xA3, 0xB8)  # Slate-400
     
-    # --- Row 2 ---
-    # Bottom Left (Title)
-    c10 = table.cell(1, 0)
+    # --- Row 2: Title & Date ---
+    c10 = title_table.cell(1, 0)
     p = c10.paragraphs[0]
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(10)
     r = p.add_run(title)
     r.font.name = 'Arial'
-    r.font.size = Pt(24) # Big
+    r.font.size = Pt(22)
     r.font.bold = True
-    r.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF) # Blue
-    p.paragraph_format.space_before = Pt(4)
+    r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)  # Slate-900 (Dark, not blue)
     
-    # Bottom Right (Date)
-    c11 = table.cell(1, 1)
+    c11 = title_table.cell(1, 1)
     p = c11.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    r = p.add_run(datetime.now().strftime("%B %d, %Y"))
+    p.paragraph_format.space_before = Pt(6)
+    p.paragraph_format.space_after = Pt(10)
+    r = p.add_run(datetime.now().strftime("%b %d, %Y"))
     r.font.name = 'Arial'
-    r.font.size = Pt(10)
-    r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A) # Slate-900
-    p.paragraph_format.space_before = Pt(12) # Align baseline roughly
-
-    # Spacer
-    doc.add_paragraph()
+    r.font.size = Pt(11)
+    r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
+    r.font.bold = True
     
-    # Horizontal Cyan Line
-    # We use a paragraph with a bottom border
-    p = doc.add_paragraph()
-    p_format = p.paragraph_format
-    p_format.space_after = Pt(12)
+    # === 3. THIN ACCENT LINE BELOW ===
+    line_para = doc.add_paragraph()
+    line_para.paragraph_format.space_before = Pt(0)
+    line_para.paragraph_format.space_after = Pt(16)
     
-    # Inject OXML for Border
-    pPr = p._p.get_or_add_pPr()
+    pPr = line_para._p.get_or_add_pPr()
     pbdr = OxmlElement('w:pBdr')
     bottom = OxmlElement('w:bottom')
     bottom.set(qn('w:val'), 'single')
-    bottom.set(qn('w:sz'), '12') # 1.5pt
+    bottom.set(qn('w:sz'), '18')  # 2.25pt - thicker
     bottom.set(qn('w:space'), '1')
-    bottom.set(qn('w:color'), '06B6D4') # Cyan-500
+    bottom.set(qn('w:color'), '0891B2')  # Cyan-600
     pbdr.append(bottom)
     pPr.append(pbdr)
-
-    # Secondary spacer
-    doc.add_paragraph()
 
 def _add_footer(doc, page_num=True):
     """Adds footer with Page X of Y and generation info"""
@@ -182,36 +203,42 @@ def _add_footer(doc, page_num=True):
 
 def _create_vertical_bar_header(doc, text, level=2):
     """
-    Simulates a 'Vertical Bar Header' using a table with a colored left border cell.
-    [ | ] [ HEADING TEXT ]
+    PREMIUM section header with colored accent bar and professional styling.
     """
     table = doc.add_table(rows=1, cols=2)
     table.autofit = False 
     table.allow_autofit = False
     
-    # Force column constraints
-    col0_w = Inches(0.05)
-    col1_w = Inches(6.0)
+    # Column widths
+    col0_w = Inches(0.08)  # Slightly thicker bar
+    col1_w = Inches(6.42)
     
-    # Apply to columns
     table.columns[0].width = col0_w
     table.columns[1].width = col1_w
     
-    # Apply to cells (Required for Word to respect it)
+    # Accent bar cell
     cell0 = table.cell(0, 0)
     cell0.width = col0_w
-    _set_shading(cell0._tc.get_or_add_tcPr(), "007BFF") # Blue fill
+    _set_shading(cell0._tc.get_or_add_tcPr(), "0891B2")  # Cyan-600 (matches header bar)
     
+    # Text cell with subtle background
     cell1 = table.cell(0, 1)
     cell1.width = col1_w
+    _set_shading(cell1._tc.get_or_add_tcPr(), "F1F5F9")  # Slate-100
+    
     p = cell1.paragraphs[0]
-    run = p.add_run(text.upper())
+    p.paragraph_format.space_before = Pt(6)
+    p.paragraph_format.space_after = Pt(6)
+    
+    run = p.add_run("  " + text.upper())  # Small indent
     run.font.name = 'Arial'
     run.font.bold = True
-    run.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
-    run.font.size = Pt(14 if level > 1 else 16)
+    run.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)  # Slate-900 (dark, professional)
+    run.font.size = Pt(13 if level > 1 else 15)
     
-    doc.add_paragraph() # Spacer after header
+    # Tighter spacing after
+    spacer = doc.add_paragraph()
+    spacer.paragraph_format.space_after = Pt(4)
 
 def _setup_styles(doc):
     """Configures document styles to match Eldoria's web aesthetic (Blue/Sans-Serif)"""
