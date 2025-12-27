@@ -149,8 +149,9 @@ export const AcademicHub: React.FC = () => {
         ];
 
         // Aggressive preamble regex
-        // Updated to handle Markdown prefixes (e.g. **Here is...) and colons
-        const preambleRegex = /^([\s\*\-_]*)(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me).+?(\.|:|\n)/gim;
+        // Aggressive preamble regex
+        // Updated to handle Markdown prefixes (e.g. **Here is...) and colons, AND newlines ([\s\S])
+        const preambleRegex = /^([\s\*\-_>]*)(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me)[\s\S]+?(\.|:|\n)/gim;
 
         let markdownContent = `# ${selectedProject.wizard_state.basics.title || 'ACADEMIC RESEARCH REPORT'}\n\n`;
         markdownContent += `**Investigator:** ${selectedProject.wizard_state.basics.author || 'N/A'}\n\n`;
@@ -164,7 +165,9 @@ export const AcademicHub: React.FC = () => {
                 // Sanitize chapter content individually (Multi-pass)
                 let cleanedContent = ch.content.trim();
                 let lastCleaned = "";
-                while (cleanedContent !== lastCleaned) {
+                let pass = 0;
+                while (cleanedContent !== lastCleaned && pass < 20) {
+                    pass++;
                     lastCleaned = cleanedContent;
                     cleanedContent = cleanedContent.replace(preambleRegex, '').trim();
                 }
