@@ -5,7 +5,8 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
-from docx.oxml import OxmlElementimport re
+from docx.oxml import OxmlElement
+import re
 
 def _sanitize_content(content):
     if not content: return ""
