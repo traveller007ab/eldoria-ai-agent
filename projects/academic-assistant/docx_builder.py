@@ -27,27 +27,69 @@ def _setup_page_layout(doc):
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
 
-def _add_header(doc, right_text="Eldoria Hub - Strategic Brief"):
-    section = doc.sections[0]
-    header = section.header
-    table = header.add_table(1, 2, width=Inches(6.5))
+    pass
+
+def _add_title_block(doc, title):
+    table = doc.add_table(rows=2, cols=2)
     table.autofit = False
     
-    cell_left = table.cell(0, 0)
-    p = cell_left.paragraphs[0]
-    p.text = datetime.now().strftime("%m/%d/%y, %I:%M %p")
-    p.style.font.name = 'Arial'
-    p.style.font.size = Pt(9)
-    p.style.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
-
-    cell_right = table.cell(0, 1)
-    p = cell_right.paragraphs[0]
-    p.text = right_text
+    table.columns[0].width = Inches(4.5)
+    table.columns[1].width = Inches(2.0)
+    
+    c00 = table.cell(0, 0)
+    p = c00.paragraphs[0]
+    r = p.add_run("ELDORIA STRATEGIC ANALYSIS")
+    r.font.name = 'Arial'
+    r.font.size = Pt(8)
+    r.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+    r.font.all_caps = True
+    p.paragraph_format.space_after = Pt(0)
+    
+    c01 = table.cell(0, 1)
+    p = c01.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p.style.font.name = 'Arial'
-    p.style.font.size = Pt(9)
-    p.style.font.bold = True
-    p.style.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
+    r = p.add_run("TIMESTAMP")
+    r.font.name = 'Arial'
+    r.font.size = Pt(8)
+    r.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+    r.font.all_caps = True
+    p.paragraph_format.space_after = Pt(0)
+    
+    c10 = table.cell(1, 0)
+    p = c10.paragraphs[0]
+    r = p.add_run(title)
+    r.font.name = 'Arial'
+    r.font.size = Pt(24)
+    r.font.bold = True
+    r.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
+    p.paragraph_format.space_before = Pt(4)
+    
+    c11 = table.cell(1, 1)
+    p = c11.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    r = p.add_run(datetime.now().strftime("%B %d, %Y"))
+    r.font.name = 'Arial'
+    r.font.size = Pt(10)
+    r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A)
+    p.paragraph_format.space_before = Pt(12)
+
+    doc.add_paragraph()
+    
+    p = doc.add_paragraph()
+    p_format = p.paragraph_format
+    p_format.space_after = Pt(12)
+    
+    pPr = p._p.get_or_add_pPr()
+    pbdr = OxmlElement('w:pBdr')
+    bottom = OxmlElement('w:bottom')
+    bottom.set(qn('w:val'), 'single')
+    bottom.set(qn('w:sz'), '12')
+    bottom.set(qn('w:space'), '1')
+    bottom.set(qn('w:color'), '06B6D4')
+    pbdr.append(bottom)
+    pPr.append(pbdr)
+
+    doc.add_paragraph()
 
 def _add_footer(doc, page_num=True):
     section = doc.sections[0]
@@ -269,7 +311,6 @@ def build_thesis(input_data):
     # 2. Content Sections
     drafts = input_data.get('draft_content', {})
     for chapter_name, content in drafts.items():
-        doc.add_heading(chapter_name, level=1)
         doc.add_heading(chapter_name, level=1)
         _add_markdown_content(doc, content)
         doc.add_page_break()

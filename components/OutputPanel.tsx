@@ -84,7 +84,10 @@ export const OutputPanel: React.FC = () => {
     const [isPublishDropdownOpen, setIsPublishDropdownOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
+    const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
+
     const handleExportDocx = async () => {
+        setIsPrintMenuOpen(false);
         if (!activeCanvas?.output) return;
         setIsExporting(true);
         try {
@@ -112,6 +115,7 @@ export const OutputPanel: React.FC = () => {
     };
 
     const handlePrint = () => {
+        setIsPrintMenuOpen(false);
         if (!activeCanvas?.output) return;
 
         const printWindow = window.open('', '_blank');
@@ -261,21 +265,36 @@ export const OutputPanel: React.FC = () => {
                 </div>
                 {hasOutput && !isLoading && activeTab === 'output' && (
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={handlePrint}
-                            className="p-1.5 text-cyan-400/60 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-md transition-all mr-1"
-                            title="Print output alone"
-                        >
-                            <Printer className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={handleExportDocx}
-                            disabled={isExporting}
-                            className="p-1.5 text-blue-400/60 hover:text-blue-300 hover:bg-blue-500/10 rounded-md transition-all mr-2 disabled:opacity-50"
-                            title="Export to Microsoft Word (.docx)"
-                        >
-                            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsPrintMenuOpen(!isPrintMenuOpen)}
+                                className="p-1.5 text-cyan-400/60 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-md transition-all mr-1 flex items-center gap-1"
+                                title="Print or Export Options"
+                            >
+                                <Printer className="w-4 h-4" />
+                                <ChevronDown className={`w-3 h-3 transition-transform ${isPrintMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isPrintMenuOpen && (
+                                <div className="absolute top-full right-0 mt-2 w-48 bg-[#0a0a0a] border border-cyan-500/30 rounded-xl shadow-[0_10px_30px_rgba(6,182,212,0.2)] z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <button
+                                        onClick={handlePrint}
+                                        className="w-full text-left px-4 py-3 hover:bg-cyan-500/10 transition-colors flex items-center gap-3 border-b border-cyan-500/10"
+                                    >
+                                        <Printer className="w-4 h-4 text-cyan-400" />
+                                        <span className="text-[11px] font-bold text-cyan-200 uppercase tracking-wider">Print to PDF</span>
+                                    </button>
+                                    <button
+                                        onClick={handleExportDocx}
+                                        disabled={isExporting}
+                                        className="w-full text-left px-4 py-3 hover:bg-blue-500/10 transition-colors flex items-center gap-3"
+                                    >
+                                        {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <FileText className="w-4 h-4 text-blue-400" />}
+                                        <span className="text-[11px] font-bold text-blue-200 uppercase tracking-wider">Download Word</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <button
                             onClick={appendOutput}
                             className="text-xs bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded-md transition-colors"
@@ -359,6 +378,6 @@ export const OutputPanel: React.FC = () => {
                     </Suspense>
                 )}
             </div>
-        </div>
+        </div >
     );
 };

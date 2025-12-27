@@ -47,32 +47,95 @@ def _setup_page_layout(doc):
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
         
-def _add_header(doc, right_text="Eldoria Hub - Strategic Brief"):
-    """Adds standard header with timestamp and title"""
-    section = doc.sections[0]
-    header = section.header
-    
-    # Use a table for left/right alignment
-    table = header.add_table(1, 2, width=Inches(6.5))
-    table.autofit = False
-    
-    # Left: Timestamp
-    cell_left = table.cell(0, 0)
-    p = cell_left.paragraphs[0]
-    p.text = datetime.now().strftime("%m/%d/%y, %I:%M %p")
-    p.style.font.name = 'Arial'
-    p.style.font.size = Pt(9)
-    p.style.font.color.rgb = RGBColor(0x64, 0x74, 0x8B) # Slate gray
+    # Remove default header content, we will build a custom Title Block in body
+    # section = doc.sections[0]
+    # header = section.header
+    # for p in header.paragraphs: p.text = "" 
+    # (Actually, keep the simple header if needed, but the image implies the Title Block IS the header or top of page)
+    # Let's keep the timestamp/title header as a fallback for subsequent pages, 
+    # but for Page 1, we build the "Big" block.
+    pass
 
-    # Right: Title
-    cell_right = table.cell(0, 1)
-    p = cell_right.paragraphs[0]
-    p.text = right_text
+def _add_title_block(doc, title, project_id=""):
+    """
+    Creates the 'Strategic Analysis' title block from the reference image.
+    Row 1: ELDORIA STRATEGIC ANALYSIS (Left) | TIMESTAMP (Right)
+    Row 2: [Title] (Left, Big Blue)           | [Date] (Right)
+    Line:  Cyan Horizontal Rule
+    """
+    table = doc.add_table(rows=2, cols=2)
+    table.autofit = False
+    table.allow_autofit = False
+    
+    # Widths: Text acts as 70%, Date acts as 30%
+    table.columns[0].width = Inches(4.5)
+    table.columns[1].width = Inches(2.0)
+    
+    # --- Row 1 ---
+    # Top Left
+    c00 = table.cell(0, 0)
+    p = c00.paragraphs[0]
+    r = p.add_run("ELDORIA STRATEGIC ANALYSIS")
+    r.font.name = 'Arial'
+    r.font.size = Pt(8)
+    r.font.color.rgb = RGBColor(0x64, 0x74, 0x8B) # Slate-500
+    r.font.all_caps = True
+    p.paragraph_format.space_after = Pt(0)
+    
+    # Top Right
+    c01 = table.cell(0, 1)
+    p = c01.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p.style.font.name = 'Arial'
-    p.style.font.size = Pt(9)
-    p.style.font.bold = True
-    p.style.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF) # Blue
+    r = p.add_run("TIMESTAMP")
+    r.font.name = 'Arial'
+    r.font.size = Pt(8)
+    r.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+    r.font.all_caps = True
+    p.paragraph_format.space_after = Pt(0)
+    
+    # --- Row 2 ---
+    # Bottom Left (Title)
+    c10 = table.cell(1, 0)
+    p = c10.paragraphs[0]
+    r = p.add_run(title)
+    r.font.name = 'Arial'
+    r.font.size = Pt(24) # Big
+    r.font.bold = True
+    r.font.color.rgb = RGBColor(0x00, 0x7B, 0xFF) # Blue
+    p.paragraph_format.space_before = Pt(4)
+    
+    # Bottom Right (Date)
+    c11 = table.cell(1, 1)
+    p = c11.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    r = p.add_run(datetime.now().strftime("%B %d, %Y"))
+    r.font.name = 'Arial'
+    r.font.size = Pt(10)
+    r.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A) # Slate-900
+    p.paragraph_format.space_before = Pt(12) # Align baseline roughly
+
+    # Spacer
+    doc.add_paragraph()
+    
+    # Horizontal Cyan Line
+    # We use a paragraph with a bottom border
+    p = doc.add_paragraph()
+    p_format = p.paragraph_format
+    p_format.space_after = Pt(12)
+    
+    # Inject OXML for Border
+    pPr = p._p.get_or_add_pPr()
+    pbdr = OxmlElement('w:pBdr')
+    bottom = OxmlElement('w:bottom')
+    bottom.set(qn('w:val'), 'single')
+    bottom.set(qn('w:sz'), '12') # 1.5pt
+    bottom.set(qn('w:space'), '1')
+    bottom.set(qn('w:color'), '06B6D4') # Cyan-500
+    pbdr.append(bottom)
+    pPr.append(pbdr)
+
+    # Secondary spacer
+    doc.add_paragraph()
 
 def _add_footer(doc, page_num=True):
     """Adds footer with Page X of Y and generation info"""
@@ -364,7 +427,17 @@ def build_thesis(input_data):
     for chapter_name in ordered_chapters:
         content = drafts.get(chapter_name)
         if content:
-            # Use new markdown parser
+            # We can use the simple header or just a page break + heading
+            # For consistency with the Thesis look, let's just use the markdown parser
+            # The parser handles H1/H2 etc.
+            # If we want a specific "Title Page" for each chapter, we could do:
+            # _add_title_block(doc, chapter_name) 
+            # But that might be too heavy. Let's stick to standard flow:
+            
+            # _add_markdown_content will parse the headers in the content.
+            # If the content doesn't have a header, we might want to add one.
+            # But safely, let's just dump the content.
+            
             _add_markdown_content(doc, content)
             doc.add_page_break()
 
@@ -388,23 +461,7 @@ def build_simple_doc(title, content):
     doc = Document()
     _setup_page_layout(doc)
     _setup_styles(doc) # Fallbacks
-    _add_header(doc, right_text="Eldoria Hub - Strategic Brief")
-    _add_footer(doc)
-    
-    # Professional Header Title Block
-    p = doc.add_paragraph("ELDORIA STRATEGIC ANALYSIS")
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.runs[0].font.name = 'Arial'
-    p.runs[0].font.size = Pt(22)
-    p.runs[0].font.bold = True
-    p.runs[0].font.color.rgb = RGBColor(0x00, 0x7B, 0xFF)
-    
-    p2 = doc.add_paragraph(title.upper())
-    p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p2.runs[0].font.size = Pt(14)
-    p2.runs[0].font.bold = True
-    
-    doc.add_paragraph() # Spacer
+    _add_title_block(doc, title)
     
     # Body Content via Parser
     _add_markdown_content(doc, content)

@@ -34,6 +34,8 @@ export const AcademicHub: React.FC = () => {
     const [isModelCreatorOpen, setIsModelCreatorOpen] = useState(false);
     const [bibStyle, setBibStyle] = useState<BibliographyStyle>('apa');
 
+    const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
+
     const handleSaveNewModel = (model: AcademicModel) => {
         try {
             const existingModels = localStorage.getItem('eldoria-custom-models');
@@ -103,6 +105,7 @@ export const AcademicHub: React.FC = () => {
     };
 
     const handleSynthesizeThesis = async () => {
+        setIsPrintMenuOpen(false);
         if (!selectedProject) return;
         setIsSynthesizing(true);
         try {
@@ -129,6 +132,7 @@ export const AcademicHub: React.FC = () => {
     };
 
     const handlePrintDraft = () => {
+        setIsPrintMenuOpen(false);
         if (!selectedProject) return;
 
         const printWindow = window.open('', '_blank');
@@ -427,31 +431,36 @@ export const AcademicHub: React.FC = () => {
                                         Warp to Workspace
                                     </NavLink>
                                     <button onClick={() => setIsWizardOpen(true)} className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/40 transition-all">Setup Wizard</button>
-                                    <button
-                                        onClick={handlePrintDraft}
-                                        className="p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/20 transition-all mr-1"
-                                        title="Print report preview"
-                                    >
-                                        <Printer className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={handleVaultArchive}
-                                        disabled={isVaulting}
-                                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isVaulting ? 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40 animate-pulse' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'}`}
-                                        title="Archive to Neural Vault"
-                                    >
-                                        {isVaulting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
-                                        {isVaulting ? 'Archiving...' : 'Vault Research'}
-                                    </button>
-                                    <button
-                                        onClick={handleSynthesizeThesis}
-                                        disabled={isSynthesizing}
-                                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isSynthesizing ? 'bg-emerald-500/20 text-emerald-100 border-emerald-500/40 animate-pulse' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'}`}
-                                        title="Generate Word Document"
-                                    >
-                                        {isSynthesizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
-                                        {isSynthesizing ? 'Synthesizing...' : 'Draft .DOCX'}
-                                    </button>
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setIsPrintMenuOpen(!isPrintMenuOpen)}
+                                            className="p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/20 transition-all mr-1 flex items-center gap-1"
+                                            title="Print or Export Options"
+                                        >
+                                            <Printer className="w-4 h-4" />
+                                            <div className={`w-0 h-0 border-l-[3px] border-l-transparent border-t-[4px] border-t-cyan-400 border-r-[3px] border-r-transparent transition-transform ${isPrintMenuOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        {isPrintMenuOpen && (
+                                            <div className="absolute top-full right-0 mt-2 w-48 bg-[#0a0a0a] border border-cyan-500/30 rounded-xl shadow-[0_10px_30px_rgba(6,182,212,0.2)] z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                                <button
+                                                    onClick={handlePrintDraft}
+                                                    className="w-full text-left px-4 py-3 hover:bg-cyan-500/10 transition-colors flex items-center gap-3 border-b border-cyan-500/10"
+                                                >
+                                                    <Printer className="w-4 h-4 text-cyan-400" />
+                                                    <span className="text-[11px] font-bold text-cyan-200 uppercase tracking-wider">Print to PDF</span>
+                                                </button>
+                                                <button
+                                                    onClick={handleSynthesizeThesis}
+                                                    disabled={isSynthesizing}
+                                                    className="w-full text-left px-4 py-3 hover:bg-emerald-500/10 transition-colors flex items-center gap-3"
+                                                >
+                                                    {isSynthesizing ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <FileDown className="w-4 h-4 text-emerald-400" />}
+                                                    <span className="text-[11px] font-bold text-emerald-200 uppercase tracking-wider">Download Word</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <button
                                         onClick={() => setIsFormulaEditorOpen(!isFormulaEditorOpen)}
                                         className={`p-1.5 rounded-md transition-colors ${isFormulaEditorOpen ? 'bg-cyan-500/20 text-cyan-200' : 'hover:bg-cyan-500/10 text-cyan-400'}`}
