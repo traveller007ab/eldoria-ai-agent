@@ -149,7 +149,8 @@ export const AcademicHub: React.FC = () => {
         ];
 
         // Aggressive preamble regex
-        const preambleRegex = /^(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me).+?(\. |\.\s+|\n)/gim;
+        // Updated to handle Markdown prefixes (e.g. **Here is...) and colons
+        const preambleRegex = /^([\s\*\-_]*)(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me).+?(\.|:|\n)/gim;
 
         let markdownContent = `# ${selectedProject.wizard_state.basics.title || 'ACADEMIC RESEARCH REPORT'}\n\n`;
         markdownContent += `**Investigator:** ${selectedProject.wizard_state.basics.author || 'N/A'}\n\n`;

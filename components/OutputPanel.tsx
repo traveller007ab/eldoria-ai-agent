@@ -124,7 +124,8 @@ export const OutputPanel: React.FC = () => {
         let content = activeCanvas.output.trim();
 
         // 1. Aggressive preamble removal (strips multiple AI planning sentences at the start)
-        const preambleRegex = /^(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me).+?(\. |\.\s+|\n)/gim;
+        // Updated to handle Markdown prefixes (e.g. **Here is...) and colons
+        const preambleRegex = /^([\s\*\-_]*)(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me).+?(\.|:|\n)/gim;
 
         let lastContent = "";
         // Loop to catch consecutive sentences (e.g. "To perform... I will... Then I'll...")
