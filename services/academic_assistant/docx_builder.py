@@ -36,6 +36,91 @@ def _sanitize_content(content):
         
     return cleaned_content
 
+def _add_markdown_content(doc, content):
+    """
+    Parses basic Markdown (Headers, Lists, Tables, Bold) into Docx elements.
+    Removes SAF blocks.
+    """
+    if not content: return
+
+    # 1. Sanitize preambles first
+    content = _sanitize_content(content)
+
+    # 2. Remove SAF/JSON blocks (Optional: Keep if user wants, but default clear)
+    # Removing <SAF_ISO>...<SAF_ISO> blocks
+    saf_pattern = re.compile(r"```json\s*<SAF_ISO>[\s\S]*?</SAF_ISO>\s*```", re.IGNORECASE | re.MULTILINE)
+    content = saf_pattern.sub('', content)
+    # Also remove just <SAF_ISO> tags if unmatched
+    content = re.sub(r"<SAF_ISO>[\s\S]*?</SAF_ISO>", "", content, flags=re.MULTILINE)
+
+    lines = content.split('\n')
+    
+    # Simple state machine for tables/code
+    in_code_block = False
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Code block toggle
+        if stripped.startswith('```'):
+            in_code_block = not in_code_block
+            continue
+            
+        if in_code_block:
+            p = doc.add_paragraph(stripped)
+            try:
+                p.style = 'Quote' # Use Quote style for code fallback
+            except: pass
+            p.style.font.name = 'Courier New'
+            continue
+
+        # Headers
+        if stripped.startswith('# '):
+            doc.add_heading(stripped[2:], level=1)
+        elif stripped.startswith('## '):
+            doc.add_heading(stripped[3:], level=2)
+        elif stripped.startswith('### '):
+            doc.add_heading(stripped[4:], level=3)
+        
+        # List Items - Bullet
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            try:
+                p = doc.add_paragraph(style='List Bullet')
+            except:
+                p = doc.add_paragraph(style='List Paragraph') # Fallback
+            _process_bold(p, stripped[2:])
+            
+        # List Items - Numbered
+        elif re.match(r'^\d+\.\s', stripped):
+            try:
+                p = doc.add_paragraph(style='List Number')
+            except:
+                 p = doc.add_paragraph(style='List Paragraph')
+            # Remove "1. " prefix
+            text_content = re.sub(r'^\d+\.\s', '', stripped)
+            _process_bold(p, text_content)
+            
+        # Tables (Basic row dumping, not real table yet to save complexity/errors)
+        elif stripped.startswith('|'):
+            # TODO: Real table parsing if requested, for now print as monospace
+            p = doc.add_paragraph(stripped)
+            p.style.font.name = 'Courier New'
+            
+        # Standard Paragraph
+        else:
+            if not stripped: continue
+            p = doc.add_paragraph()
+            _process_bold(p, stripped)
+
+def _process_bold(paragraph, text):
+    """Refactored bold processing"""
+    segments = text.split('**')
+    for i, segment in enumerate(segments):
+        if not segment: continue
+        run = paragraph.add_run(segment)
+        if i % 2 != 0: # Odd indices are inside **
+            run.bold = True
+
 def build_thesis(input_data):
     doc = Document()
     
@@ -91,14 +176,8 @@ def build_thesis(input_data):
     for chapter_name in ordered_chapters:
         content = drafts.get(chapter_name)
         if content:
-            # Sanitize content before adding to doc
-            content = _sanitize_content(content)
-            doc.add_heading(chapter_name.upper(), level=1)
-            # Placeholder for complex markdown parsing
-            # Split by double newlines for basic paragraph handling
-            for para in content.split('\n\n'):
-                if para.strip():
-                    doc.add_paragraph(para.strip())
+            # Use new markdown parser
+            _add_markdown_content(doc, content)
             doc.add_page_break()
 
     # 3. References
@@ -127,27 +206,12 @@ def build_thesis(input_data):
 def build_simple_doc(title, content):
     doc = Document()
     
-    # Sanitize content before adding to doc
-    content = _sanitize_content(content)
-    
     # Professional Header
     header = doc.add_heading(title.upper(), level=0)
     header.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    # Body Content
-    # Very basic markdown support (bolding and paragraphs)
-    for part in content.split('\n'):
-        if not part.strip():
-            doc.add_paragraph()
-            continue
-            
-        p = doc.add_paragraph()
-        # Handle bolding via **
-        segments = part.split('**')
-        for i, segment in enumerate(segments):
-            run = p.add_run(segment)
-            if i % 2 != 0: # Inside **
-                run.bold = True
+    # Body Content via Parser
+    _add_markdown_content(doc, content)
                 
     # Footer
     for section in doc.sections:

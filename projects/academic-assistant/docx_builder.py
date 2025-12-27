@@ -18,6 +18,53 @@ def _sanitize_content(content):
         cleaned = preamble_pattern.sub('', cleaned).strip()
     return cleaned
 
+def _add_markdown_content(doc, content):
+    """
+    Parses basic Markdown (Headers, Lists, Tables, Bold) into Docx elements.
+    Removes SAF blocks.
+    """
+    if not content: return
+    content = _sanitize_content(content)
+    # Remove SAF blocks
+    content = re.sub(r"```json\s*<SAF_ISO>[\s\S]*?</SAF_ISO>\s*```", "", content, flags=re.IGNORECASE|re.MULTILINE)
+    content = re.sub(r"<SAF_ISO>[\s\S]*?</SAF_ISO>", "", content, flags=re.MULTILINE)
+
+    lines = content.split('\n')
+    in_code = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('```'):
+            in_code = not in_code
+            continue
+        if in_code:
+            p = doc.add_paragraph(stripped)
+            try: p.style = 'Quote' 
+            except: pass
+            p.style.font.name = 'Courier New'
+            continue
+
+        if stripped.startswith('# '): doc.add_heading(stripped[2:], level=1)
+        elif stripped.startswith('## '): doc.add_heading(stripped[3:], level=2)
+        elif stripped.startswith('### '): doc.add_heading(stripped[4:], level=3)
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            try: p = doc.add_paragraph(style='List Bullet')
+            except: p = doc.add_paragraph(style='List Paragraph')
+            _process_bold(p, stripped[2:])
+        elif stripped.startswith('|'):
+            p = doc.add_paragraph(stripped)
+            p.style.font.name = 'Courier New'
+        else:
+            if not stripped: continue
+            p = doc.add_paragraph()
+            _process_bold(p, stripped)
+
+def _process_bold(paragraph, text):
+    segments = text.split('**')
+    for i, segment in enumerate(segments):
+        if not segment: continue
+        run = paragraph.add_run(segment)
+        if i % 2 != 0: run.bold = True
+
 def build_thesis(input_data):
     doc = Document()
     
@@ -64,7 +111,8 @@ def build_thesis(input_data):
     drafts = input_data.get('draft_content', {})
     for chapter_name, content in drafts.items():
         doc.add_heading(chapter_name, level=1)
-        doc.add_paragraph(_sanitize_content(content))
+        doc.add_heading(chapter_name, level=1)
+        _add_markdown_content(doc, content)
         doc.add_page_break()
     
     output_path = f"thesis_{input_data.get('id', 'temp')}.docx"
