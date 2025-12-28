@@ -601,7 +601,7 @@ export const SAFLab: React.FC = () => {
                                             />
                                         </div>
 
-                                        <div className={`shrink-0 border-t border-cyan-900/20 ${aiExplainerPinned || aiExplainerExpanded ? 'flex-grow transition-all duration-300' : 'h-64'} flex flex-col`}>
+                                        <div className={`shrink-0 border-t border-cyan-900/20 ${aiExplainerPinned || aiExplainerExpanded ? 'flex-grow transition-all duration-300 min-h-0' : 'h-64'} flex flex-col`}>
                                             <div className="h-full relative flex flex-col">
                                                 <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
                                                     <button
