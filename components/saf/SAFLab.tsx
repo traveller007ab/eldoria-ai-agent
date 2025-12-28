@@ -2,11 +2,13 @@ import React, { useState, useCallback } from 'react';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { DeepSAFBlueprint, SAFWorkbenchState, DeepSAFComponent } from './types';
 import { SAFNodeGraph } from './SAFNodeGraph';
+import { SAFGraphErrorBoundary } from './SAFGraphErrorBoundary';
 import { SAFParameterEditor } from './SAFParameterEditor';
 import { SAFAIExplainer } from './SAFAIExplainer';
 import { SAFBreadcrumbs } from './SAFBreadcrumbs';
 import { SAFOutputPanel } from './SAFOutputPanel';
 import { calculateRankineOutputs, propagateEffects } from './engine';
+import { validateBlueprint } from './validator';
 import { FlaskConical, Settings, Download, Share2, Save, RotateCcw, Play, Maximize2, Minimize2, ZoomIn, ZoomOut, MoreHorizontal, Plus, FileJson, Upload, Library, X, ChevronRight, ChevronDown, Wand2, Info, Loader2, Search, Filter, ArrowLeft, Pin, PinOff, FileText, Zap, BookOpen, PanelBottom } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PromptLibraryPanel } from '../modals/PromptLibraryPanel';
@@ -165,19 +167,13 @@ export const SAFLab: React.FC = () => {
             }
 
             const parsed = JSON.parse(jsonToParse);
-            // Basic validation
-            if (!parsed.project_name || !Array.isArray(parsed.components)) {
-                throw new Error('Invalid SAF Blueprint: Missing project_name or components array.');
-            }
+
+            // Strict Validation
+            const validatedBlueprint = validateBlueprint(parsed);
 
             setWorkbenchState(prev => ({
                 ...prev,
-                activeBlueprint: {
-                    ...parsed,
-                    version: parsed.version || '1.0',
-                    domain: parsed.domain || 'custom',
-                    created_at: parsed.created_at || new Date().toISOString(),
-                },
+                activeBlueprint: validatedBlueprint,
             }));
             setShowImportModal(false);
             setImportValue('');
@@ -467,203 +463,220 @@ export const SAFLab: React.FC = () => {
                                 </div>
 
                                 {/* Step 2 */}
-                                <div className="space-y-4">
+                                <button
+                                    onClick={() => {
+                                        handleLoadRankineStarter();
+                                        setTimeout(() => setAiExplainerPinned(true), 500);
+                                    }}
+                                    className="w-full text-left space-y-4 group/step cursor-pointer"
+                                >
                                     <div className="flex items-center gap-3">
                                         <span className="w-7 h-7 rounded-xl bg-emerald-500 text-slate-900 flex items-center justify-center text-xs font-black shadow-[0_0_15px_rgba(16,185,129,0.3)]">
                                             2
                                         </span>
-                                        <h4 className="font-bold text-white text-xs uppercase tracking-wider">Analysis</h4>
+                                        <h4 className="font-bold text-white text-xs uppercase tracking-wider group-hover/step:text-emerald-400 transition-colors">Analysis</h4>
                                     </div>
                                     <p className="text-xs text-gray-400 leading-relaxed font-light">
                                         Use the <span className="text-emerald-400 font-medium italic">AI Explainer</span> to query relationships, edit parameters, and see effects.
                                     </p>
-                                    <div className="py-2 px-4 bg-emerald-500/5 border border-emerald-500/10 text-[9px] text-emerald-400/60 font-medium uppercase tracking-widest flex items-center gap-2 rounded-lg">
-                                        <Pin className="w-3 h-3" /> Pin to focus
+                                    <div className="py-2 px-4 bg-emerald-500/5 border border-emerald-500/10 text-[9px] text-emerald-400/60 font-medium uppercase tracking-widest flex items-center gap-2 rounded-lg group-hover/step:bg-emerald-500/10 transition-colors">
+                                        <Pin className="w-3 h-3" /> Try Demo
                                     </div>
-                                </div>
+                                </button>
+
 
                                 {/* Step 3 */}
-                                <div className="space-y-4">
+                                <button
+                                    onClick={() => {
+                                        handleLoadRankineStarter();
+                                        setTimeout(() => setShowOutputPanel(true), 500);
+                                    }}
+                                    className="w-full text-left space-y-4 group/step cursor-pointer"
+                                >
                                     <div className="flex items-center gap-3">
                                         <span className="w-7 h-7 rounded-xl bg-purple-500 text-slate-900 flex items-center justify-center text-xs font-black shadow-[0_0_15px_rgba(168,85,247,0.3)]">
                                             3
                                         </span>
-                                        <h4 className="font-bold text-white text-xs uppercase tracking-wider">Synthesis</h4>
+                                        <h4 className="font-bold text-white text-xs uppercase tracking-wider group-hover/step:text-purple-400 transition-colors">Synthesis</h4>
                                     </div>
                                     <p className="text-xs text-gray-400 leading-relaxed font-light">
                                         Export as a <span className="text-purple-400 font-medium italic">Strategic Brief</span>, functional code, or a high-fidelity Mermaid diagram.
                                     </p>
-                                    <div className="py-2 px-4 bg-purple-500/5 border border-purple-500/10 text-[9px] text-purple-400/60 font-medium uppercase tracking-widest flex items-center gap-2 rounded-lg">
-                                        <FileJson className="w-3 h-3" /> Export ready
+                                    <div className="py-2 px-4 bg-purple-500/5 border border-purple-500/10 text-[9px] text-purple-400/60 font-medium uppercase tracking-widest flex items-center gap-2 rounded-lg group-hover/step:bg-purple-500/10 transition-colors">
+                                        <FileJson className="w-3 h-3" /> Try Demo
                                     </div>
-                                </div>
+                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* Workbench - Blueprint Loaded */}
-            {workbenchState.activeBlueprint && (
-                // Workbench - Blueprint Loaded
-                <div className="flex-grow flex overflow-hidden">
-                    {/* Node Graph Area */}
-                    <div className="flex-grow bg-gray-900/20 border-r border-cyan-900/20">
-                        <SAFNodeGraph
-                            blueprint={workbenchState.activeBlueprint}
-                            expandedNodes={workbenchState.expandedNodes}
-                            selectedNodeId={workbenchState.selectedNodeId}
-                            onToggleExpand={(id) => {
-                                setWorkbenchState(prev => ({
-                                    ...prev,
-                                    expandedNodes: prev.expandedNodes.includes(id)
-                                        ? prev.expandedNodes.filter(n => n !== id)
-                                        : [...prev.expandedNodes, id]
-                                }));
-                            }}
-                            onSelectNode={(id) => {
-                                setWorkbenchState(prev => ({
-                                    ...prev,
-                                    selectedNodeId: id
-                                }));
-                            }}
-                            onAskAI={(id) => {
-                                console.log('Ask AI about:', id);
-                                // TODO: Phase 58.5 - AI Integration
-                            }}
-                        />
-                    </div>
-
-                    {/* Side Panel */}
-                    <div className="w-80 shrink-0 flex flex-col bg-black/40 border-l border-cyan-900/30">
-                        {/* Effects Panel */}
-                        <div className="p-4 border-b border-cyan-900/20">
-                            <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-3">
-                                System Overview
-                            </h3>
-                            <div className="space-y-2 text-sm">
-                                {workbenchState.activeBlueprint.components.map(comp => (
-                                    <div
-                                        key={comp.id}
-                                        className="p-2 bg-gray-900/50 rounded border border-gray-800/50 hover:border-cyan-500/30 cursor-pointer transition-colors"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-white font-medium">{comp.name}</span>
-                                            <span className={`text-xs px-1.5 py-0.5 rounded ${comp.type === 'core' ? 'bg-cyan-500/20 text-cyan-400' :
-                                                comp.type === 'subcore' ? 'bg-purple-500/20 text-purple-400' :
-                                                    'bg-emerald-500/20 text-emerald-400'
-                                                }`}>
-                                                {comp.type}
-                                            </span>
-                                        </div>
-                                        {comp.outputs && comp.outputs.length > 0 && (
-                                            <div className="mt-1 text-xs text-gray-500">
-                                                {comp.outputs[0].name}: {comp.outputs[0].value} {comp.outputs[0].unit}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Parameter Editor & AI Explainer Tabs */}
-                        <div className="flex-grow flex flex-col overflow-hidden">
-                            {selectedComponent ? (
-                                <>
-                                    {/* Tab Headers */}
-                                    <div className="shrink-0 flex border-b border-cyan-900/20">
-                                        <button
-                                            className={`flex-1 px-4 py-2 text-xs font-bold transition-colors ${true ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-gray-300'
-                                                }`}
-                                        >
-                                            Parameters
-                                        </button>
-                                    </div>
-
-                                    {/* Editor Content */}
-                                    <div className="flex-grow overflow-y-auto p-4">
-                                        <SAFParameterEditor
-                                            component={selectedComponent}
-                                            onParameterChange={handleParameterChange}
-                                        />
-                                    </div>
-
-                                    <div className={`shrink-0 border-t border-cyan-900/20 ${aiExplainerPinned || aiExplainerExpanded ? 'flex-grow transition-all duration-300' : 'h-64'} overflow-hidden`}>
-                                        <div className="h-full relative flex flex-col overflow-hidden">
-                                            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-                                                <button
-                                                    onClick={() => setAiExplainerPinned(!aiExplainerPinned)}
-                                                    className={`p-1 rounded transition-colors ${aiExplainerPinned ? 'text-cyan-400 bg-cyan-500/20' : 'text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10'}`}
-                                                    title={aiExplainerPinned ? 'Unpin' : 'Pin Expanded'}
-                                                >
-                                                    {aiExplainerPinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
-                                                </button>
-                                                <button
-                                                    onClick={() => setAiExplainerExpanded(!aiExplainerExpanded)}
-                                                    className={`p-1 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors ${aiExplainerExpanded ? 'bg-cyan-500/20 text-cyan-400' : ''}`}
-                                                    title={aiExplainerExpanded ? 'Shrink' : 'Expand'}
-                                                >
-                                                    <Maximize2 className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                            <SAFAIExplainer
-                                                component={selectedComponent}
-                                                blueprint={workbenchState.activeBlueprint}
-                                            />
-                                        </div>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="flex-grow flex items-center justify-center p-4">
-                                    <div className="text-center max-w-xs">
-                                        <FlaskConical className="w-8 h-8 text-cyan-400/20 mx-auto mb-3" />
-                                        <p className="text-sm text-gray-400 font-medium mb-2">
-                                            How to Use SAF Lab
-                                        </p>
-                                        <ol className="text-xs text-gray-500 text-left space-y-2">
-                                            <li className="flex items-start gap-2">
-                                                <span className="text-cyan-500 font-bold">1.</span>
-                                                <span>Click a node in the graph to select it</span>
-                                            </li>
-                                            <li className="flex items-start gap-2">
-                                                <span className="text-cyan-500 font-bold">2.</span>
-                                                <span>Adjust parameters with sliders</span>
-                                            </li>
-                                            <li className="flex items-start gap-2">
-                                                <span className="text-cyan-500 font-bold">3.</span>
-                                                <span>Ask AI to explain or optimize</span>
-                                            </li>
-                                            <li className="flex items-start gap-2">
-                                                <span className="text-cyan-500 font-bold">4.</span>
-                                                <span>Toggle <strong>Output</strong> panel for exports</span>
-                                            </li>
-                                        </ol>
-                                        <div className="mt-6">
-                                            <button
-                                                onClick={handleLoadRankineStarter}
-                                                className="w-full py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
-                                            >
-                                                <FileJson className="w-3 h-3" />
-                                                Try Rankine Cycle Demo
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Bottom Output Panel */}
-                    {showOutputPanel && (
-                        <SAFOutputPanel
-                            blueprint={workbenchState.activeBlueprint}
-                            isExpanded={outputPanelExpanded}
-                            onToggleExpand={() => setOutputPanelExpanded(!outputPanelExpanded)}
-                            onClose={() => setShowOutputPanel(false)}
-                        />
-                    )}
                 </div>
             )
+            }
+
+            {/* Workbench - Blueprint Loaded */}
+            {
+                workbenchState.activeBlueprint && (
+                    // Workbench - Blueprint Loaded
+                    <div className="flex-grow flex overflow-hidden">
+                        {/* Node Graph Area */}
+                        <div className="flex-grow bg-gray-900/20 border-r border-cyan-900/20 relative">
+                            <SAFGraphErrorBoundary onReset={handleNewBlueprint}>
+                                <SAFNodeGraph
+                                    blueprint={workbenchState.activeBlueprint}
+                                    expandedNodes={workbenchState.expandedNodes}
+                                    selectedNodeId={workbenchState.selectedNodeId}
+                                    onToggleExpand={(id) => {
+                                        setWorkbenchState(prev => ({
+                                            ...prev,
+                                            expandedNodes: prev.expandedNodes.includes(id)
+                                                ? prev.expandedNodes.filter(n => n !== id)
+                                                : [...prev.expandedNodes, id]
+                                        }));
+                                    }}
+                                    onSelectNode={(id) => {
+                                        setWorkbenchState(prev => ({
+                                            ...prev,
+                                            selectedNodeId: id
+                                        }));
+                                    }}
+                                    onAskAI={(id) => {
+                                        console.log('Ask AI about:', id);
+                                        // TODO: Phase 70 - Targeted AI Analysis
+                                    }}
+                                />
+                            </SAFGraphErrorBoundary>
+                        </div>
+
+                        {/* Side Panel */}
+                        <div className="w-80 shrink-0 flex flex-col bg-black/40 border-l border-cyan-900/30">
+                            {/* Effects Panel */}
+                            <div className="p-4 border-b border-cyan-900/20">
+                                <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-3">
+                                    System Overview
+                                </h3>
+                                <div className="space-y-2 text-sm">
+                                    {workbenchState.activeBlueprint.components.map(comp => (
+                                        <div
+                                            key={comp.id}
+                                            className="p-2 bg-gray-900/50 rounded border border-gray-800/50 hover:border-cyan-500/30 cursor-pointer transition-colors"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-white font-medium">{comp.name}</span>
+                                                <span className={`text-xs px-1.5 py-0.5 rounded ${comp.type === 'core' ? 'bg-cyan-500/20 text-cyan-400' :
+                                                    comp.type === 'subcore' ? 'bg-purple-500/20 text-purple-400' :
+                                                        'bg-emerald-500/20 text-emerald-400'
+                                                    }`}>
+                                                    {comp.type}
+                                                </span>
+                                            </div>
+                                            {comp.outputs && comp.outputs.length > 0 && (
+                                                <div className="mt-1 text-xs text-gray-500">
+                                                    {comp.outputs[0].name}: {comp.outputs[0].value} {comp.outputs[0].unit}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Parameter Editor & AI Explainer Tabs */}
+                            <div className="flex-grow flex flex-col overflow-hidden">
+                                {selectedComponent ? (
+                                    <>
+                                        {/* Tab Headers */}
+                                        <div className="shrink-0 flex border-b border-cyan-900/20">
+                                            <button
+                                                className={`flex-1 px-4 py-2 text-xs font-bold transition-colors ${true ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-500 hover:text-gray-300'
+                                                    }`}
+                                            >
+                                                Parameters
+                                            </button>
+                                        </div>
+
+                                        {/* Editor Content */}
+                                        <div className={`flex-grow overflow-y-auto p-4 transition-all duration-300 ${aiExplainerExpanded ? 'h-0 hidden' : ''}`}>
+                                            <SAFParameterEditor
+                                                component={selectedComponent}
+                                                onParameterChange={handleParameterChange}
+                                            />
+                                        </div>
+
+                                        <div className={`shrink-0 border-t border-cyan-900/20 ${aiExplainerPinned || aiExplainerExpanded ? 'flex-grow transition-all duration-300' : 'h-64'} overflow-hidden`}>
+                                            <div className="h-full relative flex flex-col overflow-hidden">
+                                                <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                                                    <button
+                                                        onClick={() => setAiExplainerPinned(!aiExplainerPinned)}
+                                                        className={`p-1 rounded transition-colors ${aiExplainerPinned ? 'text-cyan-400 bg-cyan-500/20' : 'text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10'}`}
+                                                        title={aiExplainerPinned ? 'Unpin' : 'Pin Expanded'}
+                                                    >
+                                                        {aiExplainerPinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setAiExplainerExpanded(!aiExplainerExpanded)}
+                                                        className={`p-1 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors ${aiExplainerExpanded ? 'bg-cyan-500/20 text-cyan-400' : ''}`}
+                                                        title={aiExplainerExpanded ? 'Shrink' : 'Expand'}
+                                                    >
+                                                        <Maximize2 className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                                <SAFAIExplainer
+                                                    component={selectedComponent}
+                                                    blueprint={workbenchState.activeBlueprint}
+                                                />
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex-grow flex items-center justify-center p-4">
+                                        <div className="text-center max-w-xs">
+                                            <FlaskConical className="w-8 h-8 text-cyan-400/20 mx-auto mb-3" />
+                                            <p className="text-sm text-gray-400 font-medium mb-2">
+                                                How to Use SAF Lab
+                                            </p>
+                                            <ol className="text-xs text-gray-500 text-left space-y-2">
+                                                <li className="flex items-start gap-2">
+                                                    <span className="text-cyan-500 font-bold">1.</span>
+                                                    <span>Click a node in the graph to select it</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="text-cyan-500 font-bold">2.</span>
+                                                    <span>Adjust parameters with sliders</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="text-cyan-500 font-bold">3.</span>
+                                                    <span>Ask AI to explain or optimize</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <span className="text-cyan-500 font-bold">4.</span>
+                                                    <span>Toggle <strong>Output</strong> panel for exports</span>
+                                                </li>
+                                            </ol>
+                                            <div className="mt-6">
+                                                <button
+                                                    onClick={handleLoadRankineStarter}
+                                                    className="w-full py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <FileJson className="w-3 h-3" />
+                                                    Try Rankine Cycle Demo
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Bottom Output Panel */}
+                        {showOutputPanel && (
+                            <SAFOutputPanel
+                                blueprint={workbenchState.activeBlueprint}
+                                isExpanded={outputPanelExpanded}
+                                onToggleExpand={() => setOutputPanelExpanded(!outputPanelExpanded)}
+                                onClose={() => setShowOutputPanel(false)}
+                            />
+                        )}
+                    </div>
+                )
             }
 
             {/* Import Modal */}
