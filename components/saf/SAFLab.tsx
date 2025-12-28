@@ -676,110 +676,91 @@ export const SAFLab: React.FC = () => {
                                     />
                                 </div>
                             </div>
-                        )}                                                    <span className="text-cyan-500 font-bold">3.</span>
-                                                    <span>Ask AI to explain or optimize</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <span className="text-cyan-500 font-bold">4.</span>
-                                                    <span>Toggle <strong>Output</strong> panel for exports</span>
-                                                </li>
-                                            </ol>
-                                            <div className="mt-6">
-                                                <button
-                                                    onClick={handleLoadRankineStarter}
-                                                    className="w-full py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <FileJson className="w-3 h-3" />
-                                                    Try Rankine Cycle Demo
-                                                </button>
-                                            </div>
-                                        </div >
-                                    </div >
-                                )}
-                            </div >
-                        </div >
+                        )}
 
-    {/* Bottom Output Panel */ }
-{
-    showOutputPanel && (
-        <SAFOutputPanel
-            blueprint={workbenchState.activeBlueprint}
-            isExpanded={outputPanelExpanded}
-            onToggleExpand={() => setOutputPanelExpanded(!outputPanelExpanded)}
-            onClose={() => setShowOutputPanel(false)}
-        />
-    )
-}
-                    </div >
+
+                        {/* Bottom Output Panel */}
+                        {
+                            showOutputPanel && (
+                                <SAFOutputPanel
+                                    blueprint={workbenchState.activeBlueprint}
+                                    isExpanded={outputPanelExpanded}
+                                    onToggleExpand={() => setOutputPanelExpanded(!outputPanelExpanded)}
+                                    onClose={() => setShowOutputPanel(false)}
+                                />
+                            )
+                        }
+                    </div>
                 )
             }
 
-{/* Import Modal */ }
-{
-    showImportModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
-            <div className="w-full max-w-2xl bg-gray-900 border border-cyan-900/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="p-4 border-b border-cyan-900/30 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Upload className="w-5 h-5 text-cyan-400" />
-                        <h3 className="font-bold text-white uppercase tracking-wider text-sm">Import SAF Blueprint</h3>
-                    </div>
-                    <button onClick={() => setShowImportModal(false)} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400">
-                        <Plus className="w-5 h-5 rotate-45" />
-                    </button>
-                </div>
-                <div className="p-6 space-y-4">
-                    <p className="text-sm text-gray-400">
-                        Paste a SAF JSON block (including <code className="text-cyan-400">{"<SAF_ISO>"}</code> tags or pure JSON) to load it into the workbench.
-                    </p>
-                    <textarea
-                        value={importValue}
-                        onChange={(e) => setImportValue(e.target.value)}
-                        className="w-full h-64 bg-black/50 border border-gray-800 rounded-xl p-4 text-xs font-mono text-cyan-50/80 focus:border-cyan-500/50 outline-none transition-colors overflow-y-auto"
-                        placeholder='{"project_name": "My System", "components": [...] }'
-                    />
-                    {importError && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
-                            {importError}
+
+            {/* Import Modal */}
+            {
+                showImportModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                        <div className="w-full max-w-2xl bg-gray-900 border border-cyan-900/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+                            <div className="p-4 border-b border-cyan-900/30 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Upload className="w-5 h-5 text-cyan-400" />
+                                    <h3 className="font-bold text-white uppercase tracking-wider text-sm">Import SAF Blueprint</h3>
+                                </div>
+                                <button onClick={() => setShowImportModal(false)} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400">
+                                    <Plus className="w-5 h-5 rotate-45" />
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                <p className="text-sm text-gray-400">
+                                    Paste a SAF JSON block (including <code className="text-cyan-400">{"<SAF_ISO>"}</code> tags or pure JSON) to load it into the workbench.
+                                </p>
+                                <textarea
+                                    value={importValue}
+                                    onChange={(e) => setImportValue(e.target.value)}
+                                    className="w-full h-64 bg-black/50 border border-gray-800 rounded-xl p-4 text-xs font-mono text-cyan-50/80 focus:border-cyan-500/50 outline-none transition-colors overflow-y-auto"
+                                    placeholder='{"project_name": "My System", "components": [...] }'
+                                />
+                                {importError && (
+                                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
+                                        {importError}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-4 border-t border-cyan-900/30 flex justify-end gap-3 bg-black/20">
+                                <button
+                                    onClick={() => setShowImportModal(false)}
+                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleImportSubmit}
+                                    className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold rounded-lg transition-all shadow-lg shadow-cyan-900/20"
+                                >
+                                    Load Blueprint
+                                </button>
+                            </div>
                         </div>
-                    )}
-                </div>
-                <div className="p-4 border-t border-cyan-900/30 flex justify-end gap-3 bg-black/20">
-                    <button
-                        onClick={() => setShowImportModal(false)}
-                        className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleImportSubmit}
-                        className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold rounded-lg transition-all shadow-lg shadow-cyan-900/20"
-                    >
-                        Load Blueprint
-                    </button>
-                </div>
-            </div>
-        </div>
-    )
-}
+                    </div>
+                )
+            }
 
-{/* Prompt Library Panel */ }
-<PromptLibraryPanel
-    isOpen={showPromptLibrary}
-    onClose={() => setShowPromptLibrary(false)}
-    onExecute={handlePromptExecute}
-/>
+            {/* Prompt Library Panel */}
+            <PromptLibraryPanel
+                isOpen={showPromptLibrary}
+                onClose={() => setShowPromptLibrary(false)}
+                onExecute={handlePromptExecute}
+            />
 
-{/* Loading Overlay for Library Execution */ }
-{
-    isExecutingLibraryPrompt && (
-        <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md">
-            <div className="w-16 h-16 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">Eldoria Intelligence</h3>
-            <p className="text-cyan-400/70 animate-pulse">Deconstructing system and generating blueprint...</p>
-        </div>
-    )
-}
+            {/* Loading Overlay for Library Execution */}
+            {
+                isExecutingLibraryPrompt && (
+                    <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md">
+                        <div className="w-16 h-16 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
+                        <h3 className="text-xl font-bold text-white mb-2">Eldoria Intelligence</h3>
+                        <p className="text-cyan-400/70 animate-pulse">Deconstructing system and generating blueprint...</p>
+                    </div>
+                )
+            }
         </div >
     );
 };
