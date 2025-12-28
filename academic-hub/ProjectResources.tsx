@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Folder, File, Upload, Trash2, Loader2, FileSearch, HardDrive, RefreshCcw } from 'lucide-react';
+import { Folder, File, Upload, Trash2, Loader2, FileSearch, HardDrive, RefreshCcw, FlaskConical } from 'lucide-react';
+import { AcademicProject } from '../types';
 import { AcademicProject } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
 
@@ -100,9 +101,49 @@ export const ProjectResources: React.FC<ProjectResourcesProps> = ({ project }) =
                                 {res.name}
                             </span>
                         </div>
-                        <button className="p-1 text-cyan-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
-                            <Trash2 className="w-3 h-3" />
-                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            {!res.isDir && (
+                                <button
+                                    <button
+                                    onClick={async () => {
+                                        const btn = document.activeElement as HTMLButtonElement;
+                                        const originalHtml = btn.innerHTML;
+                                        btn.innerHTML = '<svg class="animate-spin w-3 h-3 text-emerald-400" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+
+                                        try {
+                                            // Real API Call to Genesis Engine
+                                            const response = await fetch('http://localhost:3001/analyze/physics', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ content: `Analyze file: ${res.path}`, context: project.name }) // Passing path for bridge to read
+                                            });
+
+                                            const data = await response.json();
+
+                                            if (data.success) {
+                                                const laws = data.equations.map((eq: any) => `- ${eq.name}: ${eq.expression}`).join('\n');
+                                                alert(`Genesis Engine Extraction Complete 🧬\n\nIdentified Laws:\n${laws}\n\nEquations have been pushed to the Simulation Kernel context.`);
+                                                // Functionally, we would now dispatch(setProjectEquations(data.equations))
+                                            } else {
+                                                alert(`Extraction Failed: ${data.message}`);
+                                            }
+                                        } catch (e) {
+                                            console.error("Extraction error", e);
+                                            alert("Failed to reach Genesis Engine. ensure bridge is running.");
+                                        } finally {
+                                            btn.innerHTML = originalHtml;
+                                        }
+                                    }}
+                                    className="p-1 text-cyan-500/40 hover:text-emerald-400"
+                                    title="Extract Physics Laws to SAF"
+                                >
+                                    <FlaskConical className="w-3 h-3" />
+                                </button>
+                            )}
+                            <button className="p-1 text-cyan-500/20 hover:text-red-400">
+                                <Trash2 className="w-3 h-3" />
+                            </button>
+                        </div>
                     </div>
                 )) : (
                     <div className="flex flex-col items-center justify-center py-12 text-cyan-500/10 text-center px-4">

@@ -182,6 +182,63 @@ export const SAFLab: React.FC = () => {
         }
     };
 
+    const handleSimulate = async () => {
+        if (!workbenchState.activeBlueprint) return;
+
+        try {
+            // Show loading state (reuse existing or add specific one)
+            setIsExecutingLibraryPrompt(true); // Using existing loader for now
+
+            // Format request for Python Bridge
+            const payload = {
+                project_name: workbenchState.activeBlueprint.project_name,
+                components: workbenchState.activeBlueprint.components.map(c => ({
+                    id: c.id,
+                    type: c.type || "generic",
+                    label: c.name,
+                    parameters: c.parameters?.reduce((acc: any, p) => {
+                        acc[p.name] = p.value;
+                        return acc;
+                    }, {}) || {}
+                })),
+                connections: workbenchState.activeBlueprint.flows.map(f => ({
+                    id: f.id,
+                    source: f.from,
+                    target: f.to,
+                    type: f.type
+                })),
+                solver_config: { method: "hybr", tolerance: 1e-6 }
+            };
+
+            const response = await fetch('http://localhost:3001/simulation/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || "Simulation Failed");
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`Simulation Converged!\nIterations: ${result.iterations}\nError: ${result.error}\n\nCheck console for full variable map.`);
+                console.log("SIMULATION RESULTS:", result.system_vars);
+                // TODO: Update visualization state with result.system_vars
+            } else {
+                alert(`Simulation Diverged.\nError: ${result.error}\nLogs: ${result.logs.join('\n')}`);
+            }
+
+        } catch (e: any) {
+            console.error("Simulation Error:", e);
+            alert(`Simulation Error: ${e.message}. Is the Python Bridge running?`);
+        } finally {
+            setIsExecutingLibraryPrompt(false);
+        }
+    };
+
     const handlePromptExecute = async (composedPrompt: string, schema: PromptSchema) => {
         try {
             setIsExecutingLibraryPrompt(true);
@@ -319,6 +376,21 @@ export const SAFLab: React.FC = () => {
                         </span>
                         <span className="text-cyan-500/60">v{workbenchState.activeBlueprint.version}</span>
                         <div className="w-px h-5 bg-gray-700" />
+
+                        <button
+                            onClick={handleSimulate}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors flex items-center gap-2 mr-2 border border-emerald-500/20 relative group"
+                            title="Run Python Simulation"
+                        >
+                            <Play className="w-3 h-3 fill-current" />
+                            <span className="font-bold tracking-wide">RUN SIM</span>
+                            {isExecutingLibraryPrompt && (
+                                <span className="absolute inset-0 flex items-center justify-center bg-gray-900/80 rounded-lg">
+                                    <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                                </span>
+                            )}
+                        </button>
+
                         <button
                             onClick={() => setShowOutputPanel(!showOutputPanel)}
                             className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ${showOutputPanel
