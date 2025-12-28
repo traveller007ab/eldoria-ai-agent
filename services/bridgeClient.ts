@@ -292,5 +292,42 @@ export const bridgeClient = {
             console.error('[BRIDGE] indexProject failed:', e);
             return { files: [] };
         }
+    },
+
+    // ============ GENESIS ENGINE CLIENT ============
+
+    genesisAnalyze: async (content: string, context: string = "general") => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}/analyze/physics`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content, context })
+            });
+            return await response.json();
+        } catch (e) {
+            console.error('Genesis Analysis failed:', e);
+            return { success: false, message: 'Bridge Unreachable' };
+        }
+    },
+
+    genesisSimulate: async (payload: any) => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}/simulation/run`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || "Simulation Failed");
+            }
+            return await response.json();
+        } catch (e: any) {
+            console.error('Genesis Simulation failed:', e);
+            throw e;
+        }
     }
 };

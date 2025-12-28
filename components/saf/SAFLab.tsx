@@ -8,6 +8,7 @@ import { SAFAIExplainer } from './SAFAIExplainer';
 import { SAFBreadcrumbs } from './SAFBreadcrumbs';
 import { SAFOutputPanel } from './SAFOutputPanel';
 import { calculateRankineOutputs, propagateEffects } from './engine';
+import { bridgeClient } from '../../services/bridgeClient';
 import { validateBlueprint } from './validator';
 import { FlaskConical, Settings, Download, Share2, Save, RotateCcw, Play, Maximize2, Minimize2, ZoomIn, ZoomOut, MoreHorizontal, Plus, FileJson, Upload, Library, X, ChevronRight, ChevronDown, Wand2, Info, Loader2, Search, Filter, ArrowLeft, Pin, PinOff, FileText, Zap, BookOpen, PanelBottom } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -210,18 +211,8 @@ export const SAFLab: React.FC = () => {
                 solver_config: { method: "hybr", tolerance: 1e-6 }
             };
 
-            const response = await fetch('http://localhost:3001/simulation/run', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || "Simulation Failed");
-            }
-
-            const result = await response.json();
+            // Use Unified Bridge Client (Supports Remote/Local switching)
+            const result = await bridgeClient.genesisSimulate(payload);
 
             if (result.success) {
                 alert(`Simulation Converged!\nIterations: ${result.iterations}\nError: ${result.error}\n\nCheck console for full variable map.`);

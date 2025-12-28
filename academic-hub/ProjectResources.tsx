@@ -3,7 +3,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Folder, File, Upload, Trash2, Loader2, FileSearch, HardDrive, RefreshCcw, FlaskConical } from 'lucide-react';
 import { AcademicProject } from '../types';
 import { AcademicProject } from '../types';
+import { AcademicProject } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { bridgeClient } from '../services/bridgeClient';
 
 interface ProjectResourcesProps {
     project: AcademicProject;
