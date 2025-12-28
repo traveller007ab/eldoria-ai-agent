@@ -1,21 +1,81 @@
 /**
  * SAF Calculation Engine - Real-time cascading effect propagation
  * When a parameter changes, recalculates all dependent outputs
+ * 
+ * HARDENED: Production-grade with validation, bounds checking, and error handling
  */
 
-import { DeepSAFBlueprint, DeepSAFComponent, SAFHistoryEntry } from './types';
+import { DeepSAFBlueprint, DeepSAFComponent, SAFHistoryEntry, SAFParameter } from './types';
+
+// ============================================
+// VALIDATION UTILITIES
+// ============================================
+
+/**
+ * Validate a numeric result - guards against NaN, Infinity, and extreme values
+ */
+export function validateNumericResult(value: number, fallback: number = 0, min?: number, max?: number): number {
+    // Guard against NaN and Infinity
+    if (!Number.isFinite(value)) {
+        console.warn(`SAF Engine: Invalid result (${value}), using fallback ${fallback}`);
+        return fallback;
+    }
+
+    // Apply bounds if specified
+    if (min !== undefined && value < min) return min;
+    if (max !== undefined && value > max) return max;
+
+    // Round to reasonable precision (avoid floating point artifacts)
+    return Math.round(value * 1000) / 1000;
+}
+
+/**
+ * Validate a parameter value against its constraints
+ */
+export function validateParameter(param: SAFParameter, newValue: number | string): { valid: boolean; value: number | string; error?: string } {
+    if (typeof newValue === 'string') {
+        return { valid: true, value: newValue };
+    }
+
+    // Numeric validation
+    if (!Number.isFinite(newValue)) {
+        return { valid: false, value: param.value, error: `Invalid number: ${newValue}` };
+    }
+
+    // Bounds checking
+    if (param.min !== undefined && newValue < param.min) {
+        return { valid: false, value: param.min, error: `Value ${newValue} below minimum ${param.min}` };
+    }
+    if (param.max !== undefined && newValue > param.max) {
+        return { valid: false, value: param.max, error: `Value ${newValue} above maximum ${param.max}` };
+    }
+
+    return { valid: true, value: newValue };
+}
+
+/**
+ * Sanitize formula expression to prevent injection
+ */
+function sanitizeExpression(expr: string): string {
+    // Only allow safe characters: numbers, operators, parentheses, dots, underscores
+    return expr.replace(/[^0-9+\-*/.() _]/g, '');
+}
+
+// ============================================
+// FORMULA EVALUATION (HARDENED)
+// ============================================
 
 /**
  * Evaluate a simple formula with component context
  * Supports basic arithmetic and component references
+ * HARDENED: Includes NaN guards, bounds checking, and sanitization
  */
 export function evaluateFormula(
     formula: string,
     component: DeepSAFComponent,
     allComponents: DeepSAFComponent[]
 ): number {
-    // For now, implement basic formula evaluation
-    // Future: Use mathjs for full expression support
+    if (!formula || formula.trim() === '') return 0;
 
     try {
         // Replace parameter references with values
@@ -27,39 +87,54 @@ export function evaluateFormula(
             const refComp = allComponents.find(c =>
                 c.id.toLowerCase() === compName || c.name.toLowerCase() === compName
             );
-            if (!refComp) return '0';
+            if (!refComp) {
+                console.warn(`SAF Engine: Component reference "${compName}" not found`);
+                return '0';
+            }
 
             // Check parameters
             const param = refComp.parameters?.find(p =>
                 p.name.toLowerCase().replace(/\s+/g, '_') === paramName
             );
-            if (param) return String(param.value);
+            if (param && typeof param.value === 'number') {
+                return String(param.value);
+            }
 
             // Check outputs
             const output = refComp.outputs?.find(o =>
                 o.name.toLowerCase().replace(/\s+/g, '_') === paramName
             );
-            if (output) return String(output.value);
+            if (output && typeof output.value === 'number') {
+                return String(output.value);
+            }
 
+            console.warn(`SAF Engine: Parameter/output "${paramName}" not found in "${compName}"`);
             return '0';
         });
 
         // Replace local parameter references
         component.parameters?.forEach(param => {
-            const key = param.name.toLowerCase().replace(/\s+/g, '_');
-            expression = expression.replace(new RegExp(key, 'g'), String(param.value));
+            if (typeof param.value === 'number') {
+                const key = param.name.toLowerCase().replace(/\s+/g, '_');
+                expression = expression.replace(new RegExp(`\\b${key}\\b`, 'g'), String(param.value));
+            }
         });
+
+        // Sanitize expression for safety
+        const sanitized = sanitizeExpression(expression);
 
         // Basic math evaluation (safe subset)
         // Only allow numbers, operators, parentheses
-        if (/^[\d\s+\-*/.()]+$/.test(expression)) {
-            return eval(expression);
+        if (/^[\d\s+\-*/.()]+$/.test(sanitized)) {
+            const result = eval(sanitized);
+            return validateNumericResult(result, 0);
         }
 
-        // If formula contains unknown tokens, return current value or calculate simple estimate
+        // If formula contains unknown tokens, log and return 0
+        console.warn(`SAF Engine: Formula "${formula}" contains unsupported tokens after parsing: "${sanitized}"`);
         return 0;
     } catch (e) {
-        console.warn('Formula evaluation error:', formula, e);
+        console.error('SAF Engine: Formula evaluation error:', { formula, error: e });
         return 0;
     }
 }

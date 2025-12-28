@@ -98,7 +98,7 @@ export function blueprintToTypeScript(blueprint: DeepSAFBlueprint): string {
             lines.push('');
         }
 
-        // Class implementation
+        // Class implementation with validation
         lines.push(`class ${toPascalCase(comp.id)} {`);
         lines.push(`    private params: ${toPascalCase(comp.id)}Params;`);
         lines.push('');
@@ -106,9 +106,14 @@ export function blueprintToTypeScript(blueprint: DeepSAFBlueprint): string {
         lines.push(`        this.params = params;`);
         lines.push(`    }`);
         lines.push('');
+        lines.push(`    /** Validates numeric results - guards against NaN/Infinity */`);
+        lines.push(`    private validate(value: number, fallback = 0): number {`);
+        lines.push(`        return Number.isFinite(value) ? Math.round(value * 1000) / 1000 : fallback;`);
+        lines.push(`    }`);
+        lines.push('');
         lines.push(`    calculate(): ${toPascalCase(comp.id)}Outputs {`);
         lines.push(`        const params = this.params;`);
-        lines.push(`        const outputs: any = {};`);
+        lines.push(`        const outputs: Partial<${toPascalCase(comp.id)}Outputs> = {};`);
 
         comp.outputs?.forEach(output => {
             if (output.formula) {
@@ -118,10 +123,10 @@ export function blueprintToTypeScript(blueprint: DeepSAFBlueprint): string {
                         const isParam = comp.parameters?.some(p => p.name.toLowerCase().replace(/\s+/g, '_') === match);
                         return isParam ? `params.${toCamelCase(match)}` : match;
                     });
-                lines.push(`        // ${output.name} calculation`);
-                lines.push(`        outputs.${toCamelCase(output.name)} = ${tsFormula};`);
+                lines.push(`        // ${output.name}: ${output.formula}`);
+                lines.push(`        outputs.${toCamelCase(output.name)} = this.validate(${tsFormula});`);
             } else {
-                lines.push(`        outputs.${toCamelCase(output.name)} = ${output.value}; // Static value`);
+                lines.push(`        outputs.${toCamelCase(output.name)} = ${typeof output.value === 'number' ? output.value : `"${output.value}"`}; // Static`);
             }
         });
 
