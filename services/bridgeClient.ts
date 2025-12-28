@@ -44,13 +44,21 @@ let cachedBridgeUrl: string | null = null;
 export async function getBridgeUrl(): Promise<string> {
     if (cachedBridgeUrl) return cachedBridgeUrl;
 
-    // Production web deployment - use Railway
-    if (isProduction) {
-        cachedBridgeUrl = PRODUCTION_BRIDGE_URL;
+    // 1. Env Var Override (Simulates Production locally or sets Production Remote)
+    const envUrl = (import.meta as any).env?.VITE_API_URL;
+    if (envUrl && envUrl.trim() !== '') {
+        console.log('[BRIDGE] Using configured VITE_API_URL:', envUrl);
+        cachedBridgeUrl = envUrl.replace(/\/$/, ''); // Remove trailing slash
         return cachedBridgeUrl;
     }
 
-    // Electron desktop app - get dynamic port
+    // 2. Production Environment (Netlify) - Default Fallback
+    if (isProduction) {
+        cachedBridgeUrl = 'https://eldoria-ai-agent-production.up.railway.app';
+        return cachedBridgeUrl;
+    }
+
+    // 3. Electron desktop app - get dynamic port
     if (window.eldoriaDesktop?.getBridgePort) {
         try {
             const port = await window.eldoriaDesktop.getBridgePort();
@@ -61,8 +69,12 @@ export async function getBridgeUrl(): Promise<string> {
         }
     }
 
-    // Local development fallback
+    // 4. Local Development Default
     return DEFAULT_BRIDGE_URL;
+}
+
+// Local development fallback
+return DEFAULT_BRIDGE_URL;
 }
 
 export const bridgeClient = {
