@@ -39,22 +39,39 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Internal Service Imports
+# Internal Service Imports
+
+# 1. Thesis Vault & Academic Assistant
+vault_router = None
+build_thesis = None
 try:
     from services.academic_assistant.thesis_vault import router as vault_router
     from services.academic_assistant.docx_builder import build_thesis
+except ImportError as e1:
+    print(f"[BRIDGE] Primary import error (Academic): {e1}")
+    try:
+        # Fallback for different execution contexts
+        from academic_assistant.thesis_vault import router as vault_router
+        from academic_assistant.docx_builder import build_thesis
+    except ImportError as e2:
+        print(f"[BRIDGE] CRITICAL: Could not import Academic Assistant services: {e2}")
+
+# 2. Genesis Simulation Engine
+simulation_router = None
+try:
     from services.simulation import router as simulation_router
-except ImportError:
-    # Fallback for different execution contexts
-    from academic_assistant.thesis_vault import router as vault_router
-    from academic_assistant.docx_builder import build_thesis
+except ImportError as e1:
+    print(f"[BRIDGE] Primary import error (Simulation): {e1}")
     try:
         from simulation import router as simulation_router
-    except ImportError:
-        simulation_router = None
-        print("[BRIDGE] Simulation module not found. Skipping mount.")
+    except ImportError as e2:
+        print(f"[BRIDGE] WARNING: Genesis Engine not available (check numpy/sympy): {e2}")
 
 app = FastAPI(title="Eldoria Neural Bridge")
-app.include_router(vault_router)
+
+if vault_router:
+    app.include_router(vault_router)
+    
 if simulation_router:
     app.include_router(simulation_router)
 
