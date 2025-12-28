@@ -6,9 +6,12 @@ import { SAFParameterEditor } from './SAFParameterEditor';
 import { SAFAIExplainer } from './SAFAIExplainer';
 import { SAFBreadcrumbs } from './SAFBreadcrumbs';
 import { SAFOutputPanel } from './SAFOutputPanel';
-import { calculateRankineOutputs } from './engine';
-import { FlaskConical, Plus, Upload, FileJson, ArrowLeft, PanelBottom, Maximize2 } from 'lucide-react';
+import { calculateRankineOutputs, propagateEffects } from './engine';
+import { FlaskConical, Plus, Upload, FileJson, ArrowLeft, PanelBottom, Maximize2, Pin, PinOff, BookOpen, Library } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { PromptLibraryPanel } from '../modals/PromptLibraryPanel';
+import { runGroqGenerate } from '../../services/groqService';
+import { PromptSchema } from '../../prompt_schemas';
 
 /**
  * SAF Lab - Interactive System Engineering Workbench
@@ -31,6 +34,12 @@ export const SAFLab: React.FC = () => {
     const [showOutputPanel, setShowOutputPanel] = useState(false);
     const [outputPanelExpanded, setOutputPanelExpanded] = useState(false);
     const [aiExplainerExpanded, setAiExplainerExpanded] = useState(false);
+    const [aiExplainerPinned, setAiExplainerPinned] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [showPromptLibrary, setShowPromptLibrary] = useState(false);
+    const [importValue, setImportValue] = useState('');
+    const [importError, setImportError] = useState<string | null>(null);
+    const [isExecutingLibraryPrompt, setIsExecutingLibraryPrompt] = useState(false);
 
     // Load blueprint from active canvas if available
     const canvasBlueprint = activeCanvas?.saf_blueprint as DeepSAFBlueprint | undefined;
@@ -143,6 +152,93 @@ export const SAFLab: React.FC = () => {
         }));
     };
 
+    const handleImportSubmit = () => {
+        try {
+            setImportError(null);
+            const rawValue = importValue.trim();
+            let jsonToParse = rawValue;
+
+            // Strip <SAF_ISO> tags if present
+            if (rawValue.includes('<SAF_ISO>')) {
+                const match = rawValue.match(/<SAF_ISO>([\s\S]*?)<\/SAF_ISO>/);
+                if (match) jsonToParse = match[1].trim();
+            }
+
+            const parsed = JSON.parse(jsonToParse);
+            // Basic validation
+            if (!parsed.project_name || !Array.isArray(parsed.components)) {
+                throw new Error('Invalid SAF Blueprint: Missing project_name or components array.');
+            }
+
+            setWorkbenchState(prev => ({
+                ...prev,
+                activeBlueprint: {
+                    ...parsed,
+                    version: parsed.version || '1.0',
+                    domain: parsed.domain || 'custom',
+                    created_at: parsed.created_at || new Date().toISOString(),
+                },
+            }));
+            setShowImportModal(false);
+            setImportValue('');
+        } catch (err: any) {
+            setImportError(err.message);
+        }
+    };
+
+    const handlePromptExecute = async (composedPrompt: string, schema: PromptSchema) => {
+        try {
+            setIsExecutingLibraryPrompt(true);
+            setShowPromptLibrary(false);
+
+            const systemPrompt = `You are Eldoria's SAF Engineering Engine. 
+            Analyze the user's request and deconstruct it into a Strategic Analysis Framework (SAF) blueprint.
+            
+            CRITICAL: Your output MUST conclude with a valid <SAF_ISO> JSON block following this schema:
+            {
+                "project_name": "Name of the system",
+                "domain": "mechanical" | "governance" | "ai_agents" | "creative" | "custom",
+                "components": [
+                    { "id": "uuid", "name": "Name", "type": "core"|"subcore"|"micro", "parameters": [{ "name": "N", "value": 100, "unit": "kg" }], "outputs": [], "position": { "x": 0, "y": 0 } }
+                ],
+                "flows": [
+                    { "id": "f1", "from": "id1", "to": "id2", "type": "energy"|"material"|"control"|"data" }
+                ]
+            }
+            
+            The user is running the prompt: "${schema.name}"
+            Full Parameters: ${composedPrompt}`;
+
+            const response = await runGroqGenerate([
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: 'Deconstruct the system and provide the <SAF_ISO> blueprint.' }
+            ]);
+
+            const content = response.choices?.[0]?.message?.content || '';
+            if (content.includes('<SAF_ISO>')) {
+                const match = content.match(/<SAF_ISO>([\s\S]*?)<\/SAF_ISO>/);
+                if (match) {
+                    const parsed = JSON.parse(match[1].trim());
+                    setWorkbenchState(prev => ({
+                        ...prev,
+                        activeBlueprint: {
+                            ...parsed,
+                            version: '1.0',
+                            created_at: new Date().toISOString()
+                        }
+                    }));
+                }
+            } else {
+                alert("The AI generated an explanation but didn't provide a loadable SAF Blueprint. Try again or refine the prompt.");
+            }
+        } catch (err: any) {
+            console.error('Prompt Execution Error:', err);
+            alert(`Failed to execute prompt: ${err.message}`);
+        } finally {
+            setIsExecutingLibraryPrompt(false);
+        }
+    };
+
     // Real-time parameter change handler - updates blueprint state and recalculates outputs
     const handleParameterChange = useCallback((componentId: string, paramName: string, newValue: number | string) => {
         setWorkbenchState(prev => {
@@ -167,7 +263,17 @@ export const SAFLab: React.FC = () => {
                 updated_at: new Date().toISOString(),
             };
 
-            // For Rankine Cycle, run specialized calculations
+            // First, run universal effect propagation (formula-based)
+            const { updatedBlueprint: propagationResult } = propagateEffects(
+                updatedBlueprint,
+                componentId,
+                paramName,
+                null,
+                newValue
+            );
+            updatedBlueprint = propagationResult;
+
+            // For Rankine Cycle, run specialized calculations on top
             if (prev.activeBlueprint.domain === 'mechanical') {
                 updatedBlueprint = calculateRankineOutputs(updatedBlueprint);
             }
@@ -228,6 +334,22 @@ export const SAFLab: React.FC = () => {
                             <PanelBottom className="w-4 h-4" />
                             Output
                         </button>
+                        <button
+                            onClick={() => setShowImportModal(true)}
+                            className="px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors flex items-center gap-2"
+                            title="Import SAF JSON"
+                        >
+                            <Upload className="w-4 h-4" />
+                            Import
+                        </button>
+                        <button
+                            onClick={() => setShowPromptLibrary(true)}
+                            className="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors flex items-center gap-2"
+                            title="Open Prompt Library"
+                        >
+                            <Library className="w-4 h-4" />
+                            Library
+                        </button>
                     </div>
                 )}
             </div>
@@ -237,7 +359,7 @@ export const SAFLab: React.FC = () => {
                 <SAFBreadcrumbs
                     trail={workbenchState.breadcrumbs.map(id => {
                         const comp = workbenchState.activeBlueprint!.components.find(c => c.id === id);
-                        return { id, name: comp?.name || id, type: comp?.type || 'core' };
+                        return { id, name: comp?.name || id, type: (comp?.type || 'core') as any };
                     })}
                     onNavigate={(index) => {
                         if (index < 0) {
@@ -297,8 +419,23 @@ export const SAFLab: React.FC = () => {
                                     <Upload className="w-8 h-8 text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
                                     <h3 className="text-lg font-bold text-white mb-1">Load from Canvas</h3>
                                     <p className="text-sm text-gray-500">{canvasBlueprint.project_name || 'Current blueprint'}</p>
+                                    <div className="mt-3 text-[10px] text-purple-400/50 uppercase tracking-widest font-bold">Recommended</div>
                                 </button>
                             )}
+
+                            {/* Prompt Library */}
+                            <button
+                                onClick={() => setShowPromptLibrary(true)}
+                                className="group p-6 bg-gray-900/50 border border-cyan-900/30 rounded-xl hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left"
+                            >
+                                <Library className="w-8 h-8 text-amber-400 mb-3 group-hover:scale-110 transition-transform" />
+                                <h3 className="text-lg font-bold text-white mb-1">Prompt Library</h3>
+                                <p className="text-sm text-gray-500">Deconstruct via AI templates</p>
+                                <div className="mt-2 flex items-center gap-1.5">
+                                    <span className="px-1.5 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 text-[10px] font-bold uppercase">New</span>
+                                    <span className="text-[10px] text-gray-600 italic">Try "Rankine Deconstruct"</span>
+                                </div>
+                            </button>
 
                             {/* More Coming Soon */}
                             <div className="p-6 bg-gray-900/30 border border-gray-800/50 rounded-xl opacity-50 cursor-not-allowed">
@@ -395,16 +532,24 @@ export const SAFLab: React.FC = () => {
                                         />
                                     </div>
 
-                                    {/* AI Explainer Section - With Expand Button */}
-                                    <div className={`shrink-0 border-t border-cyan-900/20 ${aiExplainerExpanded ? 'flex-grow' : 'h-64'}`}>
-                                        <div className="h-full relative">
-                                            <button
-                                                onClick={() => setAiExplainerExpanded(!aiExplainerExpanded)}
-                                                className="absolute top-2 right-2 z-10 p-1 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
-                                                title={aiExplainerExpanded ? 'Shrink' : 'Expand'}
-                                            >
-                                                <Maximize2 className="w-3 h-3" />
-                                            </button>
+                                    <div className={`shrink-0 border-t border-cyan-900/20 ${aiExplainerPinned || aiExplainerExpanded ? 'flex-grow transition-all duration-300' : 'h-64'} overflow-hidden`}>
+                                        <div className="h-full relative flex flex-col overflow-hidden">
+                                            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                                                <button
+                                                    onClick={() => setAiExplainerPinned(!aiExplainerPinned)}
+                                                    className={`p-1 rounded transition-colors ${aiExplainerPinned ? 'text-cyan-400 bg-cyan-500/20' : 'text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10'}`}
+                                                    title={aiExplainerPinned ? 'Unpin' : 'Pin Expanded'}
+                                                >
+                                                    {aiExplainerPinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
+                                                </button>
+                                                <button
+                                                    onClick={() => setAiExplainerExpanded(!aiExplainerExpanded)}
+                                                    className={`p-1 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors ${aiExplainerExpanded ? 'bg-cyan-500/20 text-cyan-400' : ''}`}
+                                                    title={aiExplainerExpanded ? 'Shrink' : 'Expand'}
+                                                >
+                                                    <Maximize2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
                                             <SAFAIExplainer
                                                 component={selectedComponent}
                                                 blueprint={workbenchState.activeBlueprint}
@@ -437,6 +582,15 @@ export const SAFLab: React.FC = () => {
                                                 <span>Toggle <strong>Output</strong> panel for exports</span>
                                             </li>
                                         </ol>
+                                        <div className="mt-6">
+                                            <button
+                                                onClick={handleLoadRankineStarter}
+                                                className="w-full py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <FileJson className="w-3 h-3" />
+                                                Try Rankine Cycle Demo
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -452,6 +606,69 @@ export const SAFLab: React.FC = () => {
                             onClose={() => setShowOutputPanel(false)}
                         />
                     )}
+                </div>
+            )}
+
+            {/* Import Modal */}
+            {showImportModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                    <div className="w-full max-w-2xl bg-gray-900 border border-cyan-900/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-4 border-b border-cyan-900/30 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Upload className="w-5 h-5 text-cyan-400" />
+                                <h3 className="font-bold text-white uppercase tracking-wider text-sm">Import SAF Blueprint</h3>
+                            </div>
+                            <button onClick={() => setShowImportModal(false)} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400">
+                                <Plus className="w-5 h-5 rotate-45" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-gray-400">
+                                Paste a SAF JSON block (including <code className="text-cyan-400">{"<SAF_ISO>"}</code> tags or pure JSON) to load it into the workbench.
+                            </p>
+                            <textarea
+                                value={importValue}
+                                onChange={(e) => setImportValue(e.target.value)}
+                                className="w-full h-64 bg-black/50 border border-gray-800 rounded-xl p-4 text-xs font-mono text-cyan-50/80 focus:border-cyan-500/50 outline-none transition-colors overflow-y-auto"
+                                placeholder='{"project_name": "My System", "components": [...] }'
+                            />
+                            {importError && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
+                                    {importError}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-cyan-900/30 flex justify-end gap-3 bg-black/20">
+                            <button
+                                onClick={() => setShowImportModal(false)}
+                                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleImportSubmit}
+                                className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold rounded-lg transition-all shadow-lg shadow-cyan-900/20"
+                            >
+                                Load Blueprint
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Prompt Library Panel */}
+            <PromptLibraryPanel
+                isOpen={showPromptLibrary}
+                onClose={() => setShowPromptLibrary(false)}
+                onExecute={handlePromptExecute}
+            />
+
+            {/* Loading Overlay for Library Execution */}
+            {isExecutingLibraryPrompt && (
+                <div className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md">
+                    <div className="w-16 h-16 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">Eldoria Intelligence</h3>
+                    <p className="text-cyan-400/70 animate-pulse">Deconstructing system and generating blueprint...</p>
                 </div>
             )}
         </div>

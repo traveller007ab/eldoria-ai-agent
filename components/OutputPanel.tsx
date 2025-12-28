@@ -6,8 +6,9 @@ import { ChatPanel } from './ChatPanel';
 const InsightsPanel = lazy(() => import('./InsightsPanel').then(m => ({ default: m.InsightsPanel })));
 import { useWorkspace } from '../context/WorkspaceContext';
 import { Source } from '../types';
-import { ChevronDown, Send, Printer, FileText, Loader2 } from 'lucide-react';
+import { ChevronDown, Send, Printer, FileText, Loader2, Settings } from 'lucide-react';
 import { bridgeClient } from '../services/bridgeClient';
+import { ExportStyleModal, ExportStyleConfig } from './saf/ExportStyleModal';
 
 const LoadingIndicator = () => (
     <div className="flex items-center justify-center h-full text-cyan-400">
@@ -85,6 +86,7 @@ export const OutputPanel: React.FC = () => {
     const [isExporting, setIsExporting] = useState(false);
 
     const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
+    const [showStyleModal, setShowStyleModal] = useState(false);
 
     const handleExportDocx = async () => {
         setIsPrintMenuOpen(false);
@@ -250,6 +252,81 @@ export const OutputPanel: React.FC = () => {
         printWindow.document.close();
     };
 
+    // Styled print with custom fonts, colors, margins
+    const handleStyledPrint = (config: ExportStyleConfig, format: 'pdf' | 'docx' | 'html') => {
+        if (!activeCanvas?.output) return;
+
+        const FONT_FAMILIES: Record<string, string> = {
+            inter: "'Inter', -apple-system, sans-serif",
+            roboto: "'Roboto', sans-serif",
+            georgia: "Georgia, serif",
+            times: "'Times New Roman', Times, serif",
+            arial: "Arial, Helvetica, sans-serif",
+        };
+        const FONT_SIZES: Record<string, string> = { small: '10pt', medium: '12pt', large: '14pt' };
+        const COLOR_SCHEMES: Record<string, { bg: string; text: string; accent: string }> = {
+            light: { bg: '#ffffff', text: '#1a1a1a', accent: '#0891b2' },
+            dark: { bg: '#1a1a1a', text: '#f5f5f5', accent: '#22d3ee' },
+            sepia: { bg: '#f5f0e6', text: '#5c4a32', accent: '#b45309' },
+            'high-contrast': { bg: '#000000', text: '#ffffff', accent: '#00ff00' },
+        };
+        const MARGINS: Record<string, string> = { narrow: '0.5in', normal: '1in', wide: '1.5in' };
+
+        const scheme = COLOR_SCHEMES[config.colorScheme];
+        const fontFamily = FONT_FAMILIES[config.fontFamily];
+        const fontSize = FONT_SIZES[config.fontSize];
+        const margin = MARGINS[config.marginSize];
+        const lineHeight = config.lineHeight === 'compact' ? '1.2' : config.lineHeight === 'relaxed' ? '1.8' : '1.5';
+
+        let content = activeCanvas.output.trim();
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${activeCanvas.name || 'Eldoria Output'}</title>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+                <style>
+                    @page { margin: ${margin}; size: A4; }
+                    * { box-sizing: border-box; }
+                    body {
+                        font-family: ${fontFamily};
+                        font-size: ${fontSize};
+                        line-height: ${lineHeight};
+                        background: ${scheme.bg};
+                        color: ${scheme.text};
+                        padding: ${margin};
+                        margin: 0;
+                        max-width: 850px;
+                        margin: 0 auto;
+                    }
+                    h1, h2, h3, h4 { color: ${scheme.accent}; margin-top: 1.5em; margin-bottom: 0.5em; }
+                    h1 { font-size: 2em; border-bottom: 2px solid ${scheme.accent}; padding-bottom: 0.3em; }
+                    h2 { font-size: 1.5em; }
+                    pre, code { font-family: 'Consolas', monospace; background: ${config.colorScheme === 'light' ? '#f5f5f5' : '#2a2a2a'}; padding: 1em; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+                    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+                    th, td { border: 1px solid ${scheme.accent}40; padding: 0.5em; text-align: left; }
+                    th { background: ${scheme.accent}20; font-weight: 600; }
+                    ${config.includeHeader ? `.header { border-bottom: 3px solid ${scheme.accent}; padding-bottom: 1em; margin-bottom: 2em; }` : ''}
+                    ${config.includeFooter ? `.footer { position: fixed; bottom: ${margin}; left: ${margin}; right: ${margin}; text-align: center; font-size: 0.75em; color: ${scheme.text}60; }` : ''}
+                    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+                </style>
+            </head>
+            <body>
+                ${config.includeHeader ? `<div class="header"><h1 style="border:none;margin:0;padding:0;">${activeCanvas.name || 'Strategic Brief'}</h1><div style="font-size:0.8em;color:${scheme.text}80;margin-top:0.5em;">${config.headerStyle !== 'minimal' ? new Date().toLocaleDateString() : ''}</div></div>` : ''}
+                <div class="content">${content.replace(/\n/g, '<br>').replace(/### /g, '<h3>').replace(/## /g, '<h2>').replace(/# /g, '<h1>')}</div>
+                ${config.includeFooter ? `<div class="footer">${config.includePageNumbers ? 'Page 1 • ' : ''}Generated by Eldoria</div>` : ''}
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 500);
+        setShowStyleModal(false);
+    };
+
     const hasOutput = !!activeCanvas?.output?.trim();
     const hasSources = !!activeCanvas?.output_sources && activeCanvas.output_sources.length > 0;
 
@@ -287,10 +364,17 @@ export const OutputPanel: React.FC = () => {
                                     <button
                                         onClick={handleExportDocx}
                                         disabled={isExporting}
-                                        className="w-full text-left px-4 py-3 hover:bg-blue-500/10 transition-colors flex items-center gap-3"
+                                        className="w-full text-left px-4 py-3 hover:bg-blue-500/10 transition-colors flex items-center gap-3 border-b border-cyan-500/10"
                                     >
                                         {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <FileText className="w-4 h-4 text-blue-400" />}
                                         <span className="text-[11px] font-bold text-blue-200 uppercase tracking-wider">Download Word</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setIsPrintMenuOpen(false); setShowStyleModal(true); }}
+                                        className="w-full text-left px-4 py-3 hover:bg-purple-500/10 transition-colors flex items-center gap-3"
+                                    >
+                                        <Settings className="w-4 h-4 text-purple-400" />
+                                        <span className="text-[11px] font-bold text-purple-200 uppercase tracking-wider">Custom Style</span>
                                     </button>
                                 </div>
                             )}
@@ -378,6 +462,14 @@ export const OutputPanel: React.FC = () => {
                     </Suspense>
                 )}
             </div>
+
+            {/* Export Style Modal */}
+            <ExportStyleModal
+                isOpen={showStyleModal}
+                onClose={() => setShowStyleModal(false)}
+                onExport={handleStyledPrint}
+                title="Export with Custom Styling"
+            />
         </div >
     );
 };

@@ -34,6 +34,14 @@ interface WorkspaceState {
   isLowPerfMode: boolean;
   isTerminalExecuting: boolean;
   isPromptLibraryOpen: boolean;
+  shouldUseDevLinks: boolean;
+  globalSettings: {
+    witLevel: number;
+    reverence: number;
+    autonomousMode: boolean;
+    proactiveAudit: boolean;
+    personalityMode: string;
+  };
   promptLibraryConfig: {
     schemaId: string | null;
     variables: Record<string, string>;

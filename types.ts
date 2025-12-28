@@ -189,6 +189,15 @@ export interface AcademicWizardState {
   };
 }
 
+export interface AcademicResource {
+  id: string;
+  name: string;
+  type: 'note' | 'file' | 'link';
+  content: string;
+  created_at: string;
+  metadata?: Record<string, any>;
+}
+
 export interface AcademicProject {
   id: string;
   name: string;
@@ -198,5 +207,5 @@ export interface AcademicProject {
   wizard_state: AcademicWizardState;
   draft_content: Record<string, string>; // Chapter -> Markdown
   references: Reference[];
-  resources?: string[]; // List of file paths
+  resources: (string | AcademicResource)[]; // List of file paths or rich resource objects
 }

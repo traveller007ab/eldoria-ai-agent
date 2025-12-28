@@ -39,16 +39,16 @@ export function blueprintToMermaid(blueprint: DeepSAFBlueprint): string {
     // Add class definitions
     lines.push('    classDef core fill:#22d3ee20,stroke:#22d3ee,color:#22d3ee');
     lines.push('    classDef subcore fill:#a855f720,stroke:#a855f7,color:#a855f7');
-    lines.push('    classDef atomic fill:#10b98120,stroke:#10b981,color:#10b981');
+    lines.push('    classDef micro fill:#10b98120,stroke:#10b981,color:#10b981');
 
     // Apply classes to nodes
     const coreNodes = blueprint.components.filter(c => c.type === 'core').map(c => c.id).join(',');
     const subcoreNodes = blueprint.components.filter(c => c.type === 'subcore').map(c => c.id).join(',');
-    const atomicNodes = blueprint.components.filter(c => c.type === 'atomic').map(c => c.id).join(',');
+    const microNodes = blueprint.components.filter(c => c.type === 'micro').map(c => c.id).join(',');
 
     if (coreNodes) lines.push(`    class ${coreNodes} core`);
     if (subcoreNodes) lines.push(`    class ${subcoreNodes} subcore`);
-    if (atomicNodes) lines.push(`    class ${atomicNodes} atomic`);
+    if (microNodes) lines.push(`    class ${microNodes} micro`);
 
     return lines.join('\n');
 }
@@ -107,16 +107,26 @@ export function blueprintToTypeScript(blueprint: DeepSAFBlueprint): string {
         lines.push(`    }`);
         lines.push('');
         lines.push(`    calculate(): ${toPascalCase(comp.id)}Outputs {`);
-        lines.push(`        // TODO: Implement calculation logic`);
-        if (comp.outputs && comp.outputs.length > 0) {
-            lines.push(`        return {`);
-            for (const output of comp.outputs) {
-                lines.push(`            ${toCamelCase(output.name)}: ${output.value},`);
+        lines.push(`        const params = this.params;`);
+        lines.push(`        const outputs: any = {};`);
+
+        comp.outputs?.forEach(output => {
+            if (output.formula) {
+                // Convert formula to TS-compatible expression
+                let tsFormula = output.formula.toLowerCase()
+                    .replace(/\b(\w+)\b/g, (match) => {
+                        const isParam = comp.parameters?.some(p => p.name.toLowerCase().replace(/\s+/g, '_') === match);
+                        return isParam ? `params.${toCamelCase(match)}` : match;
+                    });
+                lines.push(`        // ${output.name} calculation`);
+                lines.push(`        outputs.${toCamelCase(output.name)} = ${tsFormula};`);
+            } else {
+                lines.push(`        outputs.${toCamelCase(output.name)} = ${output.value}; // Static value`);
             }
-            lines.push(`        };`);
-        } else {
-            lines.push(`        return {};`);
-        }
+        });
+
+        lines.push('');
+        lines.push(`        return outputs as ${toPascalCase(comp.id)}Outputs;`);
         lines.push(`    }`);
         lines.push(`}`);
         lines.push('');
@@ -210,7 +220,7 @@ export function blueprintToThesisSection(blueprint: DeepSAFBlueprint): string {
 
     lines.push(`### Conclusion`);
     lines.push('');
-    lines.push(`The SAF decomposition reveals a ${blueprint.components.filter(c => c.type === 'core').length}-core, ${blueprint.components.filter(c => c.type === 'subcore').length}-subcore, ${blueprint.components.filter(c => c.type === 'atomic').length}-atomic architecture with clear flow pathways. This modular structure enables targeted optimization and impact analysis.`);
+    lines.push(`The SAF decomposition reveals a ${blueprint.components.filter(c => c.type === 'core').length}-core, ${blueprint.components.filter(c => c.type === 'subcore').length}-subcore, ${blueprint.components.filter(c => c.type === 'micro').length}-micro architecture with clear flow pathways. This modular structure enables targeted optimization and impact analysis.`);
 
     return lines.join('\n');
 }

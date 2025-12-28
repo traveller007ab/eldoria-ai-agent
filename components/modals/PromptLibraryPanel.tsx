@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronRight, Star, Cpu, BarChart3, GraduationCap, Shield, Play, Eye, X, BookOpen } from 'lucide-react';
+import { Search, ChevronRight, Star, Cpu, BarChart3, GraduationCap, Shield, Play, Eye, X, BookOpen, Zap } from 'lucide-react';
 import { promptSchemas, searchSchemas, getCategories, composePrompt, PromptSchema, getSchemaById } from '../../prompt_schemas';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { PromptMemoryService } from '../../services/PromptMemoryService';

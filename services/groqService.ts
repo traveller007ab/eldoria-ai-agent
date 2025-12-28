@@ -288,7 +288,7 @@ const tools = [
     }
 ];
 
-interface StreamEvent {
+export interface StreamEvent {
     textChunk?: string;
     sources?: Source[];
     safStatus?: SAFStatus;
@@ -524,7 +524,7 @@ export async function* runGroqConversationStream(
     chatHistory: ChatMessage[],
     newMessage: string,
     metaContext?: string
-): AsyncGenerator<{ textChunk?: string; error?: string }> {
+): AsyncGenerator<StreamEvent> {
     try {
         const ambientContext = contextService.getSystemContextString();
         const systemPrompt = chatSystemInstruction +

@@ -11,7 +11,7 @@ import { generateDefenseDeck } from '../services/DefenseDeckGenerator';
 import { FormulaEditor } from '../components/FormulaEditor';
 import { DefenseDeckUI } from './DefenseDeckUI';
 import { runAutonomousResearch, DeepResearchResult, ResearchEvidence } from '../services/AutonomousResearcher';
-import { Sigma, X, Microscope, Info, Terminal, Link, Zap, HardDrive, Image as ImageIcon, Table as TableIcon, Plus, ExternalLink } from 'lucide-react';
+import { Sigma, X, Microscope, Info, Terminal, Link, Zap, HardDrive, Image as ImageIcon, Table as TableIcon, ExternalLink } from 'lucide-react';
 import { ProjectResources } from './ProjectResources';
 import { bridgeClient } from '../services/bridgeClient';
 import { runGroqGenerate } from '../services/groqService';
@@ -314,9 +314,13 @@ export const AcademicHub: React.FC = () => {
 
         try {
             alert("Eldoria is deconstructing these findings through the SAF framework...");
+            const messages = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `DECONSTRUCT THIS: ${findings}` }
+            ];
             const completion = await runGroqGenerate(
-                [{ role: "user", content: `DECONSTRUCT THIS: ${findings}` }],
-                { model: "llama-3.3-70b-versatile", system_prompt: systemPrompt }
+                messages,
+                { model: "llama-3.3-70b-versatile" }
             );
 
             const content = completion.choices?.[0]?.message?.content || "Deconstruction failed.";

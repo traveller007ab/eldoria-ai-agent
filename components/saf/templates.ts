@@ -165,7 +165,7 @@ export const GOVERNANCE_FRAMEWORK_TEMPLATE: SAFTemplate = {
             {
                 id: 'citizens',
                 name: 'Citizens',
-                type: 'atomic',
+                type: 'micro',
                 description: 'Public electorate that votes and provides feedback',
                 dependencies: [],
                 parameters: [
@@ -271,7 +271,7 @@ export const AI_AGENT_TEMPLATE: SAFTemplate = {
             {
                 id: 'reward',
                 name: 'Reward Model',
-                type: 'atomic',
+                type: 'micro',
                 description: 'Evaluates action outcomes for learning',
                 dependencies: ['action'],
                 parameters: [
@@ -375,7 +375,7 @@ export const CREATIVE_PROJECT_TEMPLATE: SAFTemplate = {
             {
                 id: 'delivery',
                 name: 'Delivery',
-                type: 'atomic',
+                type: 'micro',
                 description: 'Final packaging and distribution',
                 dependencies: ['review'],
                 parameters: [

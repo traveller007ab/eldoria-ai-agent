@@ -21,7 +21,7 @@ export interface SAFOutput {
     name: string;
     value: number | string;
     unit?: string;
-    formula: string; // Derivation formula
+    formula?: string; // Derivation formula
     description?: string;
 }
 

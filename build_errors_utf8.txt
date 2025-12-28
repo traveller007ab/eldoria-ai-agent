@@ -1,0 +1,39 @@
+﻿academic-hub/AcademicHub.tsx(3,35): error TS2300: Duplicate identifier 'Plus'.
+academic-hub/AcademicHub.tsx(14,110): error TS2300: Duplicate identifier 'Plus'.
+academic-hub/AcademicHub.tsx(319,53): error TS2353: Object literal may only specify known properties, and 'system_prompt' does not exist in type '{ model?: string; temperature?: number; response_format?: { type: "json_object"; }; }'.
+academic-hub/AcademicHub.tsx(655,285): error TS2367: This comparison appears to be unintentional because the types '"article" | "paper" | "preprint" | "blog"' and '"web"' have no overlap.
+academic-hub/AcademicHub.tsx(656,83): error TS2367: This comparison appears to be unintentional because the types '"article" | "paper" | "preprint" | "blog"' and '"web"' have no overlap.
+components/ChatThread.tsx(33,34): error TS2304: Cannot find name 'BookOpen'.
+components/DownloadHub.tsx(99,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+components/EditorPanel.tsx(105,28): error TS2554: Expected 3 arguments, but got 0.
+components/InlineActionToolbar.tsx(3,10): error TS2459: Module '"../services/geminiService"' declares 'InlineAction' locally, but it is not exported.
+components/modals/PromptLibraryPanel.tsx(165,38): error TS2304: Cannot find name 'Zap'.
+components/modals/SettingsModal.tsx(10,83): error TS2339: Property 'globalSettings' does not exist on type 'WorkspaceContextType'.
+components/saf/render.ts(213,226): error TS2367: This comparison appears to be unintentional because the types '"core" | "subcore" | "micro"' and '"atomic"' have no overlap.
+components/saf/SAFLab.tsx(238,21): error TS2322: Type '{ id: string; name: string; type: "core" | "subcore" | "micro"; }[]' is not assignable to type 'BreadcrumbItem[]'.
+  Type '{ id: string; name: string; type: "core" | "subcore" | "micro"; }' is not assignable to type 'BreadcrumbItem'.
+    Types of property 'type' are incompatible.
+      Type '"core" | "subcore" | "micro"' is not assignable to type '"core" | "subcore" | "atomic"'.
+        Type '"micro"' is not assignable to type '"core" | "subcore" | "atomic"'.
+components/saf/templates.ts(168,17): error TS2322: Type '"atomic"' is not assignable to type '"core" | "subcore" | "micro"'.
+components/saf/templates.ts(206,9): error TS2322: Type '"ai"' is not assignable to type '"mechanical" | "governance" | "ai_agents" | "creative" | "custom"'.
+components/saf/templates.ts(274,17): error TS2322: Type '"atomic"' is not assignable to type '"core" | "subcore" | "micro"'.
+components/saf/templates.ts(378,17): error TS2322: Type '"atomic"' is not assignable to type '"core" | "subcore" | "micro"'.
+context/WorkspaceContext.tsx(75,64): error TS2339: Property 'globalSettings' does not exist on type 'WorkspaceState'.
+context/WorkspaceContext.tsx(103,3): error TS2353: Object literal may only specify known properties, and 'shouldUseDevLinks' does not exist in type 'WorkspaceState'.
+context/WorkspaceContext.tsx(189,38): error TS2339: Property 'globalSettings' does not exist on type 'WorkspaceState'.
+context/WorkspaceContext.tsx(191,26): error TS2353: Object literal may only specify known properties, and 'globalSettings' does not exist in type 'WorkspaceState'.
+context/WorkspaceContext.tsx(804,19): error TS2339: Property 'promptSuggestion' does not exist on type '{ textChunk?: string; error?: string; }'.
+context/WorkspaceContext.tsx(805,48): error TS2339: Property 'promptSuggestion' does not exist on type '{ textChunk?: string; error?: string; }'.
+context/WorkspaceContext.tsx(989,53): error TS2322: Type '{ resources: (string | { id: string; name: string; type: "note"; content: string; created_at: string; })[]; id: string; name: string; format: string; modelId?: string; created_at: string; wizard_state: AcademicWizardState; draft_content: Record<string, string>; references: Reference[]; }' is not assignable to type 'AcademicProject'.
+  Types of property 'resources' are incompatible.
+    Type '(string | { id: string; name: string; type: "note"; content: string; created_at: string; })[]' is not assignable to type 'string[]'.
+      Type 'string | { id: string; name: string; type: "note"; content: string; created_at: string; }' is not assignable to type 'string'.
+        Type '{ id: string; name: string; type: "note"; content: string; created_at: string; }' is not assignable to type 'string'.
+context/WorkspaceContext.tsx(990,73): error TS2345: Argument of type '{ resources: (string | { id: string; name: string; type: "note"; content: string; created_at: string; })[]; id: string; name: string; format: string; modelId?: string; created_at: string; wizard_state: AcademicWizardState; draft_content: Record<string, string>; references: Reference[]; }' is not assignable to parameter of type 'Partial<AcademicProject>'.
+  Types of property 'resources' are incompatible.
+    Type '(string | { id: string; name: string; type: "note"; content: string; created_at: string; })[]' is not assignable to type 'string[]'.
+      Type 'string | { id: string; name: string; type: "note"; content: string; created_at: string; }' is not assignable to type 'string'.
+        Type '{ id: string; name: string; type: "note"; content: string; created_at: string; }' is not assignable to type 'string'.
+supabase/functions/embed/index.ts(5,23): error TS2307: Cannot find module 'https://deno.land/std@0.224.0/http/server.ts' or its corresponding type declarations.
+supabase/functions/scrape/index.ts(5,23): error TS2307: Cannot find module 'https://deno.land/std@0.224.0/http/server.ts' or its corresponding type declarations.

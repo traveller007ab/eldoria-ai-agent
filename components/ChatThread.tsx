@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, Attachment } from '../types';
 import { UserIcon, EldoriaLogo, SendIcon } from './Icons';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { Paperclip, X, FileText, Folder, Search } from 'lucide-react';
+import { Paperclip, X, FileText, Folder, Search, BookOpen } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { CodebaseService, FileNode } from '../services/codebaseService';
 import { SAFBlueprint } from './SAFBlueprint';
@@ -21,9 +20,9 @@ const ChatBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
     const { dispatch } = useWorkspace();
 
     return (
-        <div className={`flex items-start gap-3 my-4 ${isUser ? 'justify-end' : ''}`}>
+        <div className={`flex items - start gap - 3 my - 4 ${isUser ? 'justify-end' : ''} `}>
             {!isUser && <EldoriaLogo className="w-7 h-7 text-cyan-400 shrink-0 mt-1 text-glow" />}
-            <div className={`w-full max-w-xl p-3 rounded-lg text-sm ${isUser ? 'bg-cyan-500/10 text-cyan-200' : 'bg-transparent'}`}>
+            <div className={`w - full max - w - xl p - 3 rounded - lg text - sm ${isUser ? 'bg-cyan-500/10 text-cyan-200' : 'bg-transparent'} `}>
                 <MarkdownRenderer>{message.text}</MarkdownRenderer>
 
                 {message.prompt_suggestion && (
@@ -207,7 +206,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({ messages, isLoading, onS
                 <div className="flex items-end gap-2">
                     <button
                         onClick={() => setIsPickerOpen(!isPickerOpen)}
-                        className={`p-2 rounded-md transition-all ${isPickerOpen ? 'bg-cyan-500/30 text-cyan-100' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'}`}
+                        className={`p - 2 rounded - md transition - all ${isPickerOpen ? 'bg-cyan-500/30 text-cyan-100' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'} `}
                         title="Attach file for context"
                     >
                         <Paperclip className="w-5 h-5" />

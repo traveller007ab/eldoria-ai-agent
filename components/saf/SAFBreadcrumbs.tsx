@@ -9,7 +9,7 @@ import { ChevronRight, Home, Layers } from 'lucide-react';
 interface BreadcrumbItem {
     id: string;
     name: string;
-    type: 'core' | 'subcore' | 'atomic';
+    type: 'core' | 'subcore' | 'micro';
 }
 
 interface SAFBreadcrumbsProps {
@@ -40,8 +40,8 @@ export const SAFBreadcrumbs: React.FC<SAFBreadcrumbsProps> = ({
                     <button
                         onClick={() => onNavigate(index)}
                         className={`shrink-0 px-2 py-1 rounded transition-colors flex items-center gap-1 ${index === trail.length - 1
-                                ? 'bg-cyan-500/20 text-cyan-300'
-                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            ? 'bg-cyan-500/20 text-cyan-300'
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`}
                     >
                         <Layers className="w-3 h-3" />
