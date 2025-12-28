@@ -173,8 +173,10 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
                                             schema={schema}
                                             isSelected={selectedSchema?.id === id}
                                             isFavorite={favorites.includes(id)}
+                                            searchQuery={searchQuery}
                                             onSelect={() => handleSelectSchema(schema)}
                                             onToggleFavorite={() => toggleFavorite(id)}
+                                            onTagClick={(tag) => setSearchQuery(tag)}
                                         />
                                     );
                                 })}
@@ -193,8 +195,10 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
                                         schema={schema}
                                         isSelected={selectedSchema?.id === schema.id}
                                         isFavorite={true}
+                                        searchQuery={searchQuery}
                                         onSelect={() => handleSelectSchema(schema)}
                                         onToggleFavorite={() => toggleFavorite(schema.id)}
+                                        onTagClick={(tag) => setSearchQuery(tag)}
                                     />
                                 ))}
                             </div>
@@ -212,8 +216,10 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
                                         schema={schema}
                                         isSelected={selectedSchema?.id === schema.id}
                                         isFavorite={favorites.includes(schema.id)}
+                                        searchQuery={searchQuery}
                                         onSelect={() => handleSelectSchema(schema)}
                                         onToggleFavorite={() => toggleFavorite(schema.id)}
+                                        onTagClick={(tag) => setSearchQuery(tag)}
                                     />
                                 ))}
                             </div>
@@ -335,39 +341,71 @@ export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, 
     );
 };
 
+const HighlightText: React.FC<{ text: string; query: string }> = ({ text, query }) => {
+    if (!query.trim()) return <>{text}</>;
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+        <>
+            {parts.map((part, i) =>
+                part.toLowerCase() === query.toLowerCase()
+                    ? <span key={i} className="text-cyan-400 bg-cyan-400/20 px-0.5 rounded-sm font-medium">{part}</span>
+                    : part
+            )}
+        </>
+    );
+};
+
 // Schema Card Component
 const SchemaCard: React.FC<{
     schema: PromptSchema;
     isSelected: boolean;
     isFavorite: boolean;
+    searchQuery: string;
     onSelect: () => void;
     onToggleFavorite: () => void;
-}> = ({ schema, isSelected, isFavorite, onSelect, onToggleFavorite }) => {
+    onTagClick: (tag: string) => void;
+}> = ({ schema, isSelected, isFavorite, searchQuery, onSelect, onToggleFavorite, onTagClick }) => {
     const Icon = iconMap[schema.icon] || BookOpen;
 
     return (
         <button
             onClick={onSelect}
-            className={`w-full p-3 rounded-xl text-left transition-all group mb-2 ${isSelected
-                ? 'bg-cyan-500/20 border border-cyan-500/40'
-                : 'bg-black/20 border border-transparent hover:bg-cyan-500/10 hover:border-cyan-500/20'
+            className={`w-full p-3 rounded-xl text-left transition-all group mb-2 border ${isSelected
+                ? 'bg-cyan-500/20 border-cyan-500/40 shadow-[0_0_15px_rgba(34,211,238,0.1)]'
+                : 'bg-black/20 border-transparent hover:bg-cyan-500/10 hover:border-cyan-500/20'
                 }`}
         >
             <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-lg ${categoryColors[schema.category] || 'bg-cyan-500/20'}`}>
+                <div className={`p-1.5 rounded-lg shrink-0 transition-transform group-hover:scale-110 ${categoryColors[schema.category] || 'bg-cyan-500/20'}`}>
                     <Icon className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-grow min-w-0">
-                    <div className="text-[11px] font-bold text-cyan-100 truncate">{schema.name}</div>
-                    <div className="text-[9px] text-cyan-500/40 truncate">{schema.tags.slice(0, 3).join(', ')}</div>
+                    <div className="text-[11px] font-bold text-cyan-100 truncate">
+                        <HighlightText text={schema.name} query={searchQuery} />
+                    </div>
+                    <div className="text-[9px] text-cyan-500/40 truncate mt-0.5">
+                        <HighlightText text={schema.description} query={searchQuery} />
+                    </div>
+                    <div className="text-[8px] text-cyan-500/20 truncate flex flex-wrap gap-1 mt-1.5 transition-opacity">
+                        {schema.tags.map(tag => (
+                            <span
+                                key={tag}
+                                onClick={(e) => { e.stopPropagation(); onTagClick(tag); }}
+                                className={`px-1.5 py-0.5 rounded-md border border-cyan-500/10 hover:border-cyan-500/30 hover:bg-cyan-500/10 transition-colors cursor-pointer ${tag.toLowerCase().includes(searchQuery.toLowerCase()) && searchQuery ? 'text-cyan-400 border-cyan-500/30 bg-cyan-500/5 font-bold' : ''}`}
+                            >
+                                #{tag}
+                            </span>
+                        ))}
+                    </div>
                 </div>
                 <button
                     onClick={e => { e.stopPropagation(); onToggleFavorite(); }}
-                    className={`p-1 rounded transition-colors ${isFavorite ? 'text-yellow-400' : 'text-cyan-500/20 hover:text-yellow-400/50'}`}
+                    className={`p-1 rounded transition-colors ${isFavorite ? 'text-yellow-400' : 'text-cyan-500/10 hover:text-yellow-400/50'}`}
                 >
                     <Star className="w-3.5 h-3.5" fill={isFavorite ? 'currentColor' : 'none'} />
                 </button>
-                <ChevronRight className={`w-3.5 h-3.5 text-cyan-500/20 transition-transform ${isSelected ? 'text-cyan-400 translate-x-1' : ''}`} />
+                <ChevronRight className={`w-3.5 h-3.5 text-cyan-500/10 transition-transform ${isSelected ? 'text-cyan-400 translate-x-1' : ''}`} />
             </div>
         </button>
     );
