@@ -8,6 +8,7 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { StatusBar } from './components/layout/StatusBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { AcademicHub } from './academic-hub/AcademicHub';
+import { SAFLab } from './components/saf';
 import { API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY } from './config';
 import { useWorkspace } from './context/WorkspaceContext';
 import { SplashScreen } from './components/onboarding/SplashScreen';
@@ -112,6 +113,7 @@ const App: React.FC = () => {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<IdeWorkspace />} />
             <Route path="/academic-hub" element={<AcademicHub />} />
+            <Route path="/saf-lab" element={<SAFLab />} />
             <Route path="/download-hub" element={<DownloadHub />} />
           </Routes>
           <StatusBar />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Layout, GraduationCap, Terminal, Settings, Database, Loader2, LogOut, DownloadCloud, BookOpen } from 'lucide-react';
+import { Layout, GraduationCap, Terminal, Settings, Database, Loader2, LogOut, DownloadCloud, BookOpen, FlaskConical } from 'lucide-react';
 import { KnowledgeIndexModal } from '../modals/KnowledgeIndexModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { EldoriaLogo } from '../Icons';
@@ -44,6 +44,16 @@ export const Sidebar: React.FC = () => {
                     title="Academic Hub"
                 >
                     <GraduationCap className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                </NavLink>
+
+                <NavLink
+                    id="nav-saf-lab"
+                    to="/saf-lab"
+                    onClick={() => console.info('Sidebar: SAF Lab Clicked')}
+                    className={({ isActive }) => `p-3 rounded-xl transition-all duration-300 group ${isActive ? 'bg-orange-500/20 text-orange-300 shadow-[0_0_15px_rgba(249,115,22,0.3)]' : 'text-cyan-500/40 hover:text-orange-400 hover:bg-orange-500/5'}`}
+                    title="SAF Lab - System Engineering Workbench"
+                >
+                    <FlaskConical className="w-6 h-6 group-hover:scale-110 transition-transform" />
                 </NavLink>
 
                 <NavLink
