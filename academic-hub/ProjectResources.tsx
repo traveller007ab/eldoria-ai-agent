@@ -104,7 +104,6 @@ export const ProjectResources: React.FC<ProjectResourcesProps> = ({ project }) =
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             {!res.isDir && (
                                 <button
-                                    <button
                                     onClick={async () => {
                                         const btn = document.activeElement as HTMLButtonElement;
                                         const originalHtml = btn.innerHTML;
