@@ -73,9 +73,6 @@ export async function getBridgeUrl(): Promise<string> {
     return DEFAULT_BRIDGE_URL;
 }
 
-// Local development fallback
-return DEFAULT_BRIDGE_URL;
-}
 
 export const bridgeClient = {
     executeCommand: async (command: string): Promise<BridgeResult> => {
