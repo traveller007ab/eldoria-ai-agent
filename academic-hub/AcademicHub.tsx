@@ -656,8 +656,8 @@ export const AcademicHub: React.FC = () => {
                                                     </div>
                                                     <div className="flex flex-wrap gap-2 mb-4">
                                                         {ev.sources.map((src, j) => (
-                                                            <a key={j} href={src.url} target="_blank" rel="noopener noreferrer" className={`px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[9px] transition-all flex items-center gap-2 ${'type' in src && src.type !== 'web' ? 'text-purple-400 border-purple-500/30' : 'text-cyan-400'}`}>
-                                                                {'type' in src && src.type !== 'web' ? <GraduationCap className="w-2.5 h-2.5" /> : <Link className="w-2.5 h-2.5" />}
+                                                            <a key={j} href={src.url} target="_blank" rel="noopener noreferrer" className={`px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[9px] transition-all flex items-center gap-2 ${'type' in src ? 'text-purple-400 border-purple-500/30' : 'text-cyan-400'}`}>
+                                                                {'type' in src ? <GraduationCap className="w-2.5 h-2.5" /> : <Link className="w-2.5 h-2.5" />}
                                                                 {src.title}
                                                             </a>
                                                         ))}

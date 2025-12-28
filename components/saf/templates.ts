@@ -203,7 +203,7 @@ export const AI_AGENT_TEMPLATE: SAFTemplate = {
     blueprint: {
         project_name: 'Autonomous AI Agent',
         version: '1.0',
-        domain: 'ai',
+        domain: 'ai_agents',
         components: [
             {
                 id: 'perception',

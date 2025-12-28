@@ -7,7 +7,7 @@ import { SAFAIExplainer } from './SAFAIExplainer';
 import { SAFBreadcrumbs } from './SAFBreadcrumbs';
 import { SAFOutputPanel } from './SAFOutputPanel';
 import { calculateRankineOutputs, propagateEffects } from './engine';
-import { FlaskConical, Plus, Upload, FileJson, ArrowLeft, PanelBottom, Maximize2, Pin, PinOff, BookOpen, Library } from 'lucide-react';
+import { FlaskConical, Settings, Download, Share2, Save, RotateCcw, Play, Maximize2, Minimize2, ZoomIn, ZoomOut, MoreHorizontal, Plus, FileJson, Upload, Library, X, ChevronRight, ChevronDown, Wand2, Info, Loader2, Search, Filter, ArrowLeft, Pin, PinOff, FileText, Zap, BookOpen, PanelBottom } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PromptLibraryPanel } from '../modals/PromptLibraryPanel';
 import { runGroqGenerate } from '../../services/groqService';

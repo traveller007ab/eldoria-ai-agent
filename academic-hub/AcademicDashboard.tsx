@@ -41,6 +41,7 @@ export const AcademicDashboard: React.FC<AcademicDashboardProps> = ({ onSelectPr
             name: 'New Research Project',
             format: model.id,
             created_at: new Date().toISOString(),
+            resources: [],
             wizard_state: initialState,
             draft_content: {},
             references: [],
