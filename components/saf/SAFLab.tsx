@@ -5,8 +5,9 @@ import { SAFNodeGraph } from './SAFNodeGraph';
 import { SAFParameterEditor } from './SAFParameterEditor';
 import { SAFAIExplainer } from './SAFAIExplainer';
 import { SAFBreadcrumbs } from './SAFBreadcrumbs';
+import { SAFOutputPanel } from './SAFOutputPanel';
 import { calculateRankineOutputs } from './engine';
-import { FlaskConical, Plus, Upload, FileJson, ArrowLeft } from 'lucide-react';
+import { FlaskConical, Plus, Upload, FileJson, ArrowLeft, PanelBottom, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 /**
@@ -25,6 +26,11 @@ export const SAFLab: React.FC = () => {
         isCalculating: false,
         lastEffects: null,
     });
+
+    // UI state for panels
+    const [showOutputPanel, setShowOutputPanel] = useState(false);
+    const [outputPanelExpanded, setOutputPanelExpanded] = useState(false);
+    const [aiExplainerExpanded, setAiExplainerExpanded] = useState(false);
 
     // Load blueprint from active canvas if available
     const canvasBlueprint = activeCanvas?.saf_blueprint as DeepSAFBlueprint | undefined;
@@ -205,11 +211,23 @@ export const SAFLab: React.FC = () => {
                 </div>
 
                 {workbenchState.activeBlueprint && (
-                    <div className="flex items-center gap-2 text-xs text-cyan-500/60">
-                        <span className="px-2 py-1 bg-cyan-500/10 rounded uppercase">
+                    <div className="flex items-center gap-3 text-xs">
+                        <span className="px-2 py-1 bg-cyan-500/10 text-cyan-500/60 rounded uppercase">
                             {workbenchState.activeBlueprint.domain}
                         </span>
-                        <span>v{workbenchState.activeBlueprint.version}</span>
+                        <span className="text-cyan-500/60">v{workbenchState.activeBlueprint.version}</span>
+                        <div className="w-px h-5 bg-gray-700" />
+                        <button
+                            onClick={() => setShowOutputPanel(!showOutputPanel)}
+                            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ${showOutputPanel
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white'
+                                }`}
+                            title="Toggle Output Panel"
+                        >
+                            <PanelBottom className="w-4 h-4" />
+                            Output
+                        </button>
                     </div>
                 )}
             </div>
@@ -377,29 +395,63 @@ export const SAFLab: React.FC = () => {
                                         />
                                     </div>
 
-                                    {/* AI Explainer Section */}
-                                    <div className="shrink-0 h-64 border-t border-cyan-900/20">
-                                        <SAFAIExplainer
-                                            component={selectedComponent}
-                                            blueprint={workbenchState.activeBlueprint}
-                                        />
+                                    {/* AI Explainer Section - With Expand Button */}
+                                    <div className={`shrink-0 border-t border-cyan-900/20 ${aiExplainerExpanded ? 'flex-grow' : 'h-64'}`}>
+                                        <div className="h-full relative">
+                                            <button
+                                                onClick={() => setAiExplainerExpanded(!aiExplainerExpanded)}
+                                                className="absolute top-2 right-2 z-10 p-1 text-gray-500 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
+                                                title={aiExplainerExpanded ? 'Shrink' : 'Expand'}
+                                            >
+                                                <Maximize2 className="w-3 h-3" />
+                                            </button>
+                                            <SAFAIExplainer
+                                                component={selectedComponent}
+                                                blueprint={workbenchState.activeBlueprint}
+                                            />
+                                        </div>
                                     </div>
                                 </>
                             ) : (
                                 <div className="flex-grow flex items-center justify-center p-4">
-                                    <div className="text-center">
+                                    <div className="text-center max-w-xs">
                                         <FlaskConical className="w-8 h-8 text-cyan-400/20 mx-auto mb-3" />
-                                        <p className="text-sm text-gray-500">
-                                            Select a component
+                                        <p className="text-sm text-gray-400 font-medium mb-2">
+                                            How to Use SAF Lab
                                         </p>
-                                        <p className="text-xs text-gray-600 mt-2">
-                                            Click on any node in the graph
-                                        </p>
+                                        <ol className="text-xs text-gray-500 text-left space-y-2">
+                                            <li className="flex items-start gap-2">
+                                                <span className="text-cyan-500 font-bold">1.</span>
+                                                <span>Click a node in the graph to select it</span>
+                                            </li>
+                                            <li className="flex items-start gap-2">
+                                                <span className="text-cyan-500 font-bold">2.</span>
+                                                <span>Adjust parameters with sliders</span>
+                                            </li>
+                                            <li className="flex items-start gap-2">
+                                                <span className="text-cyan-500 font-bold">3.</span>
+                                                <span>Ask AI to explain or optimize</span>
+                                            </li>
+                                            <li className="flex items-start gap-2">
+                                                <span className="text-cyan-500 font-bold">4.</span>
+                                                <span>Toggle <strong>Output</strong> panel for exports</span>
+                                            </li>
+                                        </ol>
                                     </div>
                                 </div>
                             )}
                         </div>
                     </div>
+
+                    {/* Bottom Output Panel */}
+                    {showOutputPanel && (
+                        <SAFOutputPanel
+                            blueprint={workbenchState.activeBlueprint}
+                            isExpanded={outputPanelExpanded}
+                            onToggleExpand={() => setOutputPanelExpanded(!outputPanelExpanded)}
+                            onClose={() => setShowOutputPanel(false)}
+                        />
+                    )}
                 </div>
             )}
         </div>
