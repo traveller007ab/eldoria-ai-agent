@@ -67,6 +67,17 @@ except ImportError as e1:
     except ImportError as e2:
         print(f"[BRIDGE] WARNING: Genesis Engine not available (check numpy/sympy): {e2}")
 
+# 3. Genesis AI Architect
+architect_router = None
+try:
+    from services.architect import router as architect_router
+except ImportError as e1:
+    print(f"[BRIDGE] Primary import error (Architect): {e1}")
+    try:
+        from architect import router as architect_router
+    except ImportError as e2:
+        print(f"[BRIDGE] WARNING: Genesis Architect not available: {e2}")
+
 app = FastAPI(title="Eldoria Neural Bridge")
 
 if vault_router:
@@ -74,6 +85,9 @@ if vault_router:
     
 if simulation_router:
     app.include_router(simulation_router)
+
+if architect_router:
+    app.include_router(architect_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -208,4 +208,15 @@ export interface AcademicProject {
   draft_content: Record<string, string>; // Chapter -> Markdown
   references: Reference[];
   resources: (string | AcademicResource)[]; // List of file paths or rich resource objects
+  extractedEquations?: ExtractedEquation[]; // Genesis Engine extracted physics
+}
+
+// Genesis Engine: Extracted Physics Equations
+export interface ExtractedEquation {
+  id: string;
+  name: string;
+  expression: string; // e.g., "P_out = P_in - k * m^2"
+  variables: string[];
+  source?: string; // e.g., "research_paper.pdf"
+  extractedAt?: string; // ISO timestamp
 }

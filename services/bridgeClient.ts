@@ -266,7 +266,7 @@ export const bridgeClient = {
 
             const url = await getBridgeUrl();
             console.log('[BRIDGE] Health check URL:', url);
-            
+
             const response = await fetch(`${url}/health`, {
                 signal: controller.signal,
                 method: 'GET',
@@ -275,14 +275,14 @@ export const bridgeClient = {
                 },
                 mode: 'cors', // Explicit CORS mode
             });
-            
+
             clearTimeout(id);
-            
+
             if (!response.ok) {
                 console.warn('[BRIDGE] Health check failed:', response.status, response.statusText);
                 return false;
             }
-            
+
             const data = await response.json();
             console.log('[BRIDGE] Health check OK:', data);
             return true;
@@ -366,5 +366,57 @@ export const bridgeClient = {
     // Debug helper to see what URL is being used
     getCurrentBridgeUrl: async (): Promise<string> => {
         return await getBridgeUrl();
+    },
+
+    // ============ GENESIS ARCHITECT CLIENT ============
+
+    genesisArchitect: async (request: {
+        system_description: string;
+        domain?: string;
+        complexity?: string;
+        constraints?: string;
+    }) => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}/architect/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_description: request.system_description,
+                    domain: request.domain || 'auto_detect',
+                    complexity: request.complexity || 'balanced',
+                    constraints: request.constraints || null
+                })
+            });
+
+            const text = await response.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error("Failed to parse Architect response:", text);
+                throw new Error(`Architect returned invalid JSON. Status: ${response.status}`);
+            }
+
+            if (!response.ok) {
+                throw new Error(data.detail || data.error || "Architecture generation failed");
+            }
+            return data;
+        } catch (e: any) {
+            console.error('Genesis Architect failed:', e);
+            throw e;
+        }
+    },
+
+    getArchitectTemplates: async () => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}/architect/templates`);
+            if (!response.ok) return { templates: [] };
+            return await response.json();
+        } catch (e) {
+            console.error('[BRIDGE] getArchitectTemplates failed:', e);
+            return { templates: [] };
+        }
     }
 };

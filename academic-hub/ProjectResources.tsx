@@ -1,9 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Folder, File, Upload, Trash2, Loader2, FileSearch, HardDrive, RefreshCcw, FlaskConical } from 'lucide-react';
-import { AcademicProject } from '../types';
-import { AcademicProject } from '../types';
-import { AcademicProject } from '../types';
+import { AcademicProject, ExtractedEquation } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { bridgeClient } from '../services/bridgeClient';
 
@@ -12,7 +10,7 @@ interface ProjectResourcesProps {
 }
 
 export const ProjectResources: React.FC<ProjectResourcesProps> = ({ project }) => {
-    const { runManualCommand, reIndexWorkspace, isIndexing } = useWorkspace();
+    const { runManualCommand, reIndexWorkspace, isIndexing, updateAcademicProject } = useWorkspace();
     const [resources, setResources] = useState<{ name: string, path: string, isDir: boolean }[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -112,25 +110,41 @@ export const ProjectResources: React.FC<ProjectResourcesProps> = ({ project }) =
                                         btn.innerHTML = '<svg class="animate-spin w-3 h-3 text-emerald-400" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
 
                                         try {
-                                            // Real API Call to Genesis Engine
-                                            const response = await fetch('http://localhost:3001/analyze/physics', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ content: `Analyze file: ${res.path}`, context: project.name }) // Passing path for bridge to read
-                                            });
+                                            // Use unified Bridge Client for Genesis Engine
+                                            const data = await bridgeClient.genesisAnalyze(
+                                                `Analyze file: ${res.path}`,
+                                                project.name
+                                            );
 
-                                            const data = await response.json();
+                                            if (data.success && data.equations?.length > 0) {
+                                                // Create persisted equation objects
+                                                const newEquations: ExtractedEquation[] = data.equations.map((eq: any) => ({
+                                                    id: `eq_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                                                    name: eq.name || 'Unnamed Law',
+                                                    expression: eq.expression,
+                                                    variables: eq.variables || [],
+                                                    source: res.name,
+                                                    extractedAt: new Date().toISOString()
+                                                }));
 
-                                            if (data.success) {
-                                                const laws = data.equations.map((eq: any) => `- ${eq.name}: ${eq.expression}`).join('\n');
-                                                alert(`Genesis Engine Extraction Complete 🧬\n\nIdentified Laws:\n${laws}\n\nEquations have been pushed to the Simulation Kernel context.`);
-                                                // Functionally, we would now dispatch(setProjectEquations(data.equations))
+                                                // Merge with existing equations
+                                                const existingEqs = project.extractedEquations || [];
+                                                const updatedProject = {
+                                                    ...project,
+                                                    extractedEquations: [...existingEqs, ...newEquations]
+                                                };
+
+                                                // Persist to context (triggers save)
+                                                updateAcademicProject(updatedProject);
+
+                                                const laws = newEquations.map(eq => `- ${eq.name}: ${eq.expression}`).join('\n');
+                                                alert(`Genesis Engine Extraction Complete 🧬\n\nIdentified Laws:\n${laws}\n\n✅ Saved to project. Ready for SAF Lab!`);
                                             } else {
-                                                alert(`Extraction Failed: ${data.message}`);
+                                                alert(`Extraction Failed: ${data.message || 'No equations found'}`);
                                             }
                                         } catch (e) {
                                             console.error("Extraction error", e);
-                                            alert("Failed to reach Genesis Engine. ensure bridge is running.");
+                                            alert("Failed to reach Genesis Engine. Ensure bridge is running.");
                                         } finally {
                                             btn.innerHTML = originalHtml;
                                         }

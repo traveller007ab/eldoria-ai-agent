@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import { PromptLibraryPanel } from '../modals/PromptLibraryPanel';
 import { runGroqGenerate } from '../../services/groqService';
 import { PromptSchema } from '../../prompt_schemas';
+import { GenesisPromptInput } from './GenesisPromptInput';
 
 /**
  * SAF Lab - Interactive System Engineering Workbench
@@ -28,7 +29,7 @@ import { PromptSchema } from '../../prompt_schemas';
  */
 export const SAFLab: React.FC = () => {
     const navigate = useNavigate();
-    const { activeCanvas } = useWorkspace();
+    const { activeCanvas, academicProjects } = useWorkspace();
 
     const [workbenchState, setWorkbenchState] = useState<SAFWorkbenchState>({
         activeBlueprint: null,
@@ -202,6 +203,16 @@ export const SAFLab: React.FC = () => {
     const handleSimulate = async () => {
         if (!workbenchState.activeBlueprint) return;
 
+        // Helper: Get Genesis equations from academic projects
+        const getProjectEquations = (): string[] => {
+            // Find first project with extracted equations (future: explicit project link)
+            const projectWithEqs = academicProjects.find(p => p.extractedEquations?.length);
+            if (!projectWithEqs?.extractedEquations) return [];
+            return projectWithEqs.extractedEquations.map(eq => eq.expression);
+        };
+
+        const genesisEquations = getProjectEquations();
+
         try {
             // Show loading state (reuse existing or add specific one)
             setIsExecutingLibraryPrompt(true); // Using existing loader for now
@@ -217,7 +228,8 @@ export const SAFLab: React.FC = () => {
                         acc[p.name] = p.value;
                         return acc;
                     }, {}) || {},
-                    equations: c.equations || []
+                    // Merge component-specific equations with Genesis project equations
+                    equations: [...(c.equations || []), ...genesisEquations]
                 })),
                 connections: workbenchState.activeBlueprint.flows.map(f => ({
                     id: f.id,
@@ -544,6 +556,31 @@ export const SAFLab: React.FC = () => {
         });
     }, []);
 
+    const handleGenesisBlueprint = useCallback((blueprint: any, variantName: string) => {
+        // Ensure blueprint has required fields
+        const safBlueprint: DeepSAFBlueprint = {
+            project_name: blueprint.project_name || `Genesis ${variantName} System`,
+            components: blueprint.components || [],
+            flows: blueprint.flows || [],
+            version: '1.0',
+            domain: blueprint.domain || 'custom',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            description: blueprint.description,
+            thumbnail: undefined,
+            research_notes: undefined
+        };
+
+        setWorkbenchState({
+            activeBlueprint: safBlueprint,
+            selectedNodeId: null,
+            expandedNodes: [],
+            breadcrumbs: [],
+            isCalculating: false,
+            lastEffects: null
+        });
+    }, []);
+
     // Get currently selected component
     const selectedComponent = workbenchState.activeBlueprint?.components.find(
         c => c.id === workbenchState.selectedNodeId
@@ -753,143 +790,31 @@ export const SAFLab: React.FC = () => {
             {/* Main Content - Ternary for Empty State vs Workbench */}
             {/* Main Content - Empty State */}
             {!workbenchState.activeBlueprint && (
-                <div className="flex-grow flex items-center justify-center p-8 overflow-y-auto">
-                    <div className="max-w-4xl w-full">
-                        <div className="text-center mb-12">
-                            <FlaskConical className="w-16 h-16 text-cyan-400 mx-auto mb-4 opacity-50" />
-                            <h2 className="text-2xl font-bold text-white mb-2 uppercase tracking-tighter">SAF Engineering Workbench</h2>
-                            <p className="text-cyan-500/60 max-w-lg mx-auto">
-                                Deconstruct, modify, and simulate any system with live cascading effects using the Structurally Adaptive Framework.
-                            </p>
-                        </div>
+                <div className="flex-grow flex flex-col overflow-hidden relative">
+                    <GenesisPromptInput
+                        onBlueprintGenerated={handleGenesisBlueprint}
+                    />
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-                            {/* New Blank */}
+                    {/* Fallback Legacy Controls (Floating Bottom Left) */}
+                    <div className="absolute bottom-6 left-6 flex gap-2">
+                        <button
+                            onClick={handleNewBlueprint}
+                            className="px-4 py-2 bg-gray-900/80 border border-white/10 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all backdrop-blur-sm"
+                        >
+                            Skip to Blank Canvas
+                        </button>
+                        {canvasBlueprint && (
                             <button
-                                onClick={handleNewBlueprint}
-                                className="group p-5 bg-gray-900/50 border border-cyan-900/30 rounded-2xl hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left"
+                                onClick={handleLoadFromCanvas}
+                                className="px-4 py-2 bg-gray-900/80 border border-purple-500/30 rounded-lg text-xs text-purple-400/80 hover:text-purple-400 hover:bg-purple-500/20 transition-all backdrop-blur-sm"
                             >
-                                <Plus className="w-6 h-6 text-cyan-400 mb-3 group-hover:scale-110 transition-transform" />
-                                <h3 className="text-sm font-bold text-white mb-1">Blank Canvas</h3>
-                                <p className="text-[10px] text-gray-500">Start from scratch</p>
+                                Import Active Canvas
                             </button>
-
-                            {/* Rankine Cycle Template */}
-                            <button
-                                onClick={handleLoadRankineStarter}
-                                className="group p-5 bg-gray-900/50 border border-cyan-900/30 rounded-2xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left"
-                            >
-                                <FileJson className="w-6 h-6 text-emerald-400 mb-3 group-hover:scale-110 transition-transform" />
-                                <h3 className="text-sm font-bold text-white mb-1">Rankine Cycle</h3>
-                                <p className="text-[10px] text-gray-500">Power plant template</p>
-                            </button>
-
-                            {/* Load from Canvas */}
-                            {canvasBlueprint && (
-                                <button
-                                    onClick={handleLoadFromCanvas}
-                                    className="group p-5 bg-gray-900/50 border border-cyan-900/30 rounded-2xl hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-left"
-                                >
-                                    <Upload className="w-6 h-6 text-purple-400 mb-3 group-hover:scale-110 transition-transform" />
-                                    <h3 className="text-sm font-bold text-white mb-1">Active Canvas</h3>
-                                    <p className="text-[10px] text-gray-500">Import current work</p>
-                                </button>
-                            )}
-
-                            {/* Prompt Library */}
-                            <button
-                                onClick={() => setShowPromptLibrary(true)}
-                                className="group p-5 bg-gray-900/50 border border-cyan-900/30 rounded-2xl hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left"
-                            >
-                                <Library className="w-6 h-6 text-amber-400 mb-3 group-hover:scale-110 transition-transform" />
-                                <h3 className="text-sm font-bold text-white mb-1">Prompt Library</h3>
-                                <p className="text-[10px] text-gray-500">AI Deconstruct</p>
-                            </button>
-                        </div>
-
-                        {/* Guided Path - Interactive Onboarding */}
-                        <div className="p-8 bg-black/40 border border-cyan-500/10 rounded-3xl relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
-                                <Zap className="w-24 h-24 text-cyan-400" />
-                            </div>
-
-                            <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                                <span className="p-1.5 bg-cyan-500/10 rounded-lg">
-                                    <BookOpen className="w-4 h-4" />
-                                </span>
-                                Recommended Guided Path
-                            </h3>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
-                                {/* Step 1 */}
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <span className="w-7 h-7 rounded-xl bg-cyan-500 text-slate-900 flex items-center justify-center text-xs font-black shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-                                            1
-                                        </span>
-                                        <h4 className="font-bold text-white text-xs uppercase tracking-wider">Discover</h4>
-                                    </div>
-                                    <p className="text-xs text-gray-400 leading-relaxed font-light">
-                                        Explore the <span className="text-cyan-400 font-medium">Prompt Library</span> to find engineering models or deconstruct custom systems via AI.
-                                    </p>
-                                    <button
-                                        onClick={() => setShowPromptLibrary(true)}
-                                        className="py-2 px-4 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-[10px] font-bold text-cyan-400 rounded-lg uppercase tracking-widest flex items-center gap-2 group/btn transition-all"
-                                    >
-                                        Open Library <ArrowLeft className="w-3 h-3 rotate-180 group-hover/btn:translate-x-1 transition-transform" />
-                                    </button>
-                                </div>
-
-                                {/* Step 2 */}
-                                <button
-                                    onClick={() => {
-                                        handleLoadRankineStarter();
-                                        setTimeout(() => setAiExplainerPinned(true), 500);
-                                    }}
-                                    className="w-full text-left space-y-4 group/step cursor-pointer"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span className="w-7 h-7 rounded-xl bg-emerald-500 text-slate-900 flex items-center justify-center text-xs font-black shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-                                            2
-                                        </span>
-                                        <h4 className="font-bold text-white text-xs uppercase tracking-wider group-hover/step:text-emerald-400 transition-colors">Analysis</h4>
-                                    </div>
-                                    <p className="text-xs text-gray-400 leading-relaxed font-light">
-                                        Use the <span className="text-emerald-400 font-medium italic">AI Explainer</span> to query relationships, edit parameters, and see effects.
-                                    </p>
-                                    <div className="py-2 px-4 bg-emerald-500/5 border border-emerald-500/10 text-[9px] text-emerald-400/60 font-medium uppercase tracking-widest flex items-center gap-2 rounded-lg group-hover/step:bg-emerald-500/10 transition-colors">
-                                        <Pin className="w-3 h-3" /> Try Demo
-                                    </div>
-                                </button>
-
-
-                                {/* Step 3 */}
-                                <button
-                                    onClick={() => {
-                                        handleLoadRankineStarter();
-                                        setTimeout(() => setShowOutputPanel(true), 500);
-                                    }}
-                                    className="w-full text-left space-y-4 group/step cursor-pointer"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span className="w-7 h-7 rounded-xl bg-purple-500 text-slate-900 flex items-center justify-center text-xs font-black shadow-[0_0_15px_rgba(168,85,247,0.3)]">
-                                            3
-                                        </span>
-                                        <h4 className="font-bold text-white text-xs uppercase tracking-wider group-hover/step:text-purple-400 transition-colors">Synthesis</h4>
-                                    </div>
-                                    <p className="text-xs text-gray-400 leading-relaxed font-light">
-                                        Export as a <span className="text-purple-400 font-medium italic">Strategic Brief</span>, functional code, or a high-fidelity Mermaid diagram.
-                                    </p>
-                                    <div className="py-2 px-4 bg-purple-500/5 border border-purple-500/10 text-[9px] text-purple-400/60 font-medium uppercase tracking-widest flex items-center gap-2 rounded-lg group-hover/step:bg-purple-500/10 transition-colors">
-                                        <FileJson className="w-3 h-3" /> Try Demo
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
-            )
-            }
+            )}
+
 
             {/* Workbench - Blueprint Loaded */}
             {
@@ -904,7 +829,7 @@ export const SAFLab: React.FC = () => {
                                     expandedNodes={workbenchState.expandedNodes}
                                     selectedNodeId={workbenchState.selectedNodeId}
                                     simulationVars={workbenchState.activeBlueprint.last_simulation?.system_vars}
-                                    constraintViolations={workbenchState.activeBlueprint.constraints 
+                                    constraintViolations={workbenchState.activeBlueprint.constraints
                                         ? workbenchState.activeBlueprint.components
                                             .filter(comp => {
                                                 // Check if component violates any constraints
@@ -1162,10 +1087,10 @@ export const SAFLab: React.FC = () => {
                         setSelectedScenariosForComparison([]);
                     }}
                     onSelectScenario={(id) => {
-                        setSelectedScenariosForComparison(prev => 
-                            prev.includes(id) 
+                        setSelectedScenariosForComparison(prev =>
+                            prev.includes(id)
                                 ? prev.filter(s => s !== id)
-                                : prev.length < 3 
+                                : prev.length < 3
                                     ? [...prev, id]
                                     : prev
                         );

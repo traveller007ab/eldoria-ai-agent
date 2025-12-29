@@ -17,6 +17,25 @@ try:
 except ImportError:
     SYMPY_AVAILABLE = False
 
+# Try to import Pint for unit handling
+try:
+    import pint
+    ureg = pint.UnitRegistry()
+    PINT_AVAILABLE = True
+except ImportError:
+    PINT_AVAILABLE = False
+    ureg = None
+
+def normalize_units(value: float, from_unit: str, to_unit: str) -> float:
+    """Converts units using Pint. E.g., bar -> Pa, kW -> W."""
+    if not PINT_AVAILABLE or not from_unit or not to_unit:
+        return value
+    try:
+        quantity = value * ureg(from_unit)
+        return quantity.to(to_unit).magnitude
+    except Exception:
+        return value  # Fallback to raw value if conversion fails
+
 router = APIRouter(prefix="/simulation", tags=["simulation"])
 
 # --- Models ---
@@ -119,10 +138,22 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
         if "source" in c_type:
             # Source sets the boundary conditions
             for out in outputs:
-                # P = set_pressure
-                p_set = params.get("pressure", 100)
-                t_set = params.get("temperature", 500)
-                m_set = params.get("flow_rate", 10)
+                # Apply unit normalization (e.g., bar -> Pa, degC -> K)
+                p_set = normalize_units(
+                    params.get("pressure", 100),
+                    params.get("pressure_unit", "bar"),
+                    "Pa"
+                ) / 1e5  # Scale back to bar for internal consistency
+                t_set = normalize_units(
+                    params.get("temperature", 500),
+                    params.get("temperature_unit", "K"),
+                    "K"
+                )
+                m_set = normalize_units(
+                    params.get("flow_rate", 10),
+                    params.get("flow_rate_unit", "kg/s"),
+                    "kg/s"
+                )
                 
                 equations.append(Eq(conn_vars[out.id]["P"], p_set))
                 equations.append(Eq(conn_vars[out.id]["T"], t_set))

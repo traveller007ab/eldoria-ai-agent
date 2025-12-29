@@ -1,0 +1,53 @@
+{
+    "id": "genesis_architect",
+    "name": "Genesis AI Architect",
+    "description": "Generate complete system blueprints from natural language descriptions. Creates multiple architecture variants with physics-aware validation.",
+    "category": "saf",
+    "icon": "Wand2",
+    "variables": [
+        {
+            "name": "system_description",
+            "type": "textarea",
+            "label": "Describe Your System",
+            "placeholder": "I want to design a home solar power system that stores excess energy in batteries and can power essential appliances during outages...",
+            "required": true
+        },
+        {
+            "name": "domain",
+            "type": "select",
+            "label": "Engineering Domain",
+            "options": [
+                "power_systems",
+                "thermal_systems",
+                "fluid_systems",
+                "electromechanical",
+                "chemical_process",
+                "control_systems",
+                "auto_detect"
+            ],
+            "default": "auto_detect"
+        },
+        {
+            "name": "complexity",
+            "type": "select",
+            "label": "System Complexity",
+            "options": [
+                "minimal",
+                "balanced",
+                "comprehensive"
+            ],
+            "default": "balanced"
+        },
+        {
+            "name": "constraints",
+            "type": "textarea",
+            "label": "Constraints & Requirements (Optional)",
+            "placeholder": "Budget: $5000, Max power: 10kW, Must include battery backup..."
+        }
+    ],
+    "system_prompt": "You are Genesis, an elite AI system architect specialized in engineering design. Your task is to translate natural language descriptions into complete, physics-accurate SAF (System Architecture Framework) blueprints.\n\nYou MUST respond with valid JSON containing exactly 3 architecture variants, each with different trade-offs.\n\nIMPORTANT RULES:\n1. Each component MUST have a unique ID (e.g., 'solar_panel_1', 'battery_bank_1')\n2. Each flow MUST connect valid component IDs\n3. Include realistic parameter values with units\n4. Add governing equations where applicable\n5. Consider energy balance, mass balance, and thermodynamic constraints",
+    "user_prompt_template": "Design a {{domain}} system based on this description:\n\n{{system_description}}\n\n{{#if constraints}}Additional Constraints:\n{{constraints}}{{/if}}\n\nGenerate 3 architecture variants:\n1. COMPACT: Minimal components, lower cost, simpler maintenance\n2. BALANCED: Optimal efficiency/cost ratio, industry-standard approach\n3. PREMIUM: Maximum efficiency, advanced features, higher complexity\n\nFor each variant, provide:\n- name: Variant name\n- description: One-line trade-off summary\n- pros: Array of advantages\n- cons: Array of disadvantages\n- blueprint: Complete SAF Blueprint with:\n  - project_name: string\n  - components: Array of { id, name, type, label, position: {x, y}, parameters: [...], equations: [...] }\n  - flows: Array of { id, from, to, type, label }\n\nRespond ONLY with valid JSON matching this structure:\n{\n  \"variants\": [\n    {\n      \"name\": \"Compact\",\n      \"description\": \"...\",\n      \"pros\": [\"...\"],\n      \"cons\": [\"...\"],\n      \"blueprint\": { ... }\n    }\n  ],\n  \"domain_detected\": \"power_systems\",\n  \"follow_up_questions\": [\"What is your target power output?\", \"...\"]\n}",
+    "output_format": "json",
+    "temperature": 0.7,
+    "max_tokens": 8000
+}
