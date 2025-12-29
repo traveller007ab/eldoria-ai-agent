@@ -58,6 +58,7 @@ export const SAFLab: React.FC = () => {
     const [showSensitivityAnalysis, setShowSensitivityAnalysis] = useState(false);
     const [sensitivityAnalysisExpanded, setSensitivityAnalysisExpanded] = useState(false);
     const [showReportGenerator, setShowReportGenerator] = useState(false);
+    const [showPhysicsWizard, setShowPhysicsWizard] = useState(false);
 
     // Load blueprint from active canvas if available
     const canvasBlueprint = activeCanvas?.saf_blueprint as DeepSAFBlueprint | undefined;
