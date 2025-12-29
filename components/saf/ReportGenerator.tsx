@@ -87,23 +87,27 @@ energy, material, and control interactions between components.`);
         if (includeEquations) {
             const componentsWithEquations = blueprint.components.filter(c => c.equations && c.equations.length > 0);
             if (componentsWithEquations.length > 0) {
+                const equationsSection = componentsWithEquations.map(comp => {
+                    const equationsText = comp.equations!.map((eq, idx) => {
+                        const latexEq = eq
+                            .replace(/\*\*/g, '^')
+                            .replace(/\*/g, ' \\cdot ')
+                            .replace(/=/g, ' &= ');
+                        return idx < comp.equations!.length - 1 ? `${latexEq} \\\\` : latexEq;
+                    }).join('\n');
+                    return `\\subsection{${comp.name}}
+
+\\begin{align}
+${equationsText}
+\\end{align}`;
+                }).join('\n\n');
+                
                 sections.push(`\\section{Governing Equations}
 
 The system behavior is governed by the following equations:
 
-${componentsWithEquations.map(comp => {
-                return `\\subsection{${comp.name}}
-
-\\begin{align}
-${comp.equations!.map((eq, idx) => {
-                    const latexEq = eq
-                        .replace(/\*\*/g, '^')
-                        .replace(/\*/g, ' \\cdot ')
-                        .replace(/=/g, ' &= ');
-                    return idx < comp.equations!.length - 1 ? `${latexEq} \\\\` : latexEq;
-                }).join('\n')}
-\\end{align}`;
-            }).join('\n\n')}`);
+${equationsSection}`);
+            }
         }
 
         // Simulation Results
@@ -140,9 +144,15 @@ ${blueprint.last_simulation.logs.join('\n')}
 
         // Parameter Sweeps
         if (includeSweeps && blueprint.sweeps && blueprint.sweeps.length > 0) {
-            sections.push(`\\section{Parameter Sweep Analysis}
-
-${blueprint.sweeps.map((sweep, idx) => {
+            const sweepsSection = blueprint.sweeps.map((sweep, idx) => {
+                const colSpec = `c ${Object.keys(sweep.points[0].system_vars).map(() => 'c').join(' ')}`;
+                const headers = Object.keys(sweep.points[0].system_vars).map(k => `\\textbf{${k.replace(/_/g, '\\_')}}`).join(' & ');
+                const filteredPoints = sweep.points.filter((_, i) => i % Math.ceil(sweep.points.length / 10) === 0);
+                const rows = filteredPoints.map(point => {
+                    const values = Object.values(point.system_vars).map(v => v.toFixed(4)).join(' & ');
+                    return `${point.value.toFixed(4)} & ${values}`;
+                }).join(' \\\\\n');
+                
                 return `\\subsection{Sweep ${idx + 1}: ${sweep.parameterPath}}
 
 Parameter range: ${sweep.min} to ${sweep.max} (${sweep.steps} steps)
@@ -151,17 +161,19 @@ Parameter range: ${sweep.min} to ${sweep.max} (${sweep.steps} steps)
 \\centering
 \\caption{Selected Sweep Points}
 \\label{tab:sweep_${idx}}
-\\begin{tabular}{c ${Object.keys(sweep.points[0].system_vars).map(() => 'c').join(' ')}}
+\\begin{tabular}{${colSpec}}
 \\toprule
-\\textbf{Parameter} & ${Object.keys(sweep.points[0].system_vars).map(k => `\\textbf{${k.replace(/_/g, '\\_')}}`).join(' & ')} \\\\
+\\textbf{Parameter} & ${headers} \\\\
 \\midrule
-${sweep.points.filter((_, i) => i % Math.ceil(sweep.points.length / 10) === 0).map(point => {
-                    return `${point.value.toFixed(4)} & ${Object.values(point.system_vars).map(v => v.toFixed(4)).join(' & ')}`;
-                }).join(' \\\\\n')} \\\\
+${rows} \\\\
 \\bottomrule
 \\end{tabular}
 \\end{table}`;
-            }).join('\n\n')}`);
+            }).join('\n\n');
+            
+            sections.push(`\\section{Parameter Sweep Analysis}
+
+${sweepsSection}`);
         }
 
         // Observations
