@@ -28,10 +28,11 @@ interface SAFNodeData {
     onAskAI: (id: string) => void;
     simulationVars?: Record<string, number>; // Live simulation results for badges
     constraintViolations?: string[]; // Flow/component IDs that violate constraints
+    flows?: DeepSAFFlow[]; // Flows for this component
 }
 
 const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
-    const { component, isExpanded, onToggleExpand, onSelect, onAskAI, simulationVars, constraintViolations } = data;
+    const { component, isExpanded, onToggleExpand, onSelect, onAskAI, simulationVars, constraintViolations, flows } = data;
     const style = COMPONENT_STYLES[component.type];
     const hasChildren = component.children && component.children.length > 0;
     
@@ -110,10 +111,10 @@ const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
             )}
 
             {/* Live Simulation Badges */}
-            {simulationVars && (
+            {simulationVars && flows && (
                 <div className="px-4 py-2 border-t border-white/5 bg-purple-500/10 space-y-1">
                     <div className="text-[10px] text-purple-400/60 uppercase tracking-wider mb-1">Live Sim</div>
-                    {blueprint.flows
+                    {flows
                         .filter(f => f.from === component.id)
                         .slice(0, 2)
                         .map(flow => {
@@ -226,7 +227,7 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
             },
             selected: selectedNodeId === comp.id,
         }));
-    }, [blueprint.components, expandedNodes, selectedNodeId, onToggleExpand, onSelectNode, onAskAI, simulationVars, constraintViolations]);
+    }, [blueprint.components, blueprint.flows, expandedNodes, selectedNodeId, onToggleExpand, onSelectNode, onAskAI, simulationVars, constraintViolations]);
 
     // Convert blueprint flows to React Flow edges
     const initialEdges: Edge[] = useMemo(() => {

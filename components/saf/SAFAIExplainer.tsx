@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { DeepSAFComponent, DeepSAFBlueprint } from './types';
-import { MessageSquare, Loader2, Send, HelpCircle, Sparkles, AlertTriangle } from 'lucide-react';
+import { MessageSquare, Loader2, Send, HelpCircle, Sparkles, AlertTriangle, Zap, BookOpen } from 'lucide-react';
 import { GROQ_API_KEY, API_KEY, OPENROUTER_API_KEY } from '../../config';
 import { getBridgeUrl } from '../../services/bridgeClient';
 
