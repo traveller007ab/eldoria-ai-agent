@@ -318,5 +318,3 @@ ${blueprint.research_notes.nextSteps.split('\n').map(line => line.trim()).filter
     );
 };
 
-export default ReportGenerator;
-
