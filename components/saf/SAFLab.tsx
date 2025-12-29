@@ -9,10 +9,14 @@ import { SAFBreadcrumbs } from './SAFBreadcrumbs';
 import { SAFOutputPanel } from './SAFOutputPanel';
 import { ScenarioComparisonPanel } from './ScenarioComparisonPanel';
 import { PhysicsToComponentWizard } from './PhysicsToComponentWizard';
+import { ResearchDataPanel } from './ResearchDataPanel';
+import { ResearchNotebook, ResearchNotes } from './ResearchNotebook';
+import { SensitivityAnalysisPanel } from './SensitivityAnalysisPanel';
+import { ReportGenerator } from './ReportGenerator';
 import { calculateRankineOutputs, propagateEffects } from './engine';
 import { bridgeClient } from '../../services/bridgeClient';
 import { validateBlueprint } from './validator';
-import { FlaskConical, Settings, Download, Share2, Save, RotateCcw, Play, Maximize2, Minimize2, ZoomIn, ZoomOut, MoreHorizontal, Plus, FileJson, Upload, Library, X, ChevronRight, ChevronDown, Wand2, Info, Loader2, Search, Filter, ArrowLeft, Pin, PinOff, FileText, Zap, BookOpen, PanelBottom } from 'lucide-react';
+import { FlaskConical, Settings, Download, Share2, Save, RotateCcw, Play, Maximize2, Minimize2, ZoomIn, ZoomOut, MoreHorizontal, Plus, FileJson, Upload, Library, X, ChevronRight, ChevronDown, Wand2, Info, Loader2, Search, Filter, ArrowLeft, Pin, PinOff, FileText, Zap, BookOpen, PanelBottom, BarChart3, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PromptLibraryPanel } from '../modals/PromptLibraryPanel';
 import { runGroqGenerate } from '../../services/groqService';
@@ -47,6 +51,13 @@ export const SAFLab: React.FC = () => {
     const [isExecutingLibraryPrompt, setIsExecutingLibraryPrompt] = useState(false);
     const [showScenarioComparison, setShowScenarioComparison] = useState(false);
     const [selectedScenariosForComparison, setSelectedScenariosForComparison] = useState<string[]>([]);
+    const [showResearchData, setShowResearchData] = useState(false);
+    const [researchDataExpanded, setResearchDataExpanded] = useState(false);
+    const [showResearchNotebook, setShowResearchNotebook] = useState(false);
+    const [researchNotebookExpanded, setResearchNotebookExpanded] = useState(false);
+    const [showSensitivityAnalysis, setShowSensitivityAnalysis] = useState(false);
+    const [sensitivityAnalysisExpanded, setSensitivityAnalysisExpanded] = useState(false);
+    const [showReportGenerator, setShowReportGenerator] = useState(false);
 
     // Load blueprint from active canvas if available
     const canvasBlueprint = activeCanvas?.saf_blueprint as DeepSAFBlueprint | undefined;
@@ -517,6 +528,21 @@ export const SAFLab: React.FC = () => {
         });
     }, []);
 
+    // Handle saving research notes
+    const handleSaveResearchNotes = useCallback((notes: ResearchNotes) => {
+        setWorkbenchState(prev => {
+            if (!prev.activeBlueprint) return prev;
+            return {
+                ...prev,
+                activeBlueprint: {
+                    ...prev.activeBlueprint,
+                    research_notes: notes,
+                    updated_at: new Date().toISOString(),
+                },
+            };
+        });
+    }, []);
+
     // Get currently selected component
     const selectedComponent = workbenchState.activeBlueprint?.components.find(
         c => c.id === workbenchState.selectedNodeId
@@ -622,6 +648,56 @@ export const SAFLab: React.FC = () => {
                         >
                             <PanelBottom className="w-4 h-4" />
                             Output
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowResearchData(true);
+                                setResearchDataExpanded(true);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ${showResearchData
+                                ? 'bg-purple-500/20 text-purple-400'
+                                : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white'
+                                }`}
+                            title="Research Data Analysis"
+                        >
+                            <BarChart3 className="w-4 h-4" />
+                            Data
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowResearchNotebook(true);
+                                setResearchNotebookExpanded(true);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ${showResearchNotebook
+                                ? 'bg-amber-500/20 text-amber-400'
+                                : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white'
+                                }`}
+                            title="Research Notebook"
+                        >
+                            <BookOpen className="w-4 h-4" />
+                            Notebook
+                        </button>
+                        <button
+                            onClick={() => {
+                                setShowSensitivityAnalysis(true);
+                                setSensitivityAnalysisExpanded(true);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ${showSensitivityAnalysis
+                                ? 'bg-purple-500/20 text-purple-400'
+                                : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white'
+                                }`}
+                            title="Sensitivity Analysis"
+                        >
+                            <Activity className="w-4 h-4" />
+                            Sensitivity
+                        </button>
+                        <button
+                            onClick={() => setShowReportGenerator(true)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors flex items-center gap-2"
+                            title="Generate Research Report"
+                        >
+                            <FileText className="w-4 h-4" />
+                            Report
                         </button>
                         <button
                             onClick={() => setShowImportModal(true)}
@@ -1102,6 +1178,55 @@ export const SAFLab: React.FC = () => {
                     blueprint={workbenchState.activeBlueprint}
                     onClose={() => setShowPhysicsWizard(false)}
                     onAddComponents={handleAddComponents}
+                />
+            )}
+
+            {/* Research Data Panel */}
+            {showResearchData && workbenchState.activeBlueprint && (
+                <ResearchDataPanel
+                    blueprint={workbenchState.activeBlueprint}
+                    isExpanded={researchDataExpanded}
+                    onToggleExpand={() => setResearchDataExpanded(!researchDataExpanded)}
+                    onClose={() => {
+                        setShowResearchData(false);
+                        setResearchDataExpanded(false);
+                    }}
+                />
+            )}
+
+            {/* Research Notebook */}
+            {showResearchNotebook && workbenchState.activeBlueprint && (
+                <ResearchNotebook
+                    blueprint={workbenchState.activeBlueprint}
+                    isExpanded={researchNotebookExpanded}
+                    onToggleExpand={() => setResearchNotebookExpanded(!researchNotebookExpanded)}
+                    onClose={() => {
+                        setShowResearchNotebook(false);
+                        setResearchNotebookExpanded(false);
+                    }}
+                    onSave={handleSaveResearchNotes}
+                />
+            )}
+
+            {/* Sensitivity Analysis Panel */}
+            {showSensitivityAnalysis && workbenchState.activeBlueprint && (
+                <SensitivityAnalysisPanel
+                    blueprint={workbenchState.activeBlueprint}
+                    isExpanded={sensitivityAnalysisExpanded}
+                    onToggleExpand={() => setSensitivityAnalysisExpanded(!sensitivityAnalysisExpanded)}
+                    onClose={() => {
+                        setShowSensitivityAnalysis(false);
+                        setSensitivityAnalysisExpanded(false);
+                    }}
+                />
+            )}
+
+            {/* Report Generator */}
+            {showReportGenerator && workbenchState.activeBlueprint && (
+                <ReportGenerator
+                    blueprint={workbenchState.activeBlueprint}
+                    isOpen={showReportGenerator}
+                    onClose={() => setShowReportGenerator(false)}
                 />
             )}
         </div >

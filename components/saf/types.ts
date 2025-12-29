@@ -164,6 +164,18 @@ export interface DeepSAFBlueprint {
     description?: string;
     created_at?: string;
     updated_at?: string;
+
+    // Research documentation
+    research_notes?: {
+        methodology: string;
+        assumptions: string;
+        citations: string[];
+        observations: string;
+        nextSteps: string;
+        tags: string[];
+        timestamp: string;
+        author?: string;
+    };
 }
 
 // ============================================
