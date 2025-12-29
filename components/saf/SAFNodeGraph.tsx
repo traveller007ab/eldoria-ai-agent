@@ -35,17 +35,17 @@ const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
     const { component, isExpanded, onToggleExpand, onSelect, onAskAI, simulationVars, constraintViolations, flows } = data;
     const style = COMPONENT_STYLES[component.type];
     const hasChildren = component.children && component.children.length > 0;
-    
+
     // Check if this component has constraint violations
     const hasViolations = constraintViolations?.includes(component.id) || false;
-    
+
     // Extract live simulation values for this component's flows
     const getFlowValue = (flowId: string, varType: 'P' | 'T' | 'm') => {
         if (!simulationVars) return null;
         const key = `${flowId}.${varType}`;
         return simulationVars[key];
     };
-    
+
     // Get outgoing flows for this component
     const outgoingFlows = data.component.id ? [] : []; // Will be passed from parent
 
@@ -54,8 +54,8 @@ const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
             className="group min-w-[200px] bg-gray-900/90 backdrop-blur-sm border-2 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg"
             style={{
                 borderColor: hasViolations ? '#ef4444' : style.borderColor,
-                boxShadow: hasViolations 
-                    ? `0 0 20px rgba(239, 68, 68, 0.6)` 
+                boxShadow: hasViolations
+                    ? `0 0 20px rgba(239, 68, 68, 0.6)`
                     : `0 0 20px ${style.glow}`,
             }}
             onClick={() => onSelect(component.id)}
@@ -232,14 +232,15 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     // Convert blueprint flows to React Flow edges
     const initialEdges: Edge[] = useMemo(() => {
         return blueprint.flows.map((flow) => {
-            const style = FLOW_STYLES[flow.type];
+            const DEFAULT_STYLE = { color: '#6b7280', strokeWidth: 2, dashArray: undefined };
+            const style = FLOW_STYLES[flow.type] || DEFAULT_STYLE;
             const hasViolation = constraintViolations?.includes(flow.id) || false;
-            
+
             // Get live simulation values for this flow
             const pVal = simulationVars?.[`${flow.id}.P`];
             const tVal = simulationVars?.[`${flow.id}.T`];
             const mVal = simulationVars?.[`${flow.id}.m`];
-            
+
             // Build label with live values if available
             let label = flow.label || flow.parameter || '';
             if (simulationVars && (pVal !== undefined || tVal !== undefined || mVal !== undefined)) {
@@ -251,7 +252,7 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                     label = `${label}\n${liveParts.join(' ')}`;
                 }
             }
-            
+
             return {
                 id: flow.id,
                 source: flow.from,

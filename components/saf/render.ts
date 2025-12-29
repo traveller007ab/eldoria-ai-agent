@@ -27,7 +27,8 @@ export function blueprintToMermaid(blueprint: DeepSAFBlueprint): string {
 
     // Add edges
     for (const flow of blueprint.flows) {
-        const style = FLOW_STYLES[flow.type];
+        const DEFAULT_STYLE = { color: '#6b7280', strokeWidth: 2, dashArray: undefined };
+        const style = FLOW_STYLES[flow.type] || DEFAULT_STYLE;
         const arrow = flow.type === 'control' ? '-->' : flow.type === 'signal' ? '-..->' : '-->';
         const label = flow.label ? `|${flow.label}|` : '';
         lines.push(`    ${flow.from} ${arrow}${label} ${flow.to}`);
