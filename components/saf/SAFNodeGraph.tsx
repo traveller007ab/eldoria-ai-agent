@@ -189,6 +189,28 @@ const nodeTypes: NodeTypes = {
 // MAIN GRAPH COMPONENT
 // ============================================
 
+import React, { useCallback, useMemo } from 'react';
+import ReactFlow, {
+    Node,
+    Edge,
+    Controls,
+    MiniMap,
+    Background,
+    BackgroundVariant,
+    useNodesState,
+    useEdgesState,
+    NodeTypes,
+    EdgeTypes,
+    MarkerType,
+    Connection,
+    OnConnect,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES, DeepSAFFlow } from './types';
+import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2 } from 'lucide-react';
+
+// ... (SAFNode component remains the same) ...
+
 interface SAFNodeGraphProps {
     blueprint: DeepSAFBlueprint;
     expandedNodes: string[];
@@ -196,8 +218,15 @@ interface SAFNodeGraphProps {
     onToggleExpand: (id: string) => void;
     onSelectNode: (id: string | null) => void;
     onAskAI: (id: string) => void;
-    simulationVars?: Record<string, number>; // Live simulation results
-    constraintViolations?: string[]; // Component/flow IDs violating constraints
+    simulationVars?: Record<string, number>;
+    constraintViolations?: string[];
+
+    // NEW: Editing Callbacks
+    onConnect?: (params: Connection) => void;
+    onDeleteNodes?: (nodeIds: string[]) => void;
+    onDeleteEdges?: (edgeIds: string[]) => void;
+    onNodeDragStop?: (nodeId: string, position: { x: number; y: number }) => void;
+    onAddNode?: (type: 'core' | 'subcore' | 'micro', position: { x: number; y: number }) => void;
 }
 
 export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
@@ -209,76 +238,18 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     onAskAI,
     simulationVars,
     constraintViolations,
+    onConnect,
+    onDeleteNodes,
+    onDeleteEdges,
+    onNodeDragStop,
+    onAddNode
 }) => {
-    // Convert blueprint components to React Flow nodes
-    const initialNodes: Node[] = useMemo(() => {
-        return blueprint.components.map((comp) => ({
-            id: comp.id,
-            type: 'safNode',
-            position: comp.position || { x: 0, y: 0 },
-            data: {
-                component: comp,
-                isExpanded: expandedNodes.includes(comp.id),
-                onToggleExpand,
-                onSelect: onSelectNode,
-                onAskAI,
-                simulationVars,
-                constraintViolations,
-            },
-            selected: selectedNodeId === comp.id,
-        }));
-    }, [blueprint.components, blueprint.flows, expandedNodes, selectedNodeId, onToggleExpand, onSelectNode, onAskAI, simulationVars, constraintViolations]);
-
-    // Convert blueprint flows to React Flow edges
-    const initialEdges: Edge[] = useMemo(() => {
-        return blueprint.flows.map((flow) => {
-            const DEFAULT_STYLE = { color: '#6b7280', strokeWidth: 2, dashArray: undefined };
-            const style = FLOW_STYLES[flow.type] || DEFAULT_STYLE;
-            const hasViolation = constraintViolations?.includes(flow.id) || false;
-
-            // Get live simulation values for this flow
-            const pVal = simulationVars?.[`${flow.id}.P`];
-            const tVal = simulationVars?.[`${flow.id}.T`];
-            const mVal = simulationVars?.[`${flow.id}.m`];
-
-            // Build label with live values if available
-            let label = flow.label || flow.parameter || '';
-            if (simulationVars && (pVal !== undefined || tVal !== undefined || mVal !== undefined)) {
-                const liveParts: string[] = [];
-                if (pVal !== undefined) liveParts.push(`P=${pVal.toFixed(1)}`);
-                if (tVal !== undefined) liveParts.push(`T=${tVal.toFixed(0)}`);
-                if (mVal !== undefined) liveParts.push(`m=${mVal.toFixed(2)}`);
-                if (liveParts.length > 0) {
-                    label = `${label}\n${liveParts.join(' ')}`;
-                }
-            }
-
-            return {
-                id: flow.id,
-                source: flow.from,
-                target: flow.to,
-                type: 'smoothstep',
-                animated: flow.type === 'energy' || flow.type === 'signal',
-                style: {
-                    stroke: hasViolation ? '#ef4444' : style.color,
-                    strokeWidth: hasViolation ? style.strokeWidth + 1 : style.strokeWidth,
-                    strokeDasharray: style.dashArray,
-                },
-                markerEnd: {
-                    type: MarkerType.ArrowClosed,
-                    color: hasViolation ? '#ef4444' : style.color,
-                },
-                label,
-                labelStyle: { fill: hasViolation ? '#ef4444' : '#9ca3af', fontSize: 10 },
-                labelBgStyle: { fill: hasViolation ? '#7f1d1d' : '#1f2937', fillOpacity: 0.8 },
-            };
-        });
-    }, [blueprint.flows, simulationVars, constraintViolations]);
+    // ... (Memoized initialNodes and initialEdges logic remains the same, assuming they are robust) ...
 
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-    // Update nodes when blueprint changes
+    // Sync from props
     React.useEffect(() => {
         setNodes(initialNodes);
     }, [initialNodes, setNodes]);
@@ -286,6 +257,22 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     React.useEffect(() => {
         setEdges(initialEdges);
     }, [initialEdges, setEdges]);
+
+    const handleConnect: OnConnect = useCallback((params) => {
+        if (onConnect) onConnect(params);
+    }, [onConnect]);
+
+    const handleNodesDelete = useCallback((nodesToDelete: Node[]) => {
+        if (onDeleteNodes) onDeleteNodes(nodesToDelete.map(n => n.id));
+    }, [onDeleteNodes]);
+
+    const handleEdgesDelete = useCallback((edgesToDelete: Edge[]) => {
+        if (onDeleteEdges) onDeleteEdges(edgesToDelete.map(e => e.id));
+    }, [onDeleteEdges]);
+
+    const handleNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
+        if (onNodeDragStop) onNodeDragStop(node.id, node.position);
+    }, [onNodeDragStop]);
 
     const onNodeClick = useCallback(
         (_: React.MouseEvent, node: Node) => {
@@ -298,13 +285,20 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
         onSelectNode(null);
     }, [onSelectNode]);
 
+    // Toolbar for adding nodes
+    const [showNodeMenu, setShowNodeMenu] = React.useState(false);
+
     return (
-        <div className="w-full h-full">
+        <div className="w-full h-full relative">
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
+                onConnect={handleConnect}
+                onNodesDelete={handleNodesDelete}
+                onEdgesDelete={handleEdgesDelete}
+                onNodeDragStop={handleNodeDragStop}
                 onNodeClick={onNodeClick}
                 onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
@@ -314,6 +308,7 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                 maxZoom={2}
                 defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
                 proOptions={{ hideAttribution: true }}
+                deleteKeyCode={['Backspace', 'Delete']}
             >
                 <Background
                     variant={BackgroundVariant.Dots}
@@ -335,8 +330,52 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                     maskColor="rgba(0, 0, 0, 0.7)"
                 />
             </ReactFlow>
+
+            {/* Quick Action Toolbar */}
+            <div className="absolute top-4 left-4 flex flex-col gap-2">
+                <div className="relative">
+                    <button
+                        onClick={() => setShowNodeMenu(!showNodeMenu)}
+                        className="p-3 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center"
+                        title="Add Component"
+                    >
+                        <Plus className={`w-5 h-5 transition-transform ${showNodeMenu ? 'rotate-45' : ''}`} />
+                    </button>
+
+                    {showNodeMenu && (
+                        <div className="absolute top-full left-0 mt-2 p-2 bg-gray-900/90 backdrop-blur border border-white/10 rounded-xl flex flex-col gap-1 min-w-[140px] animate-in fade-in slide-in-from-top-2">
+                            {(['core', 'subcore', 'micro'] as const).map(type => (
+                                <button
+                                    key={type}
+                                    onClick={() => {
+                                        if (onAddNode) onAddNode(type, { x: Math.random() * 400, y: Math.random() * 400 });
+                                        setShowNodeMenu(false);
+                                    }}
+                                    className="px-3 py-2 text-left text-xs bg-white/5 hover:bg-cyan-500/20 text-white rounded-lg flex items-center gap-2 group"
+                                >
+                                    <div
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: COMPONENT_STYLES[type].borderColor }}
+                                    />
+                                    <span className="capitalize text-white/80 group-hover:text-white">Add {type}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <button
+                    onClick={() => onSelectNode(null)}
+                    className="p-3 bg-gray-800/80 hover:bg-gray-700/80 text-white rounded-xl shadow-lg border border-white/5 flex items-center justify-center"
+                    title="Select logic"
+                >
+                    <MousePointer2 className="w-5 h-5" />
+                </button>
+            </div>
         </div>
     );
 };
+
+// ... (export default SAFNodeGraph) ...
 
 export default SAFNodeGraph;

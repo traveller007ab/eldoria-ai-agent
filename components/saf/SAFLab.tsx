@@ -16,7 +16,7 @@ import { ReportGenerator } from './ReportGenerator';
 import { calculateRankineOutputs, propagateEffects } from './engine';
 import { bridgeClient } from '../../services/bridgeClient';
 import { validateBlueprint } from './validator';
-import { FlaskConical, Settings, Download, Share2, Save, RotateCcw, Play, Maximize2, Minimize2, ZoomIn, ZoomOut, MoreHorizontal, Plus, FileJson, Upload, Library, X, ChevronRight, ChevronDown, Wand2, Info, Loader2, Search, Filter, ArrowLeft, Pin, PinOff, FileText, Zap, BookOpen, PanelBottom, BarChart3, Activity } from 'lucide-react';
+import { FlaskConical, Settings, Download, Share2, Save, RotateCcw, Play, Maximize2, Minimize2, ZoomIn, ZoomOut, MoreHorizontal, Plus, FileJson, Upload, Library, X, ChevronRight, ChevronDown, Wand2, Info, Loader2, Search, Filter, ArrowLeft, Pin, PinOff, FileText, Zap, BookOpen, PanelBottom, BarChart3, Activity, DollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PromptLibraryPanel } from '../modals/PromptLibraryPanel';
 import { runGroqGenerate } from '../../services/groqService';
@@ -27,6 +27,8 @@ import { GenesisPromptInput } from './GenesisPromptInput';
  * SAF Lab - Interactive System Engineering Workbench
  * Recursive decomposition, live parameter editing, cascading effects
  */
+import { InvestmentProposalModal } from './InvestmentProposalModal';
+
 export const SAFLab: React.FC = () => {
     const navigate = useNavigate();
     const { activeCanvas, academicProjects } = useWorkspace();
@@ -42,7 +44,9 @@ export const SAFLab: React.FC = () => {
 
     // UI state for panels
     const [showOutputPanel, setShowOutputPanel] = useState(false);
+    const [showInvestmentModal, setShowInvestmentModal] = useState(false);
     const [outputPanelExpanded, setOutputPanelExpanded] = useState(false);
+
     const [aiExplainerExpanded, setAiExplainerExpanded] = useState(false);
     const [aiExplainerPinned, setAiExplainerPinned] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
@@ -368,23 +372,23 @@ export const SAFLab: React.FC = () => {
             setIsExecutingLibraryPrompt(true);
             setShowPromptLibrary(false);
 
-            const systemPrompt = `You are Eldoria's SAF Engineering Engine. 
-            Analyze the user's request and deconstruct it into a Strategic Analysis Framework (SAF) blueprint.
-            
-            CRITICAL: Your output MUST conclude with a valid <SAF_ISO> JSON block following this schema:
-            {
-                "project_name": "Name of the system",
-                "domain": "mechanical" | "governance" | "ai_agents" | "creative" | "custom",
-                "components": [
-                    { "id": "uuid", "name": "Name", "type": "core"|"subcore"|"micro", "parameters": [{ "name": "N", "value": 100, "unit": "kg" }], "outputs": [], "position": { "x": 0, "y": 0 } }
-                ],
-                "flows": [
-                    { "id": "f1", "from": "id1", "to": "id2", "type": "energy"|"material"|"control"|"data" }
-                ]
+            const systemPrompt = `You are Eldoria's SAF Engineering Engine.
+                        Analyze the user's request and deconstruct it into a Strategic Analysis Framework (SAF) blueprint.
+
+                        CRITICAL: Your output MUST conclude with a valid <SAF_ISO> JSON block following this schema:
+                            {
+                                "project_name": "Name of the system",
+                            "domain": "mechanical" | "governance" | "ai_agents" | "creative" | "custom",
+                            "components": [
+                            {"id": "uuid", "name": "Name", "type": "core"|"subcore"|"micro", "parameters": [{"name": "N", "value": 100, "unit": "kg" }], "outputs": [], "position": {"x": 0, "y": 0 } }
+                            ],
+                            "flows": [
+                            {"id": "f1", "from": "id1", "to": "id2", "type": "energy"|"material"|"control"|"data" }
+                            ]
             }
-            
-            The user is running the prompt: "${schema.name}"
-            Full Parameters: ${composedPrompt}`;
+
+                            The user is running the prompt: "${schema.name}"
+                            Full Parameters: ${composedPrompt}`;
 
             const response = await runGroqGenerate([
                 { role: 'system', content: systemPrompt },
@@ -676,6 +680,17 @@ export const SAFLab: React.FC = () => {
                             </button>
                         </div>
 
+                        <div className="w-px h-5 bg-gray-700 mx-1" />
+
+                        <button
+                            onClick={() => setShowInvestmentModal(true)}
+                            className="px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 transition-colors flex items-center gap-2 border border-yellow-500/20"
+                            title="Create Investment Proposal"
+                        >
+                            <DollarSign className="w-4 h-4" />
+                            <span className="font-bold tracking-wide">LAUNCH DAO</span>
+                        </button>
+
                         <button
                             onClick={() => setShowOutputPanel(!showOutputPanel)}
                             className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ${showOutputPanel
@@ -855,7 +870,88 @@ export const SAFLab: React.FC = () => {
                                     }}
                                     onAskAI={(id) => {
                                         console.log('Ask AI about:', id);
-                                        // TODO: Phase 70 - Targeted AI Analysis
+                                    }}
+                                    // NEW: Graph Editing Handlers
+                                    onConnect={(params) => {
+                                        if (!params.source || !params.target) return;
+                                        setWorkbenchState(prev => {
+                                            if (!prev.activeBlueprint) return prev;
+                                            const newFlow: any = {
+                                                id: `flow_${Date.now()}`,
+                                                from: params.source,
+                                                to: params.target,
+                                                type: 'energy', // Default type
+                                                label: 'New Flow'
+                                            };
+                                            return {
+                                                ...prev,
+                                                activeBlueprint: {
+                                                    ...prev.activeBlueprint,
+                                                    flows: [...prev.activeBlueprint.flows, newFlow]
+                                                }
+                                            };
+                                        });
+                                    }}
+                                    onDeleteNodes={(nodeIds) => {
+                                        setWorkbenchState(prev => {
+                                            if (!prev.activeBlueprint) return prev;
+                                            return {
+                                                ...prev,
+                                                activeBlueprint: {
+                                                    ...prev.activeBlueprint,
+                                                    components: prev.activeBlueprint.components.filter(c => !nodeIds.includes(c.id)),
+                                                    flows: prev.activeBlueprint.flows.filter(f => !nodeIds.includes(f.from) && !nodeIds.includes(f.to))
+                                                },
+                                                selectedNodeId: nodeIds.includes(prev.selectedNodeId!) ? null : prev.selectedNodeId
+                                            };
+                                        });
+                                    }}
+                                    onDeleteEdges={(edgeIds) => {
+                                        setWorkbenchState(prev => {
+                                            if (!prev.activeBlueprint) return prev;
+                                            return {
+                                                ...prev,
+                                                activeBlueprint: {
+                                                    ...prev.activeBlueprint,
+                                                    flows: prev.activeBlueprint.flows.filter(f => !edgeIds.includes(f.id))
+                                                }
+                                            };
+                                        });
+                                    }}
+                                    onNodeDragStop={(nodeId, position) => {
+                                        setWorkbenchState(prev => {
+                                            if (!prev.activeBlueprint) return prev;
+                                            return {
+                                                ...prev,
+                                                activeBlueprint: {
+                                                    ...prev.activeBlueprint,
+                                                    components: prev.activeBlueprint.components.map(c =>
+                                                        c.id === nodeId ? { ...c, position } : c
+                                                    )
+                                                }
+                                            };
+                                        });
+                                    }}
+                                    onAddNode={(type, position) => {
+                                        setWorkbenchState(prev => {
+                                            if (!prev.activeBlueprint) return prev;
+                                            const newComponent: DeepSAFComponent = {
+                                                id: `comp_${Date.now()}`,
+                                                name: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+                                                type,
+                                                position,
+                                                parameters: [],
+                                                outputs: []
+                                            };
+                                            return {
+                                                ...prev,
+                                                activeBlueprint: {
+                                                    ...prev.activeBlueprint,
+                                                    components: [...prev.activeBlueprint.components, newComponent]
+                                                },
+                                                selectedNodeId: newComponent.id
+                                            };
+                                        });
                                     }}
                                 />
                             </SAFGraphErrorBoundary>
@@ -1146,6 +1242,14 @@ export const SAFLab: React.FC = () => {
                     }}
                 />
             )}
+
+            {showInvestmentModal && workbenchState.activeBlueprint && (
+                <InvestmentProposalModal
+                    blueprint={workbenchState.activeBlueprint}
+                    onClose={() => setShowInvestmentModal(false)}
+                />
+            )}
+
 
             {/* Report Generator */}
             {showReportGenerator && workbenchState.activeBlueprint && (
