@@ -65,6 +65,14 @@ export const StatusBar: React.FC = () => {
       // 2. Check Terminal Bridge (Centralized)
       const isOnline = await bridgeClient.checkBridgeHealth();
       setBridgeStatus(isOnline ? 'online' : 'offline');
+      
+      // Debug: Log the bridge URL being checked
+      try {
+        const url = await bridgeClient.getCurrentBridgeUrl();
+        console.log('[StatusBar] Bridge check:', isOnline ? '✅ ONLINE' : '❌ OFFLINE', 'at', url);
+      } catch (e) {
+        console.warn('[StatusBar] Could not get bridge URL:', e);
+      }
     };
 
     checkConnections();

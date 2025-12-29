@@ -7,6 +7,8 @@ import { SAFParameterEditor } from './SAFParameterEditor';
 import { SAFAIExplainer } from './SAFAIExplainer';
 import { SAFBreadcrumbs } from './SAFBreadcrumbs';
 import { SAFOutputPanel } from './SAFOutputPanel';
+import { ScenarioComparisonPanel } from './ScenarioComparisonPanel';
+import { PhysicsToComponentWizard } from './PhysicsToComponentWizard';
 import { calculateRankineOutputs, propagateEffects } from './engine';
 import { bridgeClient } from '../../services/bridgeClient';
 import { validateBlueprint } from './validator';
@@ -43,6 +45,8 @@ export const SAFLab: React.FC = () => {
     const [importValue, setImportValue] = useState('');
     const [importError, setImportError] = useState<string | null>(null);
     const [isExecutingLibraryPrompt, setIsExecutingLibraryPrompt] = useState(false);
+    const [showScenarioComparison, setShowScenarioComparison] = useState(false);
+    const [selectedScenariosForComparison, setSelectedScenariosForComparison] = useState<string[]>([]);
 
     // Load blueprint from active canvas if available
     const canvasBlueprint = activeCanvas?.saf_blueprint as DeepSAFBlueprint | undefined;
@@ -498,6 +502,21 @@ export const SAFLab: React.FC = () => {
         });
     }, []);
 
+    // Handle adding components from physics wizard
+    const handleAddComponents = useCallback((components: DeepSAFComponent[]) => {
+        setWorkbenchState(prev => {
+            if (!prev.activeBlueprint) return prev;
+            return {
+                ...prev,
+                activeBlueprint: {
+                    ...prev.activeBlueprint,
+                    components: [...prev.activeBlueprint.components, ...components],
+                    updated_at: new Date().toISOString(),
+                },
+            };
+        });
+    }, []);
+
     // Get currently selected component
     const selectedComponent = workbenchState.activeBlueprint?.components.find(
         c => c.id === workbenchState.selectedNodeId
@@ -571,6 +590,19 @@ export const SAFLab: React.FC = () => {
                             >
                                 Save
                             </button>
+                            {(workbenchState.activeBlueprint.scenarios || []).length >= 2 && (
+                                <button
+                                    onClick={() => {
+                                        const allIds = (workbenchState.activeBlueprint?.scenarios || []).slice(0, 3).map(s => s.id);
+                                        setSelectedScenariosForComparison(allIds);
+                                        setShowScenarioComparison(true);
+                                    }}
+                                    className="px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/40"
+                                    title="Compare scenarios side-by-side"
+                                >
+                                    Compare
+                                </button>
+                            )}
                             <button
                                 onClick={handleQuickSweep}
                                 className="px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/40"
@@ -606,6 +638,14 @@ export const SAFLab: React.FC = () => {
                         >
                             <Library className="w-4 h-4" />
                             Library
+                        </button>
+                        <button
+                            onClick={() => setShowPhysicsWizard(true)}
+                            className="px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors flex items-center gap-2"
+                            title="Extract physics from text and create components"
+                        >
+                            <FileText className="w-4 h-4" />
+                            Physics
                         </button>
                     </div>
                 )}
@@ -786,6 +826,17 @@ export const SAFLab: React.FC = () => {
                                     blueprint={workbenchState.activeBlueprint}
                                     expandedNodes={workbenchState.expandedNodes}
                                     selectedNodeId={workbenchState.selectedNodeId}
+                                    simulationVars={workbenchState.activeBlueprint.last_simulation?.system_vars}
+                                    constraintViolations={workbenchState.activeBlueprint.constraints 
+                                        ? workbenchState.activeBlueprint.components
+                                            .filter(comp => {
+                                                // Check if component violates any constraints
+                                                // TODO: Implement actual constraint evaluation
+                                                return false;
+                                            })
+                                            .map(c => c.id)
+                                        : undefined
+                                    }
                                     onToggleExpand={(id) => {
                                         setWorkbenchState(prev => ({
                                             ...prev,
@@ -1023,6 +1074,36 @@ export const SAFLab: React.FC = () => {
                     </div>
                 )
             }
+
+            {/* Scenario Comparison Panel */}
+            {showScenarioComparison && workbenchState.activeBlueprint && (
+                <ScenarioComparisonPanel
+                    blueprint={workbenchState.activeBlueprint}
+                    selectedScenarios={selectedScenariosForComparison}
+                    onClose={() => {
+                        setShowScenarioComparison(false);
+                        setSelectedScenariosForComparison([]);
+                    }}
+                    onSelectScenario={(id) => {
+                        setSelectedScenariosForComparison(prev => 
+                            prev.includes(id) 
+                                ? prev.filter(s => s !== id)
+                                : prev.length < 3 
+                                    ? [...prev, id]
+                                    : prev
+                        );
+                    }}
+                />
+            )}
+
+            {/* Physics-to-Component Wizard */}
+            {showPhysicsWizard && workbenchState.activeBlueprint && (
+                <PhysicsToComponentWizard
+                    blueprint={workbenchState.activeBlueprint}
+                    onClose={() => setShowPhysicsWizard(false)}
+                    onAddComponents={handleAddComponents}
+                />
+            )}
         </div >
     );
 };

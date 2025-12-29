@@ -44,6 +44,19 @@ export const SAFAIExplainer: React.FC<SAFAIExplainerProps> = ({
             ? component.dependencies.join(', ')
             : 'None (root component)';
 
+        // Include equations if available
+        const equationsStr = component.equations && component.equations.length > 0
+            ? component.equations.join('; ')
+            : 'None (using default formulas)';
+
+        // Include simulation results if available
+        const simVarsStr = blueprint.last_simulation?.system_vars
+            ? Object.entries(blueprint.last_simulation.system_vars)
+                .filter(([key]) => key.startsWith(component.id) || blueprint.flows.some(f => f.id === key.split('.')[0] && (f.from === component.id || f.to === component.id)))
+                .map(([key, val]) => `${key}=${val}`)
+                .join(', ')
+            : 'No simulation data';
+
         return `You are analyzing a component in a ${blueprint.domain} system called "${blueprint.project_name}".
 
 COMPONENT DETAILS:
@@ -52,12 +65,20 @@ COMPONENT DETAILS:
 - Parameters: ${paramsStr}
 - Outputs: ${outputsStr}
 - Dependencies: ${depsStr}
+- Custom Equations: ${equationsStr}
+- Live Simulation Values: ${simVarsStr}
 
 SYSTEM OVERVIEW:
 Components: ${blueprint.components.map(c => c.name).join(' → ')}
 Flows: ${blueprint.flows.map(f => `${f.from}→${f.to}(${f.type})`).join(', ')}
 
-Provide clear, concise, educational explanations. Use specific values and units.`;
+Provide structured responses with:
+1. Hypothesis: What's happening
+2. Risks: Potential issues or limitations
+3. Proposed Change: Specific parameter adjustments with suggested ranges
+4. Engineering Insight: Rule-of-thumb or best practice guidance
+
+Use specific values and units.`;
     }, [component, blueprint]);
 
     // Query the AI via Bridge Proxy with fallback chain
@@ -212,40 +233,78 @@ Provide clear, concise, educational explanations. Use specific values and units.
                 </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* Quick Actions - Structured Queries */}
             <div className="shrink-0 p-3 border-b border-cyan-900/10">
                 <div className="grid grid-cols-2 gap-2">
                     <button
                         onClick={handleExplainThis}
                         disabled={isLoading}
                         className="px-3 py-2 text-xs bg-cyan-500/10 text-cyan-400 rounded-lg hover:bg-cyan-500/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        title="Get structured explanation with hypothesis and risks"
                     >
                         <HelpCircle className="w-3 h-3" />
-                        Explain This
+                        Explain
                     </button>
                     <button
                         onClick={handleExplainParameters}
                         disabled={isLoading}
                         className="px-3 py-2 text-xs bg-purple-500/10 text-purple-400 rounded-lg hover:bg-purple-500/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        title="Understand parameter ranges and effects"
                     >
                         <MessageSquare className="w-3 h-3" />
                         Parameters
                     </button>
                     <button
-                        onClick={handleWhatIfEfficiency}
+                        onClick={() => {
+                            const simVars = blueprint.last_simulation?.system_vars;
+                            if (simVars) {
+                                queryAI(`Why is this component unstable or inefficient? Analyze the current simulation values: ${JSON.stringify(simVars)}. What constraints might be violated?`);
+                            } else {
+                                handleWhatIfEfficiency();
+                            }
+                        }}
                         disabled={isLoading}
                         className="px-3 py-2 text-xs bg-emerald-500/10 text-emerald-400 rounded-lg hover:bg-emerald-500/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        title="Analyze stability and constraints"
                     >
                         <AlertTriangle className="w-3 h-3" />
-                        What If +10%?
+                        Stability
                     </button>
                     <button
-                        onClick={handleOptimize}
+                        onClick={() => {
+                            queryAI(`Design a controller or optimization strategy for ${component.name}. Provide specific parameter adjustments with suggested ranges. Include a rule-of-thumb for sizing.`);
+                        }}
                         disabled={isLoading}
                         className="px-3 py-2 text-xs bg-amber-500/10 text-amber-400 rounded-lg hover:bg-amber-500/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        title="Get optimization strategy with specific recommendations"
                     >
                         <Sparkles className="w-3 h-3" />
                         Optimize
+                    </button>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                        onClick={() => {
+                            const connectedFlows = blueprint.flows.filter(f => f.from === component.id || f.to === component.id);
+                            queryAI(`What are the cascading effects if I modify ${component.name}? How will it affect connected flows: ${connectedFlows.map(f => f.id).join(', ')}?`);
+                        }}
+                        disabled={isLoading}
+                        className="px-3 py-2 text-xs bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        title="Analyze cascading effects on connected components"
+                    >
+                        <Zap className="w-3 h-3" />
+                        Cascading
+                    </button>
+                    <button
+                        onClick={() => {
+                            queryAI(`Give me a rule-of-thumb or engineering best practice for sizing and operating ${component.name} in a ${blueprint.domain} system.`);
+                        }}
+                        disabled={isLoading}
+                        className="px-3 py-2 text-xs bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors flex items-center gap-2 disabled:opacity-50"
+                        title="Get engineering best practices and rules-of-thumb"
+                    >
+                        <BookOpen className="w-3 h-3" />
+                        Best Practice
                     </button>
                 </div>
             </div>

@@ -14,7 +14,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES } from './types';
-import { ChevronDown, ChevronRight, Zap, HelpCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle } from 'lucide-react';
 
 // ============================================
 // CUSTOM SAF NODE COMPONENT
@@ -26,19 +26,36 @@ interface SAFNodeData {
     onToggleExpand: (id: string) => void;
     onSelect: (id: string) => void;
     onAskAI: (id: string) => void;
+    simulationVars?: Record<string, number>; // Live simulation results for badges
+    constraintViolations?: string[]; // Flow/component IDs that violate constraints
 }
 
 const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
-    const { component, isExpanded, onToggleExpand, onSelect, onAskAI } = data;
+    const { component, isExpanded, onToggleExpand, onSelect, onAskAI, simulationVars, constraintViolations } = data;
     const style = COMPONENT_STYLES[component.type];
     const hasChildren = component.children && component.children.length > 0;
+    
+    // Check if this component has constraint violations
+    const hasViolations = constraintViolations?.includes(component.id) || false;
+    
+    // Extract live simulation values for this component's flows
+    const getFlowValue = (flowId: string, varType: 'P' | 'T' | 'm') => {
+        if (!simulationVars) return null;
+        const key = `${flowId}.${varType}`;
+        return simulationVars[key];
+    };
+    
+    // Get outgoing flows for this component
+    const outgoingFlows = data.component.id ? [] : []; // Will be passed from parent
 
     return (
         <div
             className="group min-w-[200px] bg-gray-900/90 backdrop-blur-sm border-2 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg"
             style={{
-                borderColor: style.borderColor,
-                boxShadow: `0 0 20px ${style.glow}`,
+                borderColor: hasViolations ? '#ef4444' : style.borderColor,
+                boxShadow: hasViolations 
+                    ? `0 0 20px rgba(239, 68, 68, 0.6)` 
+                    : `0 0 20px ${style.glow}`,
             }}
             onClick={() => onSelect(component.id)}
         >
@@ -89,6 +106,39 @@ const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
                             +{component.parameters.length - 3} more...
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Live Simulation Badges */}
+            {simulationVars && (
+                <div className="px-4 py-2 border-t border-white/5 bg-purple-500/10 space-y-1">
+                    <div className="text-[10px] text-purple-400/60 uppercase tracking-wider mb-1">Live Sim</div>
+                    {blueprint.flows
+                        .filter(f => f.from === component.id)
+                        .slice(0, 2)
+                        .map(flow => {
+                            const p = simulationVars[`${flow.id}.P`];
+                            const t = simulationVars[`${flow.id}.T`];
+                            const m = simulationVars[`${flow.id}.m`];
+                            if (p === undefined && t === undefined && m === undefined) return null;
+                            return (
+                                <div key={flow.id} className="text-[10px] text-purple-300 font-mono">
+                                    {flow.id}: {p !== undefined && `P=${p.toFixed(1)} `}
+                                    {t !== undefined && `T=${t.toFixed(0)} `}
+                                    {m !== undefined && `m=${m.toFixed(2)}`}
+                                </div>
+                            );
+                        })}
+                </div>
+            )}
+
+            {/* Constraint Violation Badge */}
+            {hasViolations && (
+                <div className="px-4 py-2 border-t border-red-500/30 bg-red-500/10">
+                    <div className="flex items-center gap-2 text-xs text-red-400">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span className="font-bold">Constraint Violation</span>
+                    </div>
                 </div>
             )}
 
@@ -145,6 +195,8 @@ interface SAFNodeGraphProps {
     onToggleExpand: (id: string) => void;
     onSelectNode: (id: string | null) => void;
     onAskAI: (id: string) => void;
+    simulationVars?: Record<string, number>; // Live simulation results
+    constraintViolations?: string[]; // Component/flow IDs violating constraints
 }
 
 export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
@@ -154,6 +206,8 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     onToggleExpand,
     onSelectNode,
     onAskAI,
+    simulationVars,
+    constraintViolations,
 }) => {
     // Convert blueprint components to React Flow nodes
     const initialNodes: Node[] = useMemo(() => {
@@ -167,15 +221,36 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                 onToggleExpand,
                 onSelect: onSelectNode,
                 onAskAI,
+                simulationVars,
+                constraintViolations,
             },
             selected: selectedNodeId === comp.id,
         }));
-    }, [blueprint.components, expandedNodes, selectedNodeId, onToggleExpand, onSelectNode, onAskAI]);
+    }, [blueprint.components, expandedNodes, selectedNodeId, onToggleExpand, onSelectNode, onAskAI, simulationVars, constraintViolations]);
 
     // Convert blueprint flows to React Flow edges
     const initialEdges: Edge[] = useMemo(() => {
         return blueprint.flows.map((flow) => {
             const style = FLOW_STYLES[flow.type];
+            const hasViolation = constraintViolations?.includes(flow.id) || false;
+            
+            // Get live simulation values for this flow
+            const pVal = simulationVars?.[`${flow.id}.P`];
+            const tVal = simulationVars?.[`${flow.id}.T`];
+            const mVal = simulationVars?.[`${flow.id}.m`];
+            
+            // Build label with live values if available
+            let label = flow.label || flow.parameter || '';
+            if (simulationVars && (pVal !== undefined || tVal !== undefined || mVal !== undefined)) {
+                const liveParts: string[] = [];
+                if (pVal !== undefined) liveParts.push(`P=${pVal.toFixed(1)}`);
+                if (tVal !== undefined) liveParts.push(`T=${tVal.toFixed(0)}`);
+                if (mVal !== undefined) liveParts.push(`m=${mVal.toFixed(2)}`);
+                if (liveParts.length > 0) {
+                    label = `${label}\n${liveParts.join(' ')}`;
+                }
+            }
+            
             return {
                 id: flow.id,
                 source: flow.from,
@@ -183,20 +258,20 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                 type: 'smoothstep',
                 animated: flow.type === 'energy' || flow.type === 'signal',
                 style: {
-                    stroke: style.color,
-                    strokeWidth: style.strokeWidth,
+                    stroke: hasViolation ? '#ef4444' : style.color,
+                    strokeWidth: hasViolation ? style.strokeWidth + 1 : style.strokeWidth,
                     strokeDasharray: style.dashArray,
                 },
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
-                    color: style.color,
+                    color: hasViolation ? '#ef4444' : style.color,
                 },
-                label: flow.label || flow.parameter,
-                labelStyle: { fill: '#9ca3af', fontSize: 10 },
-                labelBgStyle: { fill: '#1f2937', fillOpacity: 0.8 },
+                label,
+                labelStyle: { fill: hasViolation ? '#ef4444' : '#9ca3af', fontSize: 10 },
+                labelBgStyle: { fill: hasViolation ? '#7f1d1d' : '#1f2937', fillOpacity: 0.8 },
             };
         });
-    }, [blueprint.flows]);
+    }, [blueprint.flows, simulationVars, constraintViolations]);
 
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);

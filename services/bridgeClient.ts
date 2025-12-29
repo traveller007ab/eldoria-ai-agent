@@ -42,9 +42,12 @@ const isProduction = typeof window !== 'undefined' &&
 let cachedBridgeUrl: string | null = null;
 
 export async function getBridgeUrl(): Promise<string> {
-    if (cachedBridgeUrl) return cachedBridgeUrl;
+    if (cachedBridgeUrl) {
+        console.log('[BRIDGE] Using cached URL:', cachedBridgeUrl);
+        return cachedBridgeUrl;
+    }
 
-    // 1. Env Var Override (Simulates Production locally or sets Production Remote)
+    // 1. Env Var Override (Highest Priority - Works in Netlify/Vercel)
     const envUrl = (import.meta as any).env?.VITE_API_URL;
     if (envUrl && envUrl.trim() !== '') {
         console.log('[BRIDGE] Using configured VITE_API_URL:', envUrl);
@@ -52,8 +55,9 @@ export async function getBridgeUrl(): Promise<string> {
         return cachedBridgeUrl;
     }
 
-    // 2. Production Environment (Netlify) - Default Fallback
+    // 2. Production Environment (Netlify/Vercel) - Default Fallback
     if (isProduction) {
+        console.log('[BRIDGE] Production detected, using default Railway URL');
         cachedBridgeUrl = 'https://eldoria-ai-agent-production.up.railway.app';
         return cachedBridgeUrl;
     }
@@ -63,6 +67,7 @@ export async function getBridgeUrl(): Promise<string> {
         try {
             const port = await window.eldoriaDesktop.getBridgePort();
             cachedBridgeUrl = `http://localhost:${port}`;
+            console.log('[BRIDGE] Using Electron port:', cachedBridgeUrl);
             return cachedBridgeUrl;
         } catch (e) {
             console.warn('[BRIDGE] Failed to get dynamic port, falling back to default:', e);
@@ -70,6 +75,7 @@ export async function getBridgeUrl(): Promise<string> {
     }
 
     // 4. Local Development Default
+    console.log('[BRIDGE] Using local default:', DEFAULT_BRIDGE_URL);
     return DEFAULT_BRIDGE_URL;
 }
 
@@ -256,16 +262,33 @@ export const bridgeClient = {
     checkBridgeHealth: async (): Promise<boolean> => {
         try {
             const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), 5000);
+            const id = setTimeout(() => controller.abort(), 10000); // Increased timeout for Railway
 
             const url = await getBridgeUrl();
+            console.log('[BRIDGE] Health check URL:', url);
+            
             const response = await fetch(`${url}/health`, {
-                signal: controller.signal
+                signal: controller.signal,
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+                mode: 'cors', // Explicit CORS mode
             });
+            
             clearTimeout(id);
-            return response.ok;
+            
+            if (!response.ok) {
+                console.warn('[BRIDGE] Health check failed:', response.status, response.statusText);
+                return false;
+            }
+            
+            const data = await response.json();
+            console.log('[BRIDGE] Health check OK:', data);
+            return true;
 
-        } catch (e) {
+        } catch (e: any) {
+            console.error('[BRIDGE] Health check error:', e.message, e.name);
             return false;
         }
     },
@@ -338,5 +361,10 @@ export const bridgeClient = {
             console.error('Genesis Simulation failed:', e);
             throw e;
         }
+    },
+
+    // Debug helper to see what URL is being used
+    getCurrentBridgeUrl: async (): Promise<string> => {
+        return await getBridgeUrl();
     }
 };
