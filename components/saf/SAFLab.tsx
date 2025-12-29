@@ -200,7 +200,8 @@ export const SAFLab: React.FC = () => {
                     parameters: c.parameters?.reduce((acc: any, p) => {
                         acc[p.name] = p.value;
                         return acc;
-                    }, {}) || {}
+                    }, {}) || {},
+                    equations: c.equations || []
                 })),
                 connections: workbenchState.activeBlueprint.flows.map(f => ({
                     id: f.id,
@@ -215,9 +216,22 @@ export const SAFLab: React.FC = () => {
             const result = await bridgeClient.genesisSimulate(payload);
 
             if (result.success) {
-                alert(`Simulation Converged!\nIterations: ${result.iterations}\nError: ${result.error}\n\nCheck console for full variable map.`);
                 console.log("SIMULATION RESULTS:", result.system_vars);
-                // TODO: Update visualization state with result.system_vars
+                setWorkbenchState(prev => {
+                    if (!prev.activeBlueprint) return prev;
+                    return {
+                        ...prev,
+                        activeBlueprint: {
+                            ...prev.activeBlueprint,
+                            last_simulation: {
+                                timestamp: new Date().toISOString(),
+                                system_vars: result.system_vars || {},
+                                logs: result.logs || []
+                            },
+                            updated_at: new Date().toISOString(),
+                        }
+                    };
+                });
             } else {
                 alert(`Simulation Diverged.\nError: ${result.error}\nLogs: ${result.logs.join('\n')}`);
             }
@@ -225,6 +239,97 @@ export const SAFLab: React.FC = () => {
         } catch (e: any) {
             console.error("Simulation Error:", e);
             alert(`Simulation Error: ${e.message}. Is the Python Bridge running?`);
+        } finally {
+            setIsExecutingLibraryPrompt(false);
+        }
+    };
+
+    // Very simple sweep: uses the first numeric parameter of the first component
+    const handleQuickSweep = async () => {
+        const blueprint = workbenchState.activeBlueprint;
+        if (!blueprint || blueprint.components.length === 0) return;
+        const comp = blueprint.components[0];
+        const param = (comp.parameters || []).find(p => typeof p.value === 'number');
+        if (!param) {
+            alert('No numeric parameters found for sweep.');
+            return;
+        }
+        const base = param.value as number;
+        const min = base * 0.5;
+        const max = base * 1.5;
+        const steps = 5;
+        const stepSize = (max - min) / (steps - 1);
+
+        setIsExecutingLibraryPrompt(true);
+        const points: { value: number; system_vars: Record<string, number> }[] = [];
+
+        try {
+            for (let i = 0; i < steps; i++) {
+                const value = min + stepSize * i;
+                // Clone components and apply swept value
+                const sweptComponents = blueprint.components.map(c => {
+                    if (c.id !== comp.id) return c;
+                    const newParams = (c.parameters || []).map(p =>
+                        p.name === param.name ? { ...p, value } : p
+                    );
+                    return { ...c, parameters: newParams };
+                });
+
+                const payload = {
+                    project_name: `${blueprint.project_name} [Sweep]`,
+                    components: sweptComponents.map(c => ({
+                        id: c.id,
+                        type: c.type || 'generic',
+                        label: c.name,
+                        parameters: c.parameters?.reduce((acc: any, p) => {
+                            acc[p.name] = p.value;
+                            return acc;
+                        }, {}) || {},
+                        equations: c.equations || [],
+                    })),
+                    connections: blueprint.flows.map(f => ({
+                        id: f.id,
+                        source: f.from,
+                        target: f.to,
+                        type: f.type,
+                    })),
+                    solver_config: { method: 'hybr', tolerance: 1e-6 },
+                };
+
+                const result = await bridgeClient.genesisSimulate(payload);
+                if (result.success) {
+                    points.push({
+                        value,
+                        system_vars: result.system_vars || {},
+                    });
+                }
+            }
+
+            setWorkbenchState(prev => {
+                if (!prev.activeBlueprint) return prev;
+                const sweeps = prev.activeBlueprint.sweeps || [];
+                return {
+                    ...prev,
+                    activeBlueprint: {
+                        ...prev.activeBlueprint,
+                        sweeps: [
+                            ...sweeps,
+                            {
+                                parameterPath: `${comp.id}.${param.name}`,
+                                min,
+                                max,
+                                steps,
+                                points,
+                                timestamp: new Date().toISOString(),
+                            },
+                        ],
+                        updated_at: new Date().toISOString(),
+                    },
+                };
+            });
+        } catch (e: any) {
+            console.error('Sweep Error:', e);
+            alert(`Sweep Error: ${e.message}`);
         } finally {
             setIsExecutingLibraryPrompt(false);
         }
@@ -330,6 +435,69 @@ export const SAFLab: React.FC = () => {
         });
     }, []);
 
+    // Update equations for a component (used by SAFParameterEditor)
+    const handleEquationsChange = useCallback((componentId: string, equations: string[]) => {
+        setWorkbenchState(prev => {
+            if (!prev.activeBlueprint) return prev;
+
+            const updatedComponents = prev.activeBlueprint.components.map(comp => {
+                if (comp.id !== componentId) return comp;
+                return { ...comp, equations };
+            });
+
+            return {
+                ...prev,
+                activeBlueprint: {
+                    ...prev.activeBlueprint,
+                    components: updatedComponents,
+                    updated_at: new Date().toISOString(),
+                }
+            };
+        });
+    }, []);
+
+    // Save current configuration as a scenario
+    const handleSaveScenario = useCallback(() => {
+        const name = window.prompt('Scenario name?');
+        if (!name) return;
+        setWorkbenchState(prev => {
+            if (!prev.activeBlueprint) return prev;
+            const existing = prev.activeBlueprint.scenarios || [];
+            const snapshot = {
+                id: crypto.randomUUID(),
+                name,
+                components: prev.activeBlueprint.components,
+                flows: prev.activeBlueprint.flows,
+            };
+            return {
+                ...prev,
+                activeBlueprint: {
+                    ...prev.activeBlueprint,
+                    scenarios: [...existing, snapshot],
+                    updated_at: new Date().toISOString(),
+                },
+            };
+        });
+    }, []);
+
+    // Apply a saved scenario
+    const handleLoadScenario = useCallback((scenarioId: string) => {
+        setWorkbenchState(prev => {
+            if (!prev.activeBlueprint || !prev.activeBlueprint.scenarios) return prev;
+            const scenario = prev.activeBlueprint.scenarios.find(s => s.id === scenarioId);
+            if (!scenario) return prev;
+            return {
+                ...prev,
+                activeBlueprint: {
+                    ...prev.activeBlueprint,
+                    components: scenario.components,
+                    flows: scenario.flows,
+                    updated_at: new Date().toISOString(),
+                },
+            };
+        });
+    }, []);
+
     // Get currently selected component
     const selectedComponent = workbenchState.activeBlueprint?.components.find(
         c => c.id === workbenchState.selectedNodeId
@@ -381,6 +549,36 @@ export const SAFLab: React.FC = () => {
                                 </span>
                             )}
                         </button>
+
+                        {/* Simple Scenario & Sweep Controls */}
+                        <div className="flex items-center gap-2">
+                            <select
+                                className="bg-black/40 border border-cyan-900/40 rounded px-2 py-1 text-[10px] text-cyan-300"
+                                value=""
+                                onChange={(e) => {
+                                    const id = e.target.value;
+                                    if (id) handleLoadScenario(id);
+                                }}
+                            >
+                                <option value="">Scenarios</option>
+                                {(workbenchState.activeBlueprint.scenarios || []).map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                            <button
+                                onClick={handleSaveScenario}
+                                className="px-2 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded text-[10px] font-bold uppercase tracking-wider border border-cyan-500/30"
+                            >
+                                Save
+                            </button>
+                            <button
+                                onClick={handleQuickSweep}
+                                className="px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/40"
+                                title="Quick sweep on first numeric parameter"
+                            >
+                                Sweep
+                            </button>
+                        </div>
 
                         <button
                             onClick={() => setShowOutputPanel(!showOutputPanel)}
@@ -661,6 +859,7 @@ export const SAFLab: React.FC = () => {
                                             <SAFParameterEditor
                                                 component={selectedComponent}
                                                 onParameterChange={handleParameterChange}
+                                                onEquationsChange={handleEquationsChange}
                                             />
                                         </div>
 

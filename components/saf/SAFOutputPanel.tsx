@@ -15,7 +15,7 @@ interface SAFOutputPanelProps {
     onClose: () => void;
 }
 
-type OutputTab = 'diagram' | 'code' | 'thesis';
+type OutputTab = 'diagram' | 'code' | 'thesis' | 'simulation';
 
 const FONT_FAMILIES: Record<string, string> = {
     inter: "'Inter', -apple-system, sans-serif",
@@ -77,9 +77,31 @@ export const SAFOutputPanel: React.FC<SAFOutputPanelProps> = ({
     const typeScriptCode = useMemo(() => blueprintToTypeScript(blueprint), [blueprint]);
     const thesisMarkdown = useMemo(() => blueprintToThesisSection(blueprint), [blueprint]);
 
-    const currentOutput = activeTab === 'diagram' ? mermaidCode
-        : activeTab === 'code' ? typeScriptCode
-            : thesisMarkdown;
+    const simulationText = useMemo(() => {
+        if (!blueprint.last_simulation) {
+            return 'No simulation results yet. Run the Genesis Engine from SAF Lab.';
+        }
+        const { system_vars, logs, timestamp } = blueprint.last_simulation;
+        const varsText = Object.entries(system_vars || {})
+            .map(([k, v]) => `${k}: ${v}`)
+            .join('\n');
+        const logsText = (logs || []).join('\n');
+        return [
+            `Timestamp: ${timestamp}`,
+            '',
+            'System Variables:',
+            varsText || '(none)',
+            '',
+            'Logs:',
+            logsText || '(none)',
+        ].join('\n');
+    }, [blueprint.last_simulation]);
+
+    const currentOutput =
+        activeTab === 'diagram' ? mermaidCode
+            : activeTab === 'code' ? typeScriptCode
+                : activeTab === 'thesis' ? thesisMarkdown
+                    : simulationText;
 
     useEffect(() => {
         if (mermaidRef.current) {
@@ -105,7 +127,10 @@ export const SAFOutputPanel: React.FC<SAFOutputPanelProps> = ({
     };
 
     const handleDownload = () => {
-        const extension = activeTab === 'diagram' ? 'mmd' : activeTab === 'code' ? 'ts' : 'md';
+        const extension =
+            activeTab === 'diagram' ? 'mmd' :
+                activeTab === 'code' ? 'ts' :
+                    activeTab === 'thesis' ? 'md' : 'txt';
         const filename = `${blueprint.project_name.replace(/\s+/g, '_').toLowerCase()}_${activeTab}.${extension}`;
         const blob = new Blob([currentOutput], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -275,6 +300,7 @@ export const SAFOutputPanel: React.FC<SAFOutputPanelProps> = ({
         { id: 'diagram', label: 'Diagram', icon: <GitBranch className="w-4 h-4" /> },
         { id: 'code', label: 'Code', icon: <FileCode2 className="w-4 h-4" /> },
         { id: 'thesis', label: 'Thesis', icon: <FileText className="w-4 h-4" /> },
+        { id: 'simulation', label: 'Simulation', icon: <Eye className="w-4 h-4" /> },
     ];
 
     return (
@@ -334,6 +360,7 @@ export const SAFOutputPanel: React.FC<SAFOutputPanelProps> = ({
                             {activeTab === 'diagram' && (showVisual ? 'Visual Diagram • Click Code to copy' : 'Mermaid Code • Paste into mermaid.live')}
                             {activeTab === 'code' && 'TypeScript • Scaffold for your codebase'}
                             {activeTab === 'thesis' && 'Markdown • Academic thesis section'}
+                            {activeTab === 'simulation' && 'Simulation variables & logs from Genesis Engine'}
                         </span>
                         {activeTab === 'diagram' && (
                             <button

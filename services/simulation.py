@@ -164,13 +164,35 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
         # If the user/AI provided raw extraction equations, use them!
         for eq_str in comp.equations:
             try:
-                # Replace local placeholders with actual symbols
-                # e.g. "P_out = P_in" -> "c2_P = c1_P"
-                # This needs a sophisticated parser mapping "inlets" and "outlets"
-                # For now, we assume global variable names were used or skip.
-                pass 
+                raw = eq_str.strip()
+                if not raw:
+                    continue
+
+                # Support "lhs = rhs" or single-expression form "expr" (meaning expr = 0)
+                if "=" in raw:
+                    lhs_str, rhs_str = raw.split("=", 1)
+                    lhs_str = lhs_str.strip()
+                    rhs_str = rhs_str.strip()
+                else:
+                    lhs_str = raw
+                    rhs_str = "0"
+
+                # Replace flow-style tokens like "f1.P" with the registered symbols
+                def replace_token(token: str) -> str:
+                    token = token.strip()
+                    return token
+
+                # We rely on the symbol_map to resolve patterns like "f1.P"
+                local_dict = { key: sym for key, sym in symbol_map.items() }
+                local_dict.update({ k: v for k, v in req.global_constants.items() })
+
+                lhs_expr = parse_expr(lhs_str, local_dict=local_dict)
+                rhs_expr = parse_expr(rhs_str, local_dict=local_dict)
+
+                equations.append(Eq(lhs_expr, rhs_expr))
+                logs.append(f"Custom Eq added for {comp.label}: {eq_str}")
             except Exception as e:
-                logs.append(f"Failed to parse custom eq: {eq_str}")
+                logs.append(f"Failed to parse custom eq for {comp.label}: {eq_str} -> {e}")
 
     return equations, list(conn_vars.values()), logs
 

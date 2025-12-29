@@ -43,6 +43,12 @@ export interface DeepSAFComponent {
     // Calculated outputs
     outputs?: SAFOutput[];
 
+    // Optional custom symbolic equations for this component.
+    // These are forwarded to the Genesis simulation kernel and can reference
+    // connection/state variables like "<flow_id>.P", "<flow_id>.T", "<flow_id>.m"
+    // as well as global constants from the simulation request.
+    equations?: string[];
+
     // Dependencies on other components
     dependencies: string[];
 
@@ -104,6 +110,33 @@ export interface SAFHistoryEntry {
 // MAIN BLUEPRINT
 // ============================================
 
+export interface DeepSAFSimulationSnapshot {
+    timestamp: string;
+    system_vars: Record<string, number>;
+    logs: string[];
+}
+
+export interface SAFScenario {
+    id: string;
+    name: string;
+    components: DeepSAFComponent[];
+    flows: DeepSAFFlow[];
+}
+
+export interface SAFSweepPoint {
+    value: number;
+    system_vars: Record<string, number>;
+}
+
+export interface SAFSweepResult {
+    parameterPath: string; // e.g. "boiler.Heat Input"
+    min: number;
+    max: number;
+    steps: number;
+    points: SAFSweepPoint[];
+    timestamp: string;
+}
+
 export interface DeepSAFBlueprint {
     project_name: string;
     version: string;
@@ -117,6 +150,15 @@ export interface DeepSAFBlueprint {
 
     // Change history for undo/redo
     history?: SAFHistoryEntry[];
+
+    // Last simulation snapshot from Genesis Engine
+    last_simulation?: DeepSAFSimulationSnapshot;
+
+    // Saved operating scenarios
+    scenarios?: SAFScenario[];
+
+    // Stored sweep runs
+    sweeps?: SAFSweepResult[];
 
     // Metadata
     description?: string;

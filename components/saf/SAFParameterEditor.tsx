@@ -10,12 +10,18 @@ import { Sliders, ChevronDown, ChevronUp, Zap, AlertTriangle, Info } from 'lucid
 interface SAFParameterEditorProps {
     component: DeepSAFComponent;
     onParameterChange: (componentId: string, paramName: string, newValue: number | string) => void;
+    /**
+     * Optional callback to update the component's custom equations. Equations are
+     * provided as an array of raw SymPy/Python expressions or "lhs = rhs" strings.
+     */
+    onEquationsChange?: (componentId: string, equations: string[]) => void;
     onClose?: () => void;
 }
 
 export const SAFParameterEditor: React.FC<SAFParameterEditorProps> = ({
     component,
     onParameterChange,
+    onEquationsChange,
     onClose,
 }) => {
     const [expandedSections, setExpandedSections] = useState<string[]>(['parameters', 'outputs']);
@@ -124,6 +130,47 @@ export const SAFParameterEditor: React.FC<SAFParameterEditorProps> = ({
                             {component.outputs.map((output) => (
                                 <OutputDisplay key={output.name} output={output} />
                             ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Custom Equations Section (optional) */}
+            {onEquationsChange && (
+                <div className="border-b border-cyan-900/10">
+                    <button
+                        onClick={() => toggleSection('equations')}
+                        className="w-full px-4 py-2 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
+                    >
+                        <span className="text-sm font-bold text-amber-400 uppercase tracking-wider">
+                            Equations {component.equations && component.equations.length > 0 ? `(${component.equations.length})` : ''}
+                        </span>
+                        {expandedSections.includes('equations') ? (
+                            <ChevronUp className="w-4 h-4 text-gray-500" />
+                        ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-500" />
+                        )}
+                    </button>
+
+                    {expandedSections.includes('equations') && (
+                        <div className="px-4 pb-4 space-y-2">
+                            <p className="text-[11px] text-gray-500">
+                                Define custom symbolic equations for this component. Use SymPy syntax and
+                                reference connection variables like <code className="text-cyan-400">f1.P</code>,{' '}
+                                <code className="text-cyan-400">f1.T</code>, <code className="text-cyan-400">f1.m</code>, and parameters by name.
+                            </p>
+                            <textarea
+                                className="w-full h-32 bg-black/40 border border-amber-900/40 rounded-lg p-2 text-[11px] font-mono text-amber-100 focus:outline-none focus:border-amber-400 resize-none"
+                                placeholder="Example:&#10;f2.P = f1.P - k * f1.m**2&#10;f2.T - 600"
+                                value={(component.equations || []).join('\n')}
+                                onChange={(e) => {
+                                    const lines = e.target.value
+                                        .split('\n')
+                                        .map(l => l.trim())
+                                        .filter(l => l.length > 0);
+                                    onEquationsChange(component.id, lines);
+                                }}
+                            />
                         </div>
                     )}
                 </div>
