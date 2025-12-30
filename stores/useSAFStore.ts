@@ -25,6 +25,7 @@ export interface SAFState {
 
     // Actions
     loadBlueprint: (bp: DeepSAFBlueprint) => void;
+    closeBlueprint: () => void;
     addNode: (type: 'core' | 'subcore' | 'micro', position: { x: number; y: number }) => void;
     updateNodePosition: (id: string, position: { x: number; y: number }) => void;
     selectNode: (id: string | null) => void;
@@ -32,6 +33,8 @@ export interface SAFState {
     // The "Physics Language Server" Logic
     connectNodes: (sourceId: string, targetId: string) => boolean; // Returns false if invalid
     runPhysicsValidation: () => void;
+    updateParameter: (id: string, paramName: string, value: string | number) => void;
+    runSimulation: () => Promise<void>;
 }
 
 // ============================================
@@ -46,6 +49,7 @@ export const useSAFStore = create<SAFState>((set, get) => ({
     activePanel: 'properties',
 
     loadBlueprint: (bp) => set({ blueprint: bp, validationIssues: [] }),
+    closeBlueprint: () => set({ blueprint: null, validationIssues: [], selectedId: null, isSimulationRunning: false }),
 
     addNode: (type, position) => {
         set((state) => {
