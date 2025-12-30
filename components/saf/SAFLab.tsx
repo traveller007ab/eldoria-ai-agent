@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { DeepSAFBlueprint, SAFWorkbenchState, DeepSAFComponent } from './types';
 import { SAFNodeGraph } from './SAFNodeGraph';
@@ -41,6 +41,42 @@ export const SAFLab: React.FC = () => {
         isCalculating: false,
         lastEffects: null,
     });
+
+    const [isRestoring, setIsRestoring] = useState(true);
+
+    // PERSISTENCE: Load from localStorage on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('saf_autosave_v1');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && parsed.project_name) {
+                    setWorkbenchState(prev => ({
+                        ...prev,
+                        activeBlueprint: parsed
+                    }));
+                    console.log("Session Restored from Autosave");
+                }
+            }
+        } catch (e) {
+            console.error("Failed to restore session", e);
+        } finally {
+            setIsRestoring(false);
+        }
+    }, []);
+
+    // PERSISTENCE: Save to localStorage on change (Debounced 1s)
+    useEffect(() => {
+        if (isRestoring) return;
+
+        const timeout = setTimeout(() => {
+            if (workbenchState.activeBlueprint) {
+                localStorage.setItem('saf_autosave_v1', JSON.stringify(workbenchState.activeBlueprint));
+            }
+        }, 1000);
+
+        return () => clearTimeout(timeout);
+    }, [workbenchState.activeBlueprint, isRestoring]);
 
     // UI state for panels
     const [showOutputPanel, setShowOutputPanel] = useState(false);
@@ -571,7 +607,7 @@ export const SAFLab: React.FC = () => {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             description: blueprint.description,
-            thumbnail: undefined,
+
             research_notes: undefined
         };
 
@@ -583,6 +619,20 @@ export const SAFLab: React.FC = () => {
             isCalculating: false,
             lastEffects: null
         });
+    }, []);
+
+    // Explicit Reset: Clear local storage and state
+    const handleResetWorkbench = useCallback(() => {
+        localStorage.removeItem('saf_autosave_v1');
+        setWorkbenchState({
+            activeBlueprint: null,
+            selectedNodeId: null,
+            expandedNodes: [],
+            breadcrumbs: [],
+            isCalculating: false,
+            lastEffects: null,
+        });
+        console.log("Session Reset & Storage Cleared");
     }, []);
 
     // Get currently selected component
@@ -617,6 +667,13 @@ export const SAFLab: React.FC = () => {
 
                 {workbenchState.activeBlueprint && (
                     <div className="flex items-center gap-3 text-xs">
+                        <button
+                            onClick={handleResetWorkbench}
+                            className="p-2 rounded-lg hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors mr-2"
+                            title="Reset Workbench & Clear Session"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                        </button>
                         <span className="px-2 py-1 bg-cyan-500/10 text-cyan-500/60 rounded uppercase">
                             {workbenchState.activeBlueprint.domain}
                         </span>
