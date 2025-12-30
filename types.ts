@@ -209,6 +209,7 @@ export interface AcademicProject {
   references: Reference[];
   resources: (string | AcademicResource)[]; // List of file paths or rich resource objects
   extractedEquations?: ExtractedEquation[]; // Genesis Engine extracted physics
+  saf_blueprint?: any; // DeepSAFBlueprint (linked dynamically)
 }
 
 // Genesis Engine: Extracted Physics Equations

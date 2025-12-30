@@ -114,6 +114,13 @@ export class ThesisGenerator {
         Methodology Data: ${wizard.methodology.results_data}
         References Available: ${project.references?.length || 0}
         
+        DOMAIN CONTEXT:
+        The Engineering Domain is: ${project.saf_blueprint?.domain || 'General Engineering'}
+        Please ensure all terminology matches this domain.
+        - If Electrical: Discuss Voltage, Impedance, Grid Topology, Load Balancing.
+        - If Mechanical: Discuss Thermodynamics, Mass Flow, Energy Conservation.
+        - If Chemical: Discuss Stoichiometry, Reaction Rates, Equilibrium.
+        
         PREVIOUS CHAPTER CONTEXT:
         ${context}
         

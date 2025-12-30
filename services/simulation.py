@@ -83,6 +83,15 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
     equations = []
     symbol_map = {} # "comp_id.param" -> Symbol object
     
+    # 1. Detect Domain Logic
+    domain = "fluid" # Default
+    if req.components:
+        first_type = req.components[0].type.lower()
+        if any(x in first_type for x in ["resistor", "battery", "diode", "grid", "transformer", "sensor"]):
+            domain = "electrical"
+    
+    logs.append(f"Genesis Engine: Detected domain mode '{domain}'")
+    
     # 1. Register Variables (Parameters & Connections)
     # Each component parameter is a known or unknown
     # Each connection implies shared variables (flow, pressure, temp)
@@ -97,18 +106,27 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
     # BUT implemented symbolically so it's extensible.
     
     # Define connection variables
-    conn_vars = {} # conn_id -> { P: Symbol, T: Symbol, m: Symbol }
+    conn_vars = {} # conn_id -> { vars... }
     
     for conn in req.connections:
-        p_sym = symbols(f"{conn.id}_P")
-        t_sym = symbols(f"{conn.id}_T")
-        m_sym = symbols(f"{conn.id}_m")
-        conn_vars[conn.id] = { "P": p_sym, "T": t_sym, "m": m_sym }
-        
-        # Add to global symbol map for parsing
-        symbol_map[f"{conn.id}.P"] = p_sym
-        symbol_map[f"{conn.id}.T"] = t_sym
-        symbol_map[f"{conn.id}.m"] = m_sym
+        if domain == "electrical":
+            v_in_sym = symbols(f"{conn.id}_Vin")
+            v_out_sym = symbols(f"{conn.id}_Vout")
+            i_sym = symbols(f"{conn.id}_I")
+            conn_vars[conn.id] = { "Vin": v_in_sym, "Vout": v_out_sym, "I": i_sym }
+            
+            symbol_map[f"{conn.id}.Vin"] = v_in_sym
+            symbol_map[f"{conn.id}.Vout"] = v_out_sym
+            symbol_map[f"{conn.id}.I"] = i_sym
+        else:
+            p_sym = symbols(f"{conn.id}_P")
+            t_sym = symbols(f"{conn.id}_T")
+            m_sym = symbols(f"{conn.id}_m")
+            conn_vars[conn.id] = { "P": p_sym, "T": t_sym, "m": m_sym }
+            
+            symbol_map[f"{conn.id}.P"] = p_sym
+            symbol_map[f"{conn.id}.T"] = t_sym
+            symbol_map[f"{conn.id}.m"] = m_sym
 
     # 2. Build Component Equations (Nodes)
     # Nodes constrain the connections attached to them.
@@ -121,74 +139,86 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
         inputs = get_inputs(comp.id)
         outputs = get_outputs(comp.id)
         params = comp.parameters
-        
-        # --- Generic Mass Balance (Conservation of Mass) ---
-        if inputs and outputs:
-            # sum(m_in) = sum(m_out)
-            m_in = sum([conn_vars[c.id]["m"] for c in inputs])
-            m_out = sum([conn_vars[c.id]["m"] for c in outputs])
-            equations.append(Eq(m_in, m_out))
-            logs.append(f"Eq: Mass Balance for {comp.label}")
-
-        # --- Component Specific Physics (The "Library") ---
-        # In the future, these strings come from the extracted Research PDF!
-        
         c_type = comp.type.lower()
         
-        if "source" in c_type:
-            # Source sets the boundary conditions
-            for out in outputs:
-                # Apply unit normalization (e.g., bar -> Pa, degC -> K)
-                p_set = normalize_units(
-                    params.get("pressure", 100),
-                    params.get("pressure_unit", "bar"),
-                    "Pa"
-                ) / 1e5  # Scale back to bar for internal consistency
-                t_set = normalize_units(
-                    params.get("temperature", 500),
-                    params.get("temperature_unit", "K"),
-                    "K"
-                )
-                m_set = normalize_units(
-                    params.get("flow_rate", 10),
-                    params.get("flow_rate_unit", "kg/s"),
-                    "kg/s"
-                )
-                
-                equations.append(Eq(conn_vars[out.id]["P"], p_set))
-                equations.append(Eq(conn_vars[out.id]["T"], t_set))
-                equations.append(Eq(conn_vars[out.id]["m"], m_set)) # Fixed flow source
-        
-        elif "pipe" in c_type or "connector" in c_type:
-            # Pressure drop
-            for i, o in zip(inputs, outputs):
-                # P_out = P_in - k * m^2 (Darcy-Weisbach approx)
-                k = 0.1 # Friction factor
-                equations.append(Eq(conn_vars[o.id]["P"], conn_vars[i.id]["P"] - k)) # Simplified
-                equations.append(Eq(conn_vars[o.id]["T"], conn_vars[i.id]["T"])) # Adiabatic
-        
-        elif "turbine" in c_type:
-            # Work extraction: Isentropic expansion (simplified)
-            # P_out = P_in / ratio
-            ratio = params.get("expansion_ratio", 2.0)
-            eff = params.get("efficiency", 0.9)
+        if domain == "electrical":
+            # --- Electrical Domain Physics ---
             
-            for i, o in zip(inputs, outputs):
-                equations.append(Eq(conn_vars[o.id]["P"], conn_vars[i.id]["P"] / ratio))
-                # T_out drops due to work
-                equations.append(Eq(conn_vars[o.id]["T"], conn_vars[i.id]["T"] * 0.8)) 
+            # KCL: Currents
+            if inputs or outputs:
+                i_in = sum([conn_vars[c.id]["I"] for c in inputs]) if inputs else 0
+                i_out = sum([conn_vars[c.id]["I"] for c in outputs]) if outputs else 0
+                equations.append(Eq(i_in, i_out))
 
-        elif "boiler" in c_type or "heater" in c_type:
-            # Isobaric heating (approx)
-            target_t = params.get("target_temp", 600)
-            for i, o in zip(inputs, outputs):
-                equations.append(Eq(conn_vars[o.id]["P"], conn_vars[i.id]["P"])) # No pressure loss ideal
-                equations.append(Eq(conn_vars[o.id]["T"], target_t))
+            # Internal Components
+            if "resistor" in c_type:
+                r = params.get("resistance", 100)
+                if inputs and outputs:
+                    v_node_in = conn_vars[inputs[0].id]["Vout"] 
+                    v_node_out = conn_vars[outputs[0].id]["Vin"]
+                    current = conn_vars[inputs[0].id]["I"] 
+                    equations.append(Eq(v_node_in - v_node_out, current * r))
 
-        elif "condenser" in c_type or "sink" in c_type:
-            # Sets low pressure/temp point
-            for i in inputs:
-                # Just absorbing, effectively a boundary
+            elif "battery" in c_type or "source" in c_type:
+                v_s = params.get("voltage", 12)
+                if outputs:
+                   # Simplest Source
+                   if not inputs: # Reference node
+                       v_node_out = conn_vars[outputs[0].id]["Vin"]
+                       equations.append(Eq(v_node_out, v_s))
+                   else: # Floating source
+                       v_node_in = conn_vars[inputs[0].id]["Vout"]
+                       v_node_out = conn_vars[outputs[0].id]["Vin"]
+                       equations.append(Eq(v_node_out - v_node_in, v_s))
+            
+            elif "ground" in c_type:
+                if inputs:
+                    v_node_in = conn_vars[inputs[0].id]["Vout"]
+                    equations.append(Eq(v_node_in, 0))
+
+            elif "junction" in c_type or "node" in c_type:
+                node_v_sym = symbols(f"{comp.id}_V")
+                for i in inputs: equations.append(Eq(conn_vars[i.id]["Vout"], node_v_sym))
+                for o in outputs: equations.append(Eq(conn_vars[o.id]["Vin"], node_v_sym))
+
+        else:
+            # --- Fluid/Thermal Domain Physics (Original) ---
+            
+            # Mass Balance
+            if inputs and outputs:
+                m_in = sum([conn_vars[c.id]["m"] for c in inputs])
+                m_out = sum([conn_vars[c.id]["m"] for c in outputs])
+                equations.append(Eq(m_in, m_out))
+                logs.append(f"Eq: Mass Balance for {comp.label}")
+
+            if "source" in c_type:
+                for out in outputs:
+                    p_set = normalize_units(params.get("pressure", 100), params.get("pressure_unit", "bar"), "Pa") / 1e5
+                    t_set = normalize_units(params.get("temperature", 500), params.get("temperature_unit", "K"), "K")
+                    m_set = normalize_units(params.get("flow_rate", 10), params.get("flow_rate_unit", "kg/s"), "kg/s")
+                    equations.append(Eq(conn_vars[out.id]["P"], p_set))
+                    equations.append(Eq(conn_vars[out.id]["T"], t_set))
+                    equations.append(Eq(conn_vars[out.id]["m"], m_set))
+            
+            elif "pipe" in c_type or "connector" in c_type:
+                for i, o in zip(inputs, outputs):
+                    k = 0.1 
+                    equations.append(Eq(conn_vars[o.id]["P"], conn_vars[i.id]["P"] - k))
+                    equations.append(Eq(conn_vars[o.id]["T"], conn_vars[i.id]["T"]))
+            
+            elif "turbine" in c_type:
+                ratio = params.get("expansion_ratio", 2.0)
+                for i, o in zip(inputs, outputs):
+                    equations.append(Eq(conn_vars[o.id]["P"], conn_vars[i.id]["P"] / ratio))
+                    equations.append(Eq(conn_vars[o.id]["T"], conn_vars[i.id]["T"] * 0.8)) 
+
+            elif "boiler" in c_type or "heater" in c_type:
+                target_t = params.get("target_temp", 600)
+                for i, o in zip(inputs, outputs):
+                    equations.append(Eq(conn_vars[o.id]["P"], conn_vars[i.id]["P"]))
+                    equations.append(Eq(conn_vars[o.id]["T"], target_t))
+
+            elif "condenser" in c_type or "sink" in c_type:
                 pass
                 
         # --- Custom Equations (The "Genesis" Feature) ---
