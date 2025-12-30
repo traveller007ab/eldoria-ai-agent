@@ -11,10 +11,12 @@ import ReactFlow, {
     NodeTypes,
     EdgeTypes,
     MarkerType,
+    Connection,
+    OnConnect,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES } from './types';
-import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle } from 'lucide-react';
+import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES, DeepSAFFlow } from './types';
+import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2 } from 'lucide-react';
 
 // ============================================
 // CUSTOM SAF NODE COMPONENT
@@ -189,27 +191,7 @@ const nodeTypes: NodeTypes = {
 // MAIN GRAPH COMPONENT
 // ============================================
 
-import React, { useCallback, useMemo } from 'react';
-import ReactFlow, {
-    Node,
-    Edge,
-    Controls,
-    MiniMap,
-    Background,
-    BackgroundVariant,
-    useNodesState,
-    useEdgesState,
-    NodeTypes,
-    EdgeTypes,
-    MarkerType,
-    Connection,
-    OnConnect,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES, DeepSAFFlow } from './types';
-import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2 } from 'lucide-react';
 
-// ... (SAFNode component remains the same) ...
 
 interface SAFNodeGraphProps {
     blueprint: DeepSAFBlueprint;
@@ -244,19 +226,53 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     onNodeDragStop,
     onAddNode
 }) => {
-    // ... (Memoized initialNodes and initialEdges logic remains the same, assuming they are robust) ...
+    // Convert Blueprint to React Flow Nodes
+    const initialNodes = useMemo(() => {
+        if (!blueprint?.components) return [];
+        return blueprint.components.map((comp) => ({
+            id: comp.id,
+            type: 'safNode',
+            position: comp.position || { x: 0, y: 0 },
+            data: {
+                component: comp,
+                isExpanded: expandedNodes.includes(comp.id),
+                isSelected: selectedNodeId === comp.id,
+                onToggleExpand,
+                simulationVars,
+                hasConstraintViolation: constraintViolations?.includes(comp.id)
+            },
+        }));
+    }, [blueprint, expandedNodes, selectedNodeId, onToggleExpand, simulationVars, constraintViolations]);
+
+    // Convert Blueprint Flows to React Flow Edges
+    const initialEdges = useMemo(() => {
+        if (!blueprint?.flows) return [];
+        return blueprint.flows.map((flow) => {
+            let style = FLOW_STYLES['material'];
+            if (flow.type && FLOW_STYLES[flow.type as keyof typeof FLOW_STYLES]) {
+                style = FLOW_STYLES[flow.type as keyof typeof FLOW_STYLES];
+            }
+            return {
+                id: flow.id,
+                source: flow.from,
+                target: flow.to,
+                animated: true,
+                style: { stroke: style.color, strokeWidth: style.width },
+                markerEnd: { type: MarkerType.ArrowClosed, color: style.color },
+                data: { flow },
+            };
+        });
+    }, [blueprint]);
 
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-    // Sync from props
+    // Sync when blueprint changes (AI update or external load)
     React.useEffect(() => {
         setNodes(initialNodes);
-    }, [initialNodes, setNodes]);
-
-    React.useEffect(() => {
         setEdges(initialEdges);
-    }, [initialEdges, setEdges]);
+    }, [initialNodes, initialEdges, setNodes, setEdges]);
+
 
     const handleConnect: OnConnect = useCallback((params) => {
         if (onConnect) onConnect(params);
