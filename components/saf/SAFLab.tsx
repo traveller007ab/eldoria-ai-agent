@@ -124,7 +124,7 @@ export const SAFLab: React.FC = () => {
                         {isSimulationRunning ? 'Solving...' : 'Run GenSim'}
                     </button>
 
-                    {validationIssues.length > 0 ? (
+                    {validationIssues?.length > 0 ? (
                         <div className="flex items-center gap-2 text-amber-500 text-xs px-2 py-1 bg-amber-500/10 rounded">
                             <AlertTriangle className="w-3 h-3" />
                             <span>{validationIssues.length} Physics Warnings</span>
@@ -204,7 +204,7 @@ export const SAFLab: React.FC = () => {
                     />
 
                     {/* Floating Validation Overlay (VS Code Problems style) */}
-                    {validationIssues.length > 0 && (
+                    {validationIssues?.length > 0 && (
                         <div className="absolute bottom-4 left-4 right-4 bg-black/80 border border-amber-500/30 rounded-lg p-3 backdrop-blur-md max-h-32 overflow-y-auto z-10">
                             <h4 className="text-[10px] font-bold text-amber-500 uppercase mb-2">Physics Violations</h4>
                             {validationIssues.map((issue, i) => (
