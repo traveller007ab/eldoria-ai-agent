@@ -4,6 +4,7 @@ import { DeepSAFBlueprint, SAFWorkbenchState, DeepSAFComponent } from './types';
 import { SAFNodeGraph } from './SAFNodeGraph';
 import { SAFGraphErrorBoundary } from './SAFGraphErrorBoundary';
 import { SAFParameterEditor } from './SAFParameterEditor';
+import { SAFComponentLibrary } from './SAFComponentLibrary';
 import { SAFAIExplainer } from './SAFAIExplainer';
 import { SAFBreadcrumbs } from './SAFBreadcrumbs';
 import { SAFOutputPanel } from './SAFOutputPanel';
@@ -566,6 +567,31 @@ export const SAFLab: React.FC = () => {
         });
     }, []);
 
+    // Add a single node (Library or Physics Wizard)
+    const handleAddNode = useCallback((type: 'core' | 'subcore' | 'micro', position?: { x: number; y: number }) => {
+        setWorkbenchState(prev => {
+            if (!prev.activeBlueprint) return prev;
+            const newComponent: DeepSAFComponent = {
+                id: `comp_${Date.now()}`,
+                name: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+                type,
+                position: position || { x: Math.random() * 400, y: Math.random() * 400 },
+                parameters: [],
+                outputs: [],
+                dependencies: []
+            };
+            return {
+                ...prev,
+                activeBlueprint: {
+                    ...prev.activeBlueprint,
+                    components: [...prev.activeBlueprint.components, newComponent],
+                    updated_at: new Date().toISOString(),
+                },
+                selectedNodeId: newComponent.id
+            };
+        });
+    }, []);
+
     // Handle adding components from physics wizard
     const handleAddComponents = useCallback((components: DeepSAFComponent[]) => {
         setWorkbenchState(prev => {
@@ -893,6 +919,8 @@ export const SAFLab: React.FC = () => {
                 workbenchState.activeBlueprint && (
                     // Workbench - Blueprint Loaded
                     <div className="flex-grow flex overflow-hidden">
+                        {/* LEFT: Component Library */}
+                        <SAFComponentLibrary onAddNode={handleAddNode} />
                         {/* Node Graph Area */}
                         <div className="flex-grow bg-gray-900/20 border-r border-cyan-900/20 relative">
                             <SAFGraphErrorBoundary onReset={handleNewBlueprint}>
