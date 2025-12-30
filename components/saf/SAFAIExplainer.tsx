@@ -40,7 +40,7 @@ export const SAFAIExplainer: React.FC<SAFAIExplainerProps> = ({
             ?.map(o => `${o.name}: ${o.value}${o.unit || ''}`)
             .join(', ') || 'None';
 
-        const depsStr = component.dependencies.length > 0
+        const depsStr = component.dependencies?.length > 0
             ? component.dependencies.join(', ')
             : 'None (root component)';
 
