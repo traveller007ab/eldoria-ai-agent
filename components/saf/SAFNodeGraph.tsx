@@ -248,21 +248,30 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     const initialEdges = useMemo(() => {
         if (!blueprint?.flows) return [];
         return blueprint.flows.map((flow) => {
-            let style = FLOW_STYLES['material'];
-            if (flow.type && FLOW_STYLES[flow.type as keyof typeof FLOW_STYLES]) {
-                style = FLOW_STYLES[flow.type as keyof typeof FLOW_STYLES];
-            }
+            const flowType = (flow.type && FLOW_STYLES[flow.type as keyof typeof FLOW_STYLES]) ? flow.type as keyof typeof FLOW_STYLES : 'material';
+            const baseStyle = FLOW_STYLES[flowType] || { color: '#999', strokeWidth: 1 };
+
+            // CHECK ACTIVE FLOW
+            // In our simple engine, flow is driven by the source's output or specific flow variable
+            // For now, heuristic: if source has output > 0, edge is active.
+            const flowVal = simulationVars?.[`${flow.from}.output`] ?? 0;
+            const isActive = flowVal > 0;
+
             return {
                 id: flow.id,
                 source: flow.from,
                 target: flow.to,
-                animated: true,
-                style: { stroke: style.color, strokeWidth: style.width },
-                markerEnd: { type: MarkerType.ArrowClosed, color: style.color },
-                data: { flow },
+                animated: isActive, // Only animate if flowing
+                style: {
+                    stroke: isActive ? baseStyle.color : '#555', // Dim inactive connections
+                    strokeWidth: isActive ? (baseStyle.strokeWidth || 2) + 1 : 1,
+                    opacity: isActive ? 1 : 0.4
+                },
+                markerEnd: { type: MarkerType.ArrowClosed, color: isActive ? baseStyle.color : '#555' },
+                data: { flow, value: flowVal },
             };
         });
-    }, [blueprint]);
+    }, [blueprint, simulationVars]); // Added simulationVars dependency
 
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);

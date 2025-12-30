@@ -25,7 +25,8 @@ export const SAFLab: React.FC = () => {
         runSimulation,
         isSimulationRunning,
         activePanel,
-        closeBlueprint
+        closeBlueprint,
+        addParameter,
     } = useSAFStore();
 
     // Local Panel State if not using store completely yet, but let's try to use store or local
@@ -200,7 +201,7 @@ export const SAFLab: React.FC = () => {
                         // Reuse existing styling props
                         expandedNodes={[]}
                         onToggleExpand={() => { }}
-                        constraintViolations={[]}
+                        constraintViolations={validationIssues.map(i => i.targetId)}
                     />
 
                     {/* Floating Validation Overlay (VS Code Problems style) */}
@@ -255,6 +256,7 @@ export const SAFLab: React.FC = () => {
                                 <SAFParameterEditor
                                     component={selectedComponent}
                                     onParameterChange={handleParameterChange}
+                                    onAddParameter={(id, p) => addParameter(id, p)}
                                 />
                             ) : (
                                 <SAFAIExplainer

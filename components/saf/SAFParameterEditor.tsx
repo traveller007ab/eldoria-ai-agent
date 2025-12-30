@@ -15,6 +15,7 @@ interface SAFParameterEditorProps {
      * provided as an array of raw SymPy/Python expressions or "lhs = rhs" strings.
      */
     onEquationsChange?: (componentId: string, equations: string[]) => void;
+    onAddParameter?: (componentId: string, param: { name: string; value: string | number; unit?: string }) => void;
     onClose?: () => void;
 }
 
@@ -22,9 +23,12 @@ export const SAFParameterEditor: React.FC<SAFParameterEditorProps> = ({
     component,
     onParameterChange,
     onEquationsChange,
+    onAddParameter,
     onClose,
 }) => {
     const [expandedSections, setExpandedSections] = useState<string[]>(['parameters', 'outputs']);
+    const [newParamName, setNewParamName] = useState('');
+    const [newParamValue, setNewParamValue] = useState('');
     const style = COMPONENT_STYLES[component.type];
 
     const toggleSection = (section: string) => {
@@ -103,6 +107,40 @@ export const SAFParameterEditor: React.FC<SAFParameterEditorProps> = ({
                                     onInputChange={(value) => handleInputChange(param.name, value)}
                                 />
                             ))}
+
+                            {/* Add Custom Parameter Form */}
+                            <div className="pt-3 border-t border-white/5 animate-fade-in">
+                                <h4 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Add New Parameter</h4>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        value={newParamName}
+                                        onChange={(e) => setNewParamName(e.target.value)}
+                                        placeholder="Name"
+                                        className="bg-black/40 text-white text-xs px-2 py-1 rounded border border-white/10 flex-1 focus:border-cyan-500/50 outline-none"
+                                    />
+                                    <input
+                                        value={newParamValue}
+                                        onChange={(e) => setNewParamValue(e.target.value)}
+                                        placeholder="Value"
+                                        className="bg-black/40 text-white text-xs px-2 py-1 rounded border border-white/10 w-16 focus:border-cyan-500/50 outline-none"
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        if (newParamName && newParamValue && onAddParameter) {
+                                            const num = parseFloat(newParamValue);
+                                            const val = isNaN(num) ? newParamValue : num;
+                                            onAddParameter(component.id, { name: newParamName, value: val });
+                                            setNewParamName('');
+                                            setNewParamValue('');
+                                        }
+                                    }}
+                                    disabled={!newParamName || !newParamValue}
+                                    className="w-full bg-white/5 hover:bg-cyan-500/10 text-gray-300 hover:text-cyan-400 text-xs py-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    + Add
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

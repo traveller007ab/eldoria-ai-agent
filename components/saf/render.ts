@@ -11,7 +11,7 @@ import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES } fro
 
 export function blueprintToMermaid(blueprint: DeepSAFBlueprint): string {
     const lines: string[] = [];
-    lines.push('graph TD');
+    lines.push('flowchart TD');
     lines.push('');
     lines.push('%% Components');
 

@@ -1,6 +1,7 @@
 
 import { create } from 'zustand';
 import { DeepSAFBlueprint, DeepSAFComponent, DeepSAFFlow } from '../components/saf/types';
+import { SAFEngine } from '../components/saf/SAFEngine';
 
 // ============================================
 // TYPES (The Contract)
@@ -20,7 +21,6 @@ export interface SAFState {
     validationIssues: SAFValidationIssue[];
 
     // UI State
-    isSimulationRunning: boolean;
     activePanel: 'properties' | 'data' | 'ai' | null;
 
     // Actions
@@ -34,8 +34,14 @@ export interface SAFState {
     connectNodes: (sourceId: string, targetId: string) => boolean; // Returns false if invalid
     runPhysicsValidation: () => void;
     updateParameter: (id: string, paramName: string, value: string | number) => void;
-    runSimulation: () => Promise<void>;
+    addParameter: (id: string, param: { name: string; value: string | number; unit?: string }) => void;
+    runSimulation: () => void; // Sync/Debounced now
 }
+
+// ============================================
+// HELPER: Debounce Utility
+// ============================================
+let simulationTimeout: any = null;
 
 // ============================================
 // THE STORE
@@ -45,11 +51,14 @@ export const useSAFStore = create<SAFState>((set, get) => ({
     blueprint: null,
     selectedId: null,
     validationIssues: [],
-    isSimulationRunning: false,
     activePanel: 'properties',
 
-    loadBlueprint: (bp) => set({ blueprint: bp, validationIssues: [] }),
-    closeBlueprint: () => set({ blueprint: null, validationIssues: [], selectedId: null, isSimulationRunning: false }),
+    loadBlueprint: (bp) => {
+        set({ blueprint: bp, validationIssues: [] });
+        get().runPhysicsValidation();
+        get().runSimulation();
+    },
+    closeBlueprint: () => set({ blueprint: null, validationIssues: [], selectedId: null }),
 
     addNode: (type, position) => {
         set((state) => {
@@ -71,6 +80,7 @@ export const useSAFStore = create<SAFState>((set, get) => ({
             };
         });
         get().runPhysicsValidation();
+        get().runSimulation();
     },
 
     updateNodePosition: (id, position) => {
@@ -122,6 +132,7 @@ export const useSAFStore = create<SAFState>((set, get) => ({
         });
 
         get().runPhysicsValidation();
+        get().runSimulation();
         return true;
     },
 
@@ -179,65 +190,49 @@ export const useSAFStore = create<SAFState>((set, get) => ({
             };
         });
         get().runPhysicsValidation();
+        get().runSimulation();
     },
 
-    runSimulation: async () => {
-        const state = get();
-        if (!state.blueprint || state.isSimulationRunning) return;
-
-        set({ isSimulationRunning: true });
-
-        try {
-            // Mock Bridge Call (In 2.0 Vision this uses Pyodide, here we use Fetch just like 1.0)
-            const payload = {
-                project_name: state.blueprint.project_name,
-                components: state.blueprint.components.map(c => ({
-                    id: c.id,
-                    type: c.type,
-                    label: c.name,
-                    parameters: c.parameters?.reduce((acc: any, p) => {
-                        acc[p.name] = p.value;
-                        return acc;
-                    }, {}) || {},
-                    equations: c.equations || []
-                })),
-                connections: state.blueprint.flows.map(f => ({
-                    id: f.id,
-                    source: f.from,
-                    target: f.to,
-                    type: f.type
-                })),
-                solver_config: { method: "hybr", tolerance: 1e-6 }
+    addParameter: (id, param) => {
+        set(state => {
+            if (!state.blueprint) return state;
+            return {
+                blueprint: {
+                    ...state.blueprint,
+                    components: state.blueprint.components.map(c =>
+                        c.id === id
+                            ? { ...c, parameters: [...(c.parameters || []), { ...param, type: typeof param.value === 'number' ? 'number' : 'text' }] }
+                            : c
+                    )
+                }
             };
+        });
+        get().runPhysicsValidation();
+        get().runSimulation();
+    },
 
-            // Call Cloud/Local Bridge
-            const response = await fetch('http://localhost:8000/genesis/simulate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+    runSimulation: () => {
+        // Debounce Logic
+        if (simulationTimeout) clearTimeout(simulationTimeout);
 
-            const result = await response.json();
+        simulationTimeout = setTimeout(() => {
+            const state = get();
+            if (!state.blueprint) return;
 
-            if (result.success) {
-                set(s => ({
-                    isSimulationRunning: false,
-                    blueprint: s.blueprint ? {
-                        ...s.blueprint,
-                        last_simulation: {
-                            timestamp: new Date().toISOString(),
-                            system_vars: result.system_vars || {},
-                            logs: result.logs || []
-                        }
-                    } : null
-                }));
-            } else {
-                set({ isSimulationRunning: false });
-                console.error("Simulation Failed:", result.error);
-            }
-        } catch (error) {
-            console.error("Simulation Error:", error);
-            set({ isSimulationRunning: false });
-        }
+            // INSTANT CLIENT-SIDE SOLVER
+            const result = SAFEngine.solve(state.blueprint);
+            console.log('[SAF Engine] Solved (Debounced):', result);
+
+            set(s => ({
+                blueprint: s.blueprint ? {
+                    ...s.blueprint,
+                    last_simulation: {
+                        timestamp: new Date().toISOString(),
+                        system_vars: result.vars,
+                        logs: result.logs
+                    }
+                } : null
+            }));
+        }, 50); // 50ms delay (approx 20fps cap)
     }
 }));
