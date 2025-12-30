@@ -863,6 +863,7 @@ export const SAFLab: React.FC = () => {
                                         }));
                                     }}
                                     onSelectNode={(id) => {
+                                        console.log("Selecting node:", id);
                                         setWorkbenchState(prev => ({
                                             ...prev,
                                             selectedNodeId: id
