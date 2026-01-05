@@ -1,8 +1,27 @@
-// ... imports ...
+import React, { useCallback, useMemo, useRef } from 'react';
+import ReactFlow, {
+    Node,
+    Edge,
+    Controls,
+    MiniMap,
+    Background,
+    BackgroundVariant,
+    useNodesState,
+    useEdgesState,
+    NodeTypes,
+    EdgeTypes,
+    MarkerType,
+    Connection,
+    OnConnect,
+    Handle,
+    Position,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES, DeepSAFFlow } from './types';
+import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2 } from 'lucide-react';
+import { AnimatedFlowEdge } from './AnimatedFlowEdge';
 import { PALETTE_ITEMS, PaletteItem } from './ComponentPalette';
 import { Search, X } from 'lucide-react';
-
-// ... (existing imports)
 
 
 
@@ -303,8 +322,8 @@ const QuickAddMenu: React.FC<QuickAddMenuProps> = ({ position, onClose, onSelect
                         key={item.id}
                         onClick={() => onSelect(item)}
                         className={`w-full text-left px-3 py-2 flex items-center gap-3 text-xs border-l-2 transition-colors ${index === selectedIndex
-                                ? 'bg-cyan-500/20 border-cyan-400 text-white'
-                                : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5'
+                            ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                            : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5'
                             }`}
                         onMouseEnter={() => setSelectedIndex(index)}
                     >
