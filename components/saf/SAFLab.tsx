@@ -26,7 +26,7 @@ export const SAFLab: React.FC = () => {
         runPhysicsValidation,
         updateParameter,
         runSimulation,
-        isSimulationRunning,
+        simulationHistory,
         activePanel,
         closeBlueprint,
         addParameter,
@@ -353,7 +353,10 @@ export const SAFLab: React.FC = () => {
                     {/* Simulation Graphs - Fixed section at bottom, separate from scrollable content */}
                     {blueprint.last_simulation && (
                         <div className="shrink-0 border-t border-white/10 min-h-[40px]">
-                            <SimulationGraphPanel blueprint={blueprint} />
+                            <SimulationGraphPanel
+                                blueprint={blueprint}
+                                simulationHistory={simulationHistory}
+                            />
                         </div>
                     )}
                 </div>

@@ -20,6 +20,7 @@ export interface SAFState {
     blueprint: DeepSAFBlueprint | null;
     selectedId: string | null;
     validationIssues: SAFValidationIssue[];
+    simulationHistory: Array<{ timestamp: string; values: Record<string, number> }>;
 
     // UI State
     activePanel: 'properties' | 'data' | 'ai' | null;
@@ -38,6 +39,7 @@ export interface SAFState {
     updateParameter: (id: string, paramName: string, value: string | number) => void;
     addParameter: (id: string, param: { name: string; value: string | number; unit?: string }) => void;
     runSimulation: () => void; // Sync/Debounced now
+    clearSimulationHistory: () => void;
 
     // History Actions
     undo: () => void;
@@ -59,14 +61,15 @@ export const useSAFStore = create<SAFState>((set, get) => ({
     blueprint: null,
     selectedId: null,
     validationIssues: [],
+    simulationHistory: [],
     activePanel: 'properties',
 
     loadBlueprint: (bp) => {
-        set({ blueprint: bp, validationIssues: [] });
+        set({ blueprint: bp, validationIssues: [], simulationHistory: [] });
         get().runPhysicsValidation();
         get().runSimulation();
     },
-    closeBlueprint: () => set({ blueprint: null, validationIssues: [], selectedId: null }),
+    closeBlueprint: () => set({ blueprint: null, validationIssues: [], selectedId: null, simulationHistory: [] }),
 
     addNode: (type, position) => {
         // Push to history before mutation
@@ -285,17 +288,32 @@ export const useSAFStore = create<SAFState>((set, get) => ({
             const result = GenesisKernel.solve(state.blueprint);
             console.log('[GenesisKernel] Solved:', result.logs, `in ${result.solveTimeMs.toFixed(2)}ms`);
 
-            set(s => ({
-                blueprint: s.blueprint ? {
-                    ...s.blueprint,
-                    last_simulation: {
-                        timestamp: new Date().toISOString(),
-                        system_vars: result.vars,
-                        logs: result.logs
-                    }
-                } : null
-            }));
+            const timestamp = new Date().toISOString();
+
+            set(s => {
+                // Keep last 100 history entries for performance
+                const newHistory = [
+                    ...s.simulationHistory.slice(-99),
+                    { timestamp, values: result.vars }
+                ];
+
+                return {
+                    simulationHistory: newHistory,
+                    blueprint: s.blueprint ? {
+                        ...s.blueprint,
+                        last_simulation: {
+                            timestamp,
+                            system_vars: result.vars,
+                            logs: result.logs
+                        }
+                    } : null
+                };
+            });
         }, 50); // 50ms delay (approx 20fps cap)
+    },
+
+    clearSimulationHistory: () => {
+        set({ simulationHistory: [] });
     },
 
     // ============================================
