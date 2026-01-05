@@ -4,7 +4,7 @@
  */
 
 export * from './types';
-export * from './engine';
+export * from './GenesisKernel';
 export * from './templates';
 export * from './render';
 export { SAFLab } from './SAFLab';
