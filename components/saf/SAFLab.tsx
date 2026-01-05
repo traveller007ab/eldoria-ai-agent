@@ -352,7 +352,7 @@ export const SAFLab: React.FC = () => {
 
                     {/* Simulation Graphs - Fixed section at bottom, separate from scrollable content */}
                     {blueprint.last_simulation && (
-                        <div className="shrink-0 border-t border-white/10 max-h-[300px] overflow-hidden">
+                        <div className="shrink-0 border-t border-white/10 min-h-[40px]">
                             <SimulationGraphPanel blueprint={blueprint} />
                         </div>
                     )}
