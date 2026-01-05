@@ -238,14 +238,22 @@ export class GenesisKernel {
      * Evaluate a single component based on its type.
      * Implements transfer functions for: source, transform, store, sink
      */
+    /**
+     * Evaluate a single component based on its type.
+     * Implements transfer functions for: source, transform, store, sink
+     */
     private static evaluateComponent(comp: DeepSAFComponent, bp: DeepSAFBlueprint, ctx: SimulationContext) {
         const inputs = this.collectInputs(comp.id, bp, ctx);
         const params = this.getParams(comp, bp.components);
 
-        let output = 0;
-        let temp = params.temp || AMBIENT_TEMP;
+        let output = 0; // The primary flow/power/signal
+
+        // Base state is mixing incoming streams, or ambient if no input
+        let temp = inputs.wAvgTemp !== undefined ? inputs.wAvgTemp : (params.temp || AMBIENT_TEMP);
+        let pressure = inputs.maxPressure !== undefined ? inputs.maxPressure : (params.pressure || 101325); // Pa
+
         let efficiency = params.efficiency || 1.0;
-        const totalInput = Object.values(inputs).reduce((a, b) => a + b, 0);
+        const totalInput = inputs.totalFlow;
 
         // Transfer Functions by Component Type
         // Note: component.type is 'core' | 'subcore' | 'micro', but name-based heuristics also apply
@@ -258,8 +266,11 @@ export class GenesisKernel {
         const isStore = nameLower.includes('tank') || nameLower.includes('store') || nameLower.includes('accumulator');
 
         if (isSource) {
-            // Sources generate constant output
+            // Sources generate constant output and set their own state
             output = params.capacity || params.flow || params.power || params.value || 100;
+            // Sources dictate their own temp/pressure if specified
+            if (params.temp) temp = params.temp;
+            if (params.pressure) pressure = params.pressure;
         } else if (isSink) {
             // Sinks consume input
             output = 0;
@@ -270,15 +281,23 @@ export class GenesisKernel {
         } else {
             // Transforms apply efficiency (subcore default)
             output = totalInput * efficiency;
-            temp += (totalInput * (1 - efficiency)); // Waste heat
+            // Waste heat calculation: Energy lost adds to temperature
+            // Q_waste = P_in * (1 - eff)
+            // dT = Q / (m * Cp). Assuming Cp ~ 4186 (Water) or 1000 (Air). Simplified factor here.
+            if (totalInput > 0) {
+                const wasteHeat = totalInput * (1 - efficiency);
+                const massFlow = Math.max(totalInput, 0.1); // Avoid div/0
+                temp += (wasteHeat / massFlow) * 0.1; // 0.1 is arbitrary thermal susceptibility factor
+            }
         }
 
-        // Handle component name patterns for smart behavior (nameLower already declared)
+        // Handle component name patterns for smart behavior
 
-        // Fan/Pump: Flow = Speed × Base
+        // Fan/Pump: Flow = Speed × Base, Adds Pressure
         if (nameLower.includes('fan') || nameLower.includes('pump')) {
             const speed = params.speed || params.rpm || 100;
             output = (speed / 100) * (params.baseFlow || totalInput || 50);
+            pressure += (params.head || 1000); // Add pressure head
         }
 
         // Motor: Torque = Power / Speed
@@ -292,15 +311,24 @@ export class GenesisKernel {
         // Heat Exchanger: Q = U × A × ΔT
         if (nameLower.includes('heat') || nameLower.includes('exchanger')) {
             const area = params.area || 1;
-            const deltaT = params.deltaT || (temp - AMBIENT_TEMP);
+            const targetTemp = params.targetTemp || AMBIENT_TEMP; // If set, acts as thermostat
+            const deltaT = params.deltaT || (temp - targetTemp);
             const U = params.U || 50; // W/(m²·K)
-            output = U * area * Math.abs(deltaT);
-            temp = AMBIENT_TEMP + (output / (U * area));
+
+            // Heat Transfer
+            const Q = U * area * deltaT;
+            // Update Temp: T_out = T_in - Q/(m*Cp)
+            // Simplified: temp changes towards target
+            if (totalInput > 0) {
+                temp -= Q / (totalInput * 4.18); // Assuming water-ish Cp
+            }
+            output = Math.abs(Q);
         }
 
         // Store Results
         ctx.vars[`${comp.id}.output`] = validateNumericResult(output, 0);
         ctx.vars[`${comp.id}.temp`] = validateNumericResult(temp, AMBIENT_TEMP);
+        ctx.vars[`${comp.id}.pressure`] = validateNumericResult(pressure, 101325);
         ctx.vars[`${comp.id}.efficiency`] = efficiency;
         ctx.vars[`${comp.id}.input`] = totalInput;
 
@@ -310,12 +338,42 @@ export class GenesisKernel {
         });
     }
 
-    private static collectInputs(targetId: string, bp: DeepSAFBlueprint, ctx: SimulationContext): Record<string, number> {
-        const inputs: Record<string, number> = {};
-        bp.flows.filter(f => f.to === targetId).forEach(f => {
-            inputs[f.from] = ctx.vars[`${f.from}.output`] || 0;
+    private static collectInputs(targetId: string, bp: DeepSAFBlueprint, ctx: SimulationContext): { totalFlow: number, wAvgTemp?: number, maxPressure?: number } {
+        const inputs = bp.flows.filter(f => f.to === targetId);
+
+        if (inputs.length === 0) {
+            return { totalFlow: 0 };
+        }
+
+        let totalFlow = 0;
+        let weightedTempSum = 0;
+        let totalTempMass = 0;
+        let maxPressure = 0;
+
+        inputs.forEach(f => {
+            const flow = ctx.vars[`${f.from}.output`] || 0;
+            const temp = ctx.vars[`${f.from}.temp`];
+            const pressure = ctx.vars[`${f.from}.pressure`];
+
+            totalFlow += flow;
+
+            if (temp !== undefined) {
+                weightedTempSum += temp * flow;
+                totalTempMass += flow;
+            }
+
+            if (pressure !== undefined) {
+                maxPressure = Math.max(maxPressure, pressure);
+            }
         });
-        return inputs;
+
+        const wAvgTemp = totalTempMass > 0 ? weightedTempSum / totalTempMass : undefined;
+
+        return {
+            totalFlow,
+            wAvgTemp,
+            maxPressure: maxPressure > 0 ? maxPressure : undefined
+        };
     }
 
     private static getParams(comp: DeepSAFComponent, allComponents: DeepSAFComponent[]): Record<string, number> {
