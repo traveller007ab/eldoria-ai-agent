@@ -1,26 +1,176 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import ReactFlow, {
-    Node,
-    Edge,
-    Controls,
-    MiniMap,
-    Background,
-    BackgroundVariant,
-    useNodesState,
-    useEdgesState,
-    NodeTypes,
-    EdgeTypes,
-    MarkerType,
-    Connection,
-    OnConnect,
-    Handle,
-    Position,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
-import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES, DeepSAFFlow } from './types';
-import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2 } from 'lucide-react';
-import { AnimatedFlowEdge } from './AnimatedFlowEdge';
-import { AnimatedComponentIcon, AnimationStyles } from './AnimatedComponentIcon';
+// ... imports ...
+import { PALETTE_ITEMS, PaletteItem } from './ComponentPalette';
+import { Search, X } from 'lucide-react';
+
+// ... (existing imports)
+
+// [INSERT AFTER EXISTING COMPONENT DEFINITIONS]
+
+interface QuickAddMenuProps {
+    position: { x: number; y: number };
+    onClose: () => void;
+    onSelect: (item: PaletteItem) => void;
+}
+
+const QuickAddMenu: React.FC<QuickAddMenuProps> = ({ position, onClose, onSelect }) => {
+    const [search, setSearch] = React.useState('');
+    const [selectedIndex, setSelectedIndex] = React.useState(0);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const filteredItems = React.useMemo(() => {
+        return PALETTE_ITEMS.filter(item =>
+            item.name.toLowerCase().includes(search.toLowerCase()) ||
+            item.description.toLowerCase().includes(search.toLowerCase())
+        );
+    }, [search]);
+
+    React.useEffect(() => {
+        if (inputRef.current) inputRef.current.focus();
+    }, []);
+
+    // Keyboard Navigation
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSelectedIndex(prev => Math.min(prev + 1, filteredItems.length - 1));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSelectedIndex(prev => Math.max(prev - 1, 0));
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (filteredItems[selectedIndex]) {
+                    onSelect(filteredItems[selectedIndex]);
+                }
+            } else if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [filteredItems, selectedIndex, onSelect, onClose]);
+
+    return (
+        <div
+            className="absolute z-50 w-64 bg-gray-900 border border-cyan-500/50 rounded-lg shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+            style={{
+                left: position.x,
+                top: position.y,
+                transform: 'translate(-50%, -50%)' // Center on cursor
+            }}
+        >
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">
+                <Search className="w-4 h-4 text-cyan-400" />
+                <input
+                    ref={inputRef}
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setSelectedIndex(0); }}
+                    className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none"
+                    placeholder="Type to add..."
+                />
+                <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-3 h-3" /></button>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+                {filteredItems.map((item, index) => (
+                    <button
+                        key={item.id}
+                        onClick={() => onSelect(item)}
+                        className={`w-full text-left px-3 py-2 flex items-center gap-3 text-xs border-l-2 transition-colors ${index === selectedIndex
+                                ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                                : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5'
+                            }`}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                    >
+                        <div className={`p-1 rounded bg-black/40 text-cyan-400`}>
+                            {item.icon}
+                        </div>
+                        <div className="flex-1">
+                            <div className="font-bold">{item.name}</div>
+                            <div className="text-[10px] opacity-60 truncate">{item.description}</div>
+                        </div>
+                    </button>
+                ))}
+                {filteredItems.length === 0 && (
+                    <div className="px-3 py-4 text-center text-xs text-gray-600">
+                        No components found
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
+    blueprint,
+    // ... props
+    onDropComponent
+}) => {
+    // ... (existing refs and state)
+
+    // Quick Add State
+    const [quickAddPos, setQuickAddPos] = React.useState<{ x: number, y: number } | null>(null);
+    const lastClickRef = useRef<number>(0);
+
+    // ... (existing hooks)
+
+    const onPaneClick = useCallback((event: React.MouseEvent) => {
+        onSelectNode(null);
+        setQuickAddPos(null); // Close if open
+
+        // Double Click Detection
+        const now = Date.now();
+        if (now - lastClickRef.current < 300) {
+            // Double Click!
+            const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+            if (bounds) {
+                setQuickAddPos({
+                    x: event.clientX - bounds.left,
+                    y: event.clientY - bounds.top
+                });
+            }
+        }
+        lastClickRef.current = now;
+    }, [onSelectNode]);
+
+    const handleQuickAdd = useCallback((item: PaletteItem) => {
+        if (!quickAddPos || !onDropComponent) return;
+
+        // Use existing drop handler logic
+        onDropComponent(item, {
+            x: quickAddPos.x - 100, // Center node
+            y: quickAddPos.y - 50
+        });
+        setQuickAddPos(null);
+    }, [quickAddPos, onDropComponent]);
+
+    return (
+        <div
+            ref={reactFlowWrapper}
+            className="w-full h-full relative" // ...
+        >
+            <ReactFlow
+                // ... props
+                onPaneClick={onPaneClick}
+            // ... props
+            >
+                {/* ... Children ... */}
+            </ReactFlow>
+
+            {/* Spotlight Menu */}
+            {quickAddPos && (
+                <QuickAddMenu
+                    position={quickAddPos}
+                    onClose={() => setQuickAddPos(null)}
+                    onSelect={handleQuickAdd}
+                />
+            )}
+
+            {/* Quick Action Toolbar */}
+            {/* ... (keep existing toolbar) ... */}
+        </div>
+    );
+};
 
 // ============================================
 // CUSTOM SAF NODE COMPONENT

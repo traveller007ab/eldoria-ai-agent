@@ -44,9 +44,16 @@ export const SAFParameterEditor: React.FC<SAFParameterEditorProps> = ({
     }, [component.id, onParameterChange]);
 
     const handleInputChange = useCallback((paramName: string, value: string) => {
+        // Try to parse as number
         const numValue = parseFloat(value);
-        if (!isNaN(numValue)) {
+
+        // If it's a valid number AND the string representation matches (avoids "1." being parsed as 1 immediately)
+        // or if it's empty string (process as 0 or empty)
+        if (!isNaN(numValue) && value.trim() === numValue.toString()) {
             onParameterChange(component.id, paramName, numValue);
+        } else {
+            // Otherwise, treat as formula string
+            onParameterChange(component.id, paramName, value);
         }
     }, [component.id, onParameterChange]);
 
@@ -241,7 +248,11 @@ const ParameterSlider: React.FC<ParameterSliderProps> = ({
     onValueChange,
     onInputChange,
 }) => {
+    // Determine if value is a number or formula string
+    const isFormula = typeof param.value === 'string' && isNaN(parseFloat(param.value));
+    const rawValue = param.value;
     const numValue = typeof param.value === 'number' ? param.value : parseFloat(param.value as string) || 0;
+
     const min = param.min ?? 0;
     const max = param.max ?? (numValue * 2 || 100);
     const hasRange = param.min !== undefined || param.max !== undefined;
@@ -255,11 +266,11 @@ const ParameterSlider: React.FC<ParameterSliderProps> = ({
                 <label className="text-sm text-gray-300 font-medium">{param.name}</label>
                 <div className="flex items-center gap-2">
                     <input
-                        type="number"
-                        value={numValue}
+                        type="text"
+                        value={rawValue}
                         onChange={(e) => onInputChange(e.target.value)}
-                        className="w-20 px-2 py-1 bg-black/40 border border-cyan-900/30 rounded text-right text-sm text-cyan-400 font-mono focus:outline-none focus:border-cyan-500"
-                        step={numValue < 1 ? 0.01 : numValue < 10 ? 0.1 : 1}
+                        className={`w-24 px-2 py-1 bg-black/40 border rounded text-right text-sm font-mono focus:outline-none focus:border-cyan-500 ${isFormula ? 'text-amber-400 border-amber-500/50' : 'text-cyan-400 border-cyan-900/30'}`}
+                        placeholder="Value or f(x)"
                     />
                     {param.unit && (
                         <span className="text-xs text-gray-500 w-8">{param.unit}</span>
@@ -267,7 +278,7 @@ const ParameterSlider: React.FC<ParameterSliderProps> = ({
                 </div>
             </div>
 
-            {hasRange && (
+            {hasRange && !isFormula && (
                 <div className="relative">
                     <input
                         type="range"
