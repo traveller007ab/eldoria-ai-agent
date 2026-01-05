@@ -1,7 +1,8 @@
 
 import { create } from 'zustand';
 import { DeepSAFBlueprint, DeepSAFComponent, DeepSAFFlow } from '../components/saf/types';
-import { SAFEngine } from '../components/saf/SAFEngine';
+import { GenesisKernel } from '../components/saf/GenesisKernel';
+import { useHistoryStore } from './useHistoryStore';
 
 // ============================================
 // TYPES (The Contract)
@@ -36,6 +37,12 @@ export interface SAFState {
     updateParameter: (id: string, paramName: string, value: string | number) => void;
     addParameter: (id: string, param: { name: string; value: string | number; unit?: string }) => void;
     runSimulation: () => void; // Sync/Debounced now
+
+    // History Actions
+    undo: () => void;
+    redo: () => void;
+    canUndo: () => boolean;
+    canRedo: () => boolean;
 }
 
 // ============================================
@@ -61,6 +68,12 @@ export const useSAFStore = create<SAFState>((set, get) => ({
     closeBlueprint: () => set({ blueprint: null, validationIssues: [], selectedId: null }),
 
     addNode: (type, position) => {
+        // Push to history before mutation
+        const currentBp = get().blueprint;
+        if (currentBp) {
+            useHistoryStore.getState().pushState(currentBp, `Add ${type} node`);
+        }
+
         set((state) => {
             if (!state.blueprint) return state;
             const newNode: DeepSAFComponent = {
@@ -103,6 +116,9 @@ export const useSAFStore = create<SAFState>((set, get) => ({
     connectNodes: (sourceId, targetId) => {
         const state = get();
         if (!state.blueprint) return false;
+
+        // Push to history before mutation
+        useHistoryStore.getState().pushState(state.blueprint, `Connect ${sourceId} → ${targetId}`);
 
         const source = state.blueprint.components.find(c => c.id === sourceId);
         const target = state.blueprint.components.find(c => c.id === targetId);
@@ -163,6 +179,12 @@ export const useSAFStore = create<SAFState>((set, get) => ({
         set({ validationIssues: issues });
     },
     updateParameter: (id: string, paramName: string, value: string | number) => {
+        // Push to history before mutation
+        const currentBp = get().blueprint;
+        if (currentBp) {
+            useHistoryStore.getState().pushState(currentBp, `Update ${paramName}`);
+        }
+
         set(state => {
             if (!state.blueprint) return state;
             return {
@@ -181,7 +203,7 @@ export const useSAFStore = create<SAFState>((set, get) => ({
                             );
                         } else {
                             // Add new param if editing dynamic props
-                            newParams = [...newParams, { name: paramName, value, type: typeof value === 'number' ? 'number' : 'text' }];
+                            newParams = [...newParams, { name: paramName, value }];
                         }
 
                         return { ...c, parameters: newParams };
@@ -201,7 +223,7 @@ export const useSAFStore = create<SAFState>((set, get) => ({
                     ...state.blueprint,
                     components: state.blueprint.components.map(c =>
                         c.id === id
-                            ? { ...c, parameters: [...(c.parameters || []), { ...param, type: typeof param.value === 'number' ? 'number' : 'text' }] }
+                            ? { ...c, parameters: [...(c.parameters || []), param] }
                             : c
                     )
                 }
@@ -219,9 +241,9 @@ export const useSAFStore = create<SAFState>((set, get) => ({
             const state = get();
             if (!state.blueprint) return;
 
-            // INSTANT CLIENT-SIDE SOLVER
-            const result = SAFEngine.solve(state.blueprint);
-            console.log('[SAF Engine] Solved (Debounced):', result);
+            // INSTANT CLIENT-SIDE SOLVER (GenesisKernel)
+            const result = GenesisKernel.solve(state.blueprint);
+            console.log('[GenesisKernel] Solved:', result.logs, `in ${result.solveTimeMs.toFixed(2)}ms`);
 
             set(s => ({
                 blueprint: s.blueprint ? {
@@ -234,5 +256,34 @@ export const useSAFStore = create<SAFState>((set, get) => ({
                 } : null
             }));
         }, 50); // 50ms delay (approx 20fps cap)
-    }
+    },
+
+    // ============================================
+    // UNDO/REDO ACTIONS
+    // ============================================
+
+    undo: () => {
+        const historyStore = useHistoryStore.getState();
+        const previousBlueprint = historyStore.undo();
+        if (previousBlueprint) {
+            set({ blueprint: previousBlueprint });
+            get().runPhysicsValidation();
+            get().runSimulation();
+            console.log('[SAF] Undo applied');
+        }
+    },
+
+    redo: () => {
+        const historyStore = useHistoryStore.getState();
+        const nextBlueprint = historyStore.redo();
+        if (nextBlueprint) {
+            set({ blueprint: nextBlueprint });
+            get().runPhysicsValidation();
+            get().runSimulation();
+            console.log('[SAF] Redo applied');
+        }
+    },
+
+    canUndo: () => useHistoryStore.getState().canUndo(),
+    canRedo: () => useHistoryStore.getState().canRedo(),
 }));

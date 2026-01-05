@@ -358,8 +358,22 @@ export const bridgeClient = {
             }
             return await response.json();
         } catch (e: any) {
-            console.error('Genesis Simulation failed:', e);
-            throw e;
+            // Return null to signal fallback to client-side GenesisKernel
+            console.warn('[Genesis] Python bridge unavailable, use GenesisKernel locally:', e.message);
+            return null;
+        }
+    },
+
+    /**
+     * Check if Python bridge is available for advanced features.
+     * SAF Lab should use GenesisKernel locally when this returns false.
+     */
+    isPythonAvailable: async (): Promise<boolean> => {
+        try {
+            const healthy = await bridgeClient.checkBridgeHealth();
+            return healthy;
+        } catch {
+            return false;
         }
     },
 

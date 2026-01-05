@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import ReactFlow, {
     Node,
     Edge,
@@ -13,10 +13,14 @@ import ReactFlow, {
     MarkerType,
     Connection,
     OnConnect,
+    Handle,
+    Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES, DeepSAFFlow } from './types';
 import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2 } from 'lucide-react';
+import { AnimatedFlowEdge } from './AnimatedFlowEdge';
+import { AnimatedComponentIcon, AnimationStyles } from './AnimatedComponentIcon';
 
 // ============================================
 // CUSTOM SAF NODE COMPONENT
@@ -48,12 +52,13 @@ const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
         return simulationVars[key];
     };
 
-    // Get outgoing flows for this component
-    const outgoingFlows = data.component.id ? [] : []; // Will be passed from parent
+    // Get simulation output for this component
+    const componentOutput = simulationVars?.[`${component.id}.output`] ?? 0;
+    const isActive = componentOutput > 0;
 
     return (
         <div
-            className="group min-w-[200px] bg-gray-900/90 backdrop-blur-sm border-2 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg"
+            className="group min-w-[200px] bg-gray-900/90 backdrop-blur-sm border-2 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg relative"
             style={{
                 borderColor: hasViolations ? '#ef4444' : style.borderColor,
                 boxShadow: hasViolations
@@ -175,6 +180,32 @@ const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
                     Ask AI
                 </button>
             </div>
+
+            {/* Connection Handles - Input (Left) */}
+            <Handle
+                type="target"
+                position={Position.Left}
+                className="!w-3 !h-3 !bg-cyan-500 !border-2 !border-cyan-300 hover:!bg-cyan-400 transition-colors"
+                style={{ top: '50%' }}
+            />
+
+            {/* Connection Handles - Output (Right) */}
+            <Handle
+                type="source"
+                position={Position.Right}
+                className="!w-3 !h-3 !bg-emerald-500 !border-2 !border-emerald-300 hover:!bg-emerald-400 transition-colors"
+                style={{ top: '50%' }}
+            />
+
+            {/* Live Output Badge (Top Right Corner) */}
+            {isActive && (
+                <div
+                    className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white shadow-lg animate-pulse"
+                    style={{ boxShadow: '0 0 10px rgba(16, 185, 129, 0.8)' }}
+                >
+                    {componentOutput.toFixed(1)}
+                </div>
+            )}
         </div>
     );
 };
@@ -185,6 +216,11 @@ const SAFNode: React.FC<{ data: SAFNodeData }> = ({ data }) => {
 
 const nodeTypes: NodeTypes = {
     safNode: SAFNode,
+};
+
+// Custom Edge Types
+const edgeTypes = {
+    animated: AnimatedFlowEdge,
 };
 
 // ============================================
@@ -209,6 +245,7 @@ interface SAFNodeGraphProps {
     onDeleteEdges?: (edgeIds: string[]) => void;
     onNodeDragStop?: (nodeId: string, position: { x: number; y: number }) => void;
     onAddNode?: (type: 'core' | 'subcore' | 'micro', position: { x: number; y: number }) => void;
+    onDropComponent?: (componentData: any, position: { x: number; y: number }) => void;
 }
 
 export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
@@ -224,8 +261,10 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     onDeleteNodes,
     onDeleteEdges,
     onNodeDragStop,
-    onAddNode
+    onAddNode,
+    onDropComponent
 }) => {
+    const reactFlowWrapper = useRef<HTMLDivElement>(null);
     // Convert Blueprint to React Flow Nodes
     const initialNodes = useMemo(() => {
         if (!blueprint?.components) return [];
@@ -261,14 +300,14 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                 id: flow.id,
                 source: flow.from,
                 target: flow.to,
-                animated: isActive, // Only animate if flowing
-                style: {
-                    stroke: isActive ? baseStyle.color : '#555', // Dim inactive connections
-                    strokeWidth: isActive ? (baseStyle.strokeWidth || 2) + 1 : 1,
-                    opacity: isActive ? 1 : 0.4
+                type: 'animated', // Use our custom animated edge
+                animated: false, // We handle animation ourselves
+                data: {
+                    flowValue: flowVal,
+                    flowType: flowType,
+                    isActive: isActive,
                 },
                 markerEnd: { type: MarkerType.ArrowClosed, color: isActive ? baseStyle.color : '#555' },
-                data: { flow, value: flowVal },
             };
         });
     }, [blueprint, simulationVars]); // Added simulationVars dependency
@@ -313,8 +352,41 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     // Toolbar for adding nodes
     const [showNodeMenu, setShowNodeMenu] = React.useState(false);
 
+    // Drag and Drop from Palette
+    const onDragOver = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+    }, []);
+
+    const onDrop = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
+        const data = event.dataTransfer.getData('application/saf-component');
+        if (!data || !onDropComponent) return;
+
+        try {
+            const componentData = JSON.parse(data);
+            const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+            if (!bounds) return;
+
+            // Calculate position relative to the ReactFlow canvas
+            const position = {
+                x: event.clientX - bounds.left - 100, // Offset for node center
+                y: event.clientY - bounds.top - 50,
+            };
+
+            onDropComponent(componentData, position);
+        } catch (e) {
+            console.error('Failed to parse drop data:', e);
+        }
+    }, [onDropComponent]);
+
     return (
-        <div className="w-full h-full relative">
+        <div
+            ref={reactFlowWrapper}
+            className="w-full h-full relative"
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+        >
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -327,6 +399,7 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                 onNodeClick={onNodeClick}
                 onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 minZoom={0.1}
