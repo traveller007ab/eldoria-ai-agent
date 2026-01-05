@@ -363,6 +363,8 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     onDropComponent
 }) => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
+    const lastClickRef = useRef<number>(0);
+    const [quickAddPos, setQuickAddPos] = React.useState<{ x: number; y: number } | null>(null);
     // Convert Blueprint to React Flow Nodes
     const initialNodes = useMemo(() => {
         if (!blueprint?.components) return [];
