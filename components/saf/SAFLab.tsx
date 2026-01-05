@@ -328,7 +328,8 @@ export const SAFLab: React.FC = () => {
                         </button>
                     </div>
 
-                    <div className="flex-grow overflow-hidden relative flex flex-col">
+                    {/* Properties/AI Content - Scrollable */}
+                    <div className="flex-grow overflow-y-auto">
                         {selectedComponent ? (
                             localActivePanel === 'properties' ? (
                                 <SAFParameterEditor
@@ -347,14 +348,14 @@ export const SAFLab: React.FC = () => {
                                 Select a component to inspect.
                             </div>
                         )}
-
-                        {/* Simulation Graphs - Always visible at bottom of right panel */}
-                        {blueprint.last_simulation && (
-                            <div className="shrink-0 border-t border-white/10">
-                                <SimulationGraphPanel blueprint={blueprint} />
-                            </div>
-                        )}
                     </div>
+
+                    {/* Simulation Graphs - Fixed section at bottom, separate from scrollable content */}
+                    {blueprint.last_simulation && (
+                        <div className="shrink-0 border-t border-white/10 max-h-[300px] overflow-hidden">
+                            <SimulationGraphPanel blueprint={blueprint} />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
