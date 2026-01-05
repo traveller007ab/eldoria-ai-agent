@@ -18,7 +18,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { DeepSAFBlueprint, DeepSAFComponent, FLOW_STYLES, COMPONENT_STYLES, DeepSAFFlow } from './types';
-import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Zap, HelpCircle, AlertTriangle, Plus, Trash2, MousePointer2, Copy, Scissors } from 'lucide-react';
 import { AnimatedFlowEdge } from './AnimatedFlowEdge';
 import { PALETTE_ITEMS, PaletteItem } from './ComponentPalette';
 import { Search, X } from 'lucide-react';
@@ -346,6 +346,59 @@ const QuickAddMenu: React.FC<QuickAddMenuProps> = ({ position, onClose, onSelect
     );
 };
 
+interface ContextMenuProps {
+    x: number;
+    y: number;
+    node: Node;
+    onClose: () => void;
+    onDuplicate: (node: Node) => void;
+    onIsolate: (node: Node) => void;
+    onDelete: (node: Node) => void;
+}
+
+const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, node, onClose, onDuplicate, onIsolate, onDelete }) => {
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+
+    return (
+        <div
+            ref={menuRef}
+            className="absolute z-50 min-w-[160px] bg-gray-900 border border-cyan-500/50 rounded-lg shadow-2xl flex flex-col py-1 animate-in fade-in zoom-in-95 duration-100"
+            style={{ left: x, top: y }}
+        >
+            <div className="px-3 py-2 border-b border-white/10 text-xs text-gray-400 font-bold uppercase tracking-wider">
+                {node.data.component?.name || 'Node Component'}
+            </div>
+
+            <button onClick={() => onDuplicate(node)} className="w-full text-left px-4 py-2 text-xs text-white hover:bg-cyan-500/20 flex items-center gap-2 group transition-colors">
+                <Copy className="w-3 h-3 text-cyan-400 group-hover:text-cyan-300" />
+                Duplicate
+            </button>
+
+            <button onClick={() => onIsolate(node)} className="w-full text-left px-4 py-2 text-xs text-white hover:bg-purple-500/20 flex items-center gap-2 group transition-colors">
+                <Scissors className="w-3 h-3 text-purple-400 group-hover:text-purple-300" />
+                Isolate
+            </button>
+
+            <div className="h-px bg-white/10 my-1" />
+
+            <button onClick={() => onDelete(node)} className="w-full text-left px-4 py-2 text-xs text-red-300 hover:bg-red-500/20 flex items-center gap-2 group transition-colors">
+                <Trash2 className="w-3 h-3 text-red-400 group-hover:text-red-300" />
+                Delete
+            </button>
+        </div>
+    );
+};
+
 export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     blueprint,
     expandedNodes,
@@ -365,6 +418,8 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
     const lastClickRef = useRef<number>(0);
     const [quickAddPos, setQuickAddPos] = React.useState<{ x: number; y: number } | null>(null);
+    const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; node: Node } | null>(null);
+
     // Convert Blueprint to React Flow Nodes
     const initialNodes = useMemo(() => {
         if (!blueprint?.components) return [];
@@ -448,6 +503,8 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
     const onPaneClick = useCallback((event: React.MouseEvent) => {
         onSelectNode(null);
         setQuickAddPos(null); // Close if open
+        setContextMenu(null); // Close context menu
+
 
         // Double Click Detection
         const now = Date.now();
@@ -506,6 +563,46 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
         setQuickAddPos(null);
     }, [quickAddPos, onDropComponent]);
 
+    const handleNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+        event.preventDefault();
+        const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+        if (bounds) {
+            setContextMenu({
+                x: event.clientX - bounds.left,
+                y: event.clientY - bounds.top,
+                node
+            });
+            setQuickAddPos(null); // Close quick add if open
+        }
+    }, []);
+
+    const handleDuplicate = useCallback((node: Node) => {
+        if (!onDropComponent || !node.data.component) return;
+        setContextMenu(null);
+        const newData = { ...node.data.component };
+        // Clean ID to ensure new one is generated
+        delete newData.id;
+        onDropComponent(newData, {
+            x: node.position.x + 50,
+            y: node.position.y + 50
+        });
+    }, [onDropComponent]);
+
+    const handleIsolate = useCallback((node: Node) => {
+        setContextMenu(null);
+        if (onDeleteEdges) {
+            const edgesToDelete = edges.filter(e => e.source === node.id || e.target === node.id);
+            onDeleteEdges(edgesToDelete.map(e => e.id));
+        }
+    }, [edges, onDeleteEdges]);
+
+    const handleDelete = useCallback((node: Node) => {
+        setContextMenu(null);
+        if (onDeleteNodes) onDeleteNodes([node.id]);
+    }, [onDeleteNodes]);
+
+
+
     return (
         <div
             ref={reactFlowWrapper}
@@ -523,6 +620,7 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                 onEdgesDelete={handleEdgesDelete}
                 onNodeDragStop={handleNodeDragStop}
                 onNodeClick={onNodeClick}
+                onNodeContextMenu={handleNodeContextMenu}
                 onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
@@ -561,6 +659,19 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                     position={quickAddPos}
                     onClose={() => setQuickAddPos(null)}
                     onSelect={handleQuickAdd}
+                />
+            )}
+
+            {/* Context Menu */}
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    node={contextMenu.node}
+                    onClose={() => setContextMenu(null)}
+                    onDuplicate={handleDuplicate}
+                    onIsolate={handleIsolate}
+                    onDelete={handleDelete}
                 />
             )}
 

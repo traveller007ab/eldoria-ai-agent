@@ -6,6 +6,7 @@ import { ComponentPalette } from './ComponentPalette';
 import { SAFParameterEditor } from './SAFParameterEditor';
 import { SAFOutputPanel } from './SAFOutputPanel';
 import { SAFAIExplainer } from './SAFAIExplainer';
+import { SimulationGraphPanel } from './SimulationGraphPanel';
 import { GenesisPromptInput } from './GenesisPromptInput';
 import { AlertTriangle, CheckCircle, RotateCcw, Brain, Sliders, Wand2, Home, Undo2, Redo2, Server, ServerOff } from 'lucide-react';
 import { bridgeClient } from '../../services/bridgeClient';
@@ -16,6 +17,7 @@ export const SAFLab: React.FC = () => {
         blueprint,
         loadBlueprint,
         addNode,
+        addComponentFromPalette,
         updateNodePosition,
         selectNode,
         selectedId,
@@ -105,19 +107,10 @@ export const SAFLab: React.FC = () => {
 
     // Handle drops from ComponentPalette
     const handleDropComponent = useCallback((componentData: any, position: { x: number; y: number }) => {
-        // Map palette category to SAF component type
-        const typeMap: Record<string, 'core' | 'subcore' | 'micro'> = {
-            source: 'core',
-            transform: 'subcore',
-            store: 'subcore',
-            sink: 'micro',
-        };
-        const type = typeMap[componentData.category] || 'micro';
-        addNode(type, position);
-
-        // TODO: Apply default params from componentData.defaultParams
-        console.log('[SAF Lab] Dropped component:', componentData, 'at', position);
-    }, [addNode]);
+        // Use the new store action that applies all default parameters
+        addComponentFromPalette(componentData, position);
+        console.log('[SAF Lab] Dropped component:', componentData.name, 'at', position);
+    }, [addComponentFromPalette]);
 
     const selectedComponent = blueprint?.components.find(c => c.id === selectedId);
 
@@ -335,7 +328,7 @@ export const SAFLab: React.FC = () => {
                         </button>
                     </div>
 
-                    <div className="flex-grow overflow-hidden relative">
+                    <div className="flex-grow overflow-hidden relative flex flex-col">
                         {selectedComponent ? (
                             localActivePanel === 'properties' ? (
                                 <SAFParameterEditor
@@ -352,6 +345,13 @@ export const SAFLab: React.FC = () => {
                         ) : (
                             <div className="p-8 text-center text-gray-600 text-xs">
                                 Select a component to inspect.
+                            </div>
+                        )}
+
+                        {/* Simulation Graphs - Always visible at bottom of right panel */}
+                        {blueprint.last_simulation && (
+                            <div className="shrink-0 border-t border-white/10">
+                                <SimulationGraphPanel blueprint={blueprint} />
                             </div>
                         )}
                     </div>

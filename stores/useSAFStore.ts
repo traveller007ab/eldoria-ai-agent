@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { DeepSAFBlueprint, DeepSAFComponent, DeepSAFFlow } from '../components/saf/types';
+import { DeepSAFBlueprint, DeepSAFComponent, DeepSAFFlow, SAFParameter } from '../components/saf/types';
 import { GenesisKernel } from '../components/saf/GenesisKernel';
 import { useHistoryStore } from './useHistoryStore';
 
@@ -28,6 +28,7 @@ export interface SAFState {
     loadBlueprint: (bp: DeepSAFBlueprint) => void;
     closeBlueprint: () => void;
     addNode: (type: 'core' | 'subcore' | 'micro', position: { x: number; y: number }) => void;
+    addComponentFromPalette: (item: { id: string; name: string; category: string; defaultParams: SAFParameter[]; color?: string }, position: { x: number; y: number }) => void;
     updateNodePosition: (id: string, position: { x: number; y: number }) => void;
     selectNode: (id: string | null) => void;
 
@@ -84,6 +85,45 @@ export const useSAFStore = create<SAFState>((set, get) => ({
                 parameters: [],
                 outputs: [],
                 dependencies: []
+            };
+            return {
+                blueprint: {
+                    ...state.blueprint,
+                    components: [...state.blueprint.components, newNode]
+                }
+            };
+        });
+        get().runPhysicsValidation();
+        get().runSimulation();
+    },
+
+    addComponentFromPalette: (item, position) => {
+        // Push to history before mutation
+        const currentBp = get().blueprint;
+        if (currentBp) {
+            useHistoryStore.getState().pushState(currentBp, `Add ${item.name}`);
+        }
+
+        // Map category to SAF type
+        const typeMap: Record<string, 'core' | 'subcore' | 'micro'> = {
+            source: 'core',
+            transform: 'subcore',
+            store: 'subcore',
+            sink: 'micro',
+        };
+        const type = typeMap[item.category] || 'micro';
+
+        set((state) => {
+            if (!state.blueprint) return state;
+            const newNode: DeepSAFComponent = {
+                id: `${item.id}_${Date.now()}`,
+                name: item.name,
+                type,
+                position,
+                parameters: item.defaultParams || [],
+                outputs: [],
+                dependencies: [],
+                color: item.color,
             };
             return {
                 blueprint: {
