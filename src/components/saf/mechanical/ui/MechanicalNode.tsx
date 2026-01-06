@@ -67,9 +67,14 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
     return '--';
   };
   
+  // Safe access to component properties (handles deserialized objects from localStorage)
+  const ports = component.ports || [];
+  const parameters = component.parameters || [];
+  const states = component.states || [];
+  
   // Calculate port positions based on port count with better spacing
-  const getPortPositions = (ports: typeof component.ports, type: 'input' | 'output') => {
-    const filteredPorts = ports.filter(p => {
+  const getPortPositions = (portList: typeof ports, type: 'input' | 'output') => {
+    const filteredPorts = portList.filter(p => {
       if (type === 'input') return p.type === 'input' || p.type === 'bidirectional';
       return p.type === 'output' || p.type === 'bidirectional';
     });
@@ -91,8 +96,8 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
     });
   };
   
-  const inputPorts = showPorts ? getPortPositions(component.ports, 'input') : [];
-  const outputPorts = showPorts ? getPortPositions(component.ports, 'output') : [];
+  const inputPorts = showPorts ? getPortPositions(ports, 'input') : [];
+  const outputPorts = showPorts ? getPortPositions(ports, 'output') : [];
   
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -160,7 +165,7 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
       
       {/* Parameters Display */}
       <div className="px-3 py-2 space-y-1">
-        {component.parameters.slice(0, 3).map((param) => (
+        {parameters.slice(0, 3).map((param) => (
           <div key={param.symbol} className="flex justify-between text-xs">
             <span className="text-gray-400">
               {param.symbol}
@@ -175,7 +180,7 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
         {simVars && Object.keys(simVars).length > 0 && (
           <div className="mt-2 pt-2 border-t border-gray-700">
             <div className="text-[10px] text-gray-500 mb-1">SIMULATED</div>
-            {component.states.slice(0, 2).map((state) => (
+            {states.slice(0, 2).map((state) => (
               <div key={state.symbol} className="flex justify-between text-xs">
                 <span className="text-cyan-400">{state.symbol}</span>
                 <span className="text-white font-mono">

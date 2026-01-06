@@ -320,8 +320,11 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
       return;
     }
     
-    const sourcePort = sourceComp.ports.find(p => p.id === params.sourceHandle);
-    const targetPort = targetComp.ports.find(p => p.id === params.targetHandle);
+    const sourcePorts = sourceComp.ports || [];
+    const targetPorts = targetComp.ports || [];
+    
+    const sourcePort = sourcePorts.find(p => p.id === params.sourceHandle);
+    const targetPort = targetPorts.find(p => p.id === params.targetHandle);
     
     if (!sourcePort || !targetPort) {
       showToast('Invalid connection: port not found', 'error');
