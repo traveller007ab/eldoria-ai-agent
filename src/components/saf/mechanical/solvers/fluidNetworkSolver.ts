@@ -490,10 +490,11 @@ export class FluidNetworkSolver {
     this.elements.clear();
 
     for (const comp of components) {
-      if (comp.ports.some(p => p.domain === 'fluid')) {
-        this.addNode(comp.id, comp.name, comp.geometry?.dimensions?.elevation || 0);
+      const compPorts = comp.ports || [];
+      if (compPorts.some(p => p.domain === 'fluid')) {
+        this.addNode(comp.id, comp.name || 'Unknown', comp.geometry?.dimensions?.elevation || 0);
 
-        for (const port of comp.ports) {
+        for (const port of compPorts) {
           if (port.domain === 'fluid') {
             const node = this.nodes.get(comp.id);
             if (node) node.components.push(port.id);
@@ -506,7 +507,8 @@ export class FluidNetworkSolver {
     for (const comp of components) {
       if (comp.category === 'fluid' && comp.subcategory === 'turbomachinery') {
         const params: Record<string, number> = {};
-        for (const p of comp.parameters) {
+        const compParams = comp.parameters || [];
+        for (const p of compParams) {
           if (typeof p.value === 'number') params[p.symbol] = p.value;
         }
 
@@ -526,32 +528,38 @@ export class FluidNetworkSolver {
     }
 
     for (const comp of components) {
-      const inletPort = comp.ports.find(p => p.type === 'input' && p.domain === 'fluid');
-      const outletPort = comp.ports.find(p => p.type === 'output' && p.domain === 'fluid');
+      const compPorts = comp.ports || [];
+      const inletPort = compPorts.find(p => p.type === 'input' && p.domain === 'fluid');
+      const outletPort = compPorts.find(p => p.type === 'output' && p.domain === 'fluid');
 
       if (comp.category === 'fluid' && comp.subcategory === 'turbomachinery') {
         const curvePoints = pumpCurves.get(comp.id) || [];
-        this.addPump(comp.id, comp.name, `${comp.id}_in`, `${comp.id}_out`, curvePoints);
+        this.addPump(comp.id, comp.name || 'Unknown Pump', `${comp.id}_in`, `${comp.id}_out`, curvePoints);
       } else if (comp.subcategory === 'internalFlow' && comp.tags?.includes('valve')) {
         const params: Record<string, number> = {};
-        for (const p of comp.parameters) {
+        const compParams = comp.parameters || [];
+        for (const p of compParams) {
           if (typeof p.value === 'number') params[p.symbol] = p.value;
         }
         const Cv = params['Cv_max'] || 40;
-        this.addValve(comp.id, comp.name, `${comp.id}_in`, `${comp.id}_out`, Cv);
+        this.addValve(comp.id, comp.name || 'Unknown Valve', `${comp.id}_in`, `${comp.id}_out`, Cv);
       } else {
         const diameter = comp.geometry?.dimensions?.nominalDiameter || 0.05;
         const length = comp.geometry?.dimensions?.faceToFace || 0.2;
-        this.addPipe(comp.id, comp.name, `${comp.id}_in`, `${comp.id}_out`, length, diameter);
+        this.addPipe(comp.id, comp.name || 'Unknown Pipe', `${comp.id}_in`, `${comp.id}_out`, length, diameter);
       }
     }
 
     for (const conn of connections) {
+      if (!conn.sourceComponentId || !conn.targetComponentId) continue;
+      
       const sourceComp = components.find(c => c.id === conn.sourceComponentId);
       const targetComp = components.find(c => c.id === conn.targetComponentId);
       if (sourceComp && targetComp) {
-        const sourcePort = sourceComp.ports.find(p => p.id === conn.sourcePortId);
-        const targetPort = targetComp.ports.find(p => p.id === conn.targetPortId);
+        const sourcePorts = sourceComp.ports || [];
+        const targetPorts = targetComp.ports || [];
+        const sourcePort = sourcePorts.find(p => p.id === conn.sourcePortId);
+        const targetPort = targetPorts.find(p => p.id === conn.targetPortId);
 
         if (sourcePort?.domain === 'fluid' && targetPort?.domain === 'fluid') {
           const K = conn.parameters?.K || 0.5;

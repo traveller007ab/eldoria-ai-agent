@@ -401,13 +401,16 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
     const newComponent: MechanicalComponent = {
       ...template as MechanicalComponent,
       id: createComponentId('comp'),
-      geometry: {
+      geometry: template.geometry ? {
         ...template.geometry,
         dimensions: {
-          ...template.geometry?.dimensions,
+          ...template.geometry.dimensions,
           x: reactFlowBounds.x,
           y: reactFlowBounds.y
         }
+      } : {
+        type: 'primitive',
+        dimensions: { x: reactFlowBounds.x, y: reactFlowBounds.y }
       }
     };
     

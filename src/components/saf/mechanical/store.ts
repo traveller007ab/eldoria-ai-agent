@@ -132,13 +132,16 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
     const newComponent: MechanicalComponent = {
       ...component,
       id: component.id || createComponentId('comp'),
-      geometry: {
+      geometry: component.geometry ? {
         ...component.geometry,
         dimensions: {
-          ...component.geometry?.dimensions,
+          ...(component.geometry.dimensions || {}),
           x: position.x,
           y: position.y
         }
+      } : {
+        type: 'primitive',
+        dimensions: { x: position.x, y: position.y }
       }
     };
     
@@ -157,7 +160,7 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
         updatedAt: state.updatedAt
       },
       timestamp: new Date(),
-      action: `Added component: ${newComponent.name}`
+      action: `Added component: ${newComponent.name || 'Unknown'}`
     });
     
     set({
@@ -293,7 +296,8 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
       
       for (const component of state.components) {
         const params: Record<string, number> = {};
-        for (const param of component.parameters) {
+        const componentParams = component.parameters || [];
+        for (const param of componentParams) {
           if (typeof param.value === 'number') {
             params[param.symbol] = param.value;
           }
@@ -319,10 +323,12 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
           variables[`${component.id}.tangential_force`] = Ft;
         }
         
-        logs.push(`Processed ${component.name}`);
+        logs.push(`Processed ${component.name || 'Unknown component'}`);
       }
       
       for (const conn of state.connections) {
+        if (!conn.sourceComponentId || !conn.targetComponentId) continue;
+        
         const sourceVars: Record<string, number> = {};
         for (const [key, val] of Object.entries(variables)) {
           if (key.startsWith(conn.sourceComponentId)) {

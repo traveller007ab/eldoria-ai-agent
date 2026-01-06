@@ -47,7 +47,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
   useEffect(() => {
     if (selectedComponent) {
       const params: Record<string, number> = {};
-      for (const param of selectedComponent.parameters) {
+      const componentParams = selectedComponent.parameters || [];
+      for (const param of componentParams) {
         if (typeof param.value === 'number') {
           params[param.name] = param.value;
         }
@@ -85,7 +86,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
   
   const handleRevert = () => {
     const params: Record<string, number> = {};
-    for (const param of selectedComponent.parameters) {
+    const componentParams = selectedComponent.parameters || [];
+    for (const param of componentParams) {
       if (typeof param.value === 'number') {
         params[param.name] = param.value;
       }
@@ -157,10 +159,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
       
       {/* Component Info */}
       <div className="px-4 py-3 border-b border-gray-800">
-        <div className="text-lg font-semibold text-white">{selectedComponent.name}</div>
-        <div className="text-xs text-gray-500">
-          {selectedComponent.manufacturer} {selectedComponent.model}
-        </div>
+        <div className="text-lg font-semibold text-white">{selectedComponent.name || 'Unnamed Component'}</div>
+        {(selectedComponent.manufacturer || selectedComponent.model) && (
+          <div className="text-xs text-gray-500">
+            {selectedComponent.manufacturer} {selectedComponent.model}
+          </div>
+        )}
         <div className="mt-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-cyan-500/20 text-cyan-400">
           {selectedComponent.category} / {selectedComponent.subcategory}
         </div>
@@ -222,7 +226,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
             
             {expandedSections.has('simulation') && (
               <div className="px-4 pb-3 space-y-1">
-                {selectedComponent.states.slice(0, 6).map((state) => (
+                {(selectedComponent.states || []).slice(0, 6).map((state) => (
                   <div key={state.symbol} className="flex justify-between text-xs">
                     <span className="text-gray-400">{state.symbol}</span>
                     <span className="text-green-400 font-mono">

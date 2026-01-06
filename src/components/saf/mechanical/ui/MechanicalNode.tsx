@@ -71,9 +71,18 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
   const ports = component.ports || [];
   const parameters = component.parameters || [];
   const states = component.states || [];
+  const manufacturer = component.manufacturer || '';
+  const model = component.model || '';
+  
+  // Get port color safely
+  const getPortColor = (domain: string): string => {
+    return PORT_COLORS[domain as EnergyPortType] || '#6b7280';
+  };
   
   // Calculate port positions based on port count with better spacing
   const getPortPositions = (portList: typeof ports, type: 'input' | 'output') => {
+    if (!Array.isArray(portList)) return [];
+    
     const filteredPorts = portList.filter(p => {
       if (type === 'input') return p.type === 'input' || p.type === 'bidirectional';
       return p.type === 'output' || p.type === 'bidirectional';
@@ -81,8 +90,6 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
     
     const count = filteredPorts.length;
     if (count === 0) return [];
-    
-    const spacing = count <= 3 ? 33.33 : 100 / (count + 1);
     
     return filteredPorts.map((port, index) => {
       const position = count <= 3 
@@ -101,22 +108,24 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
   
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setShowContextMenu(true);
   }, []);
   
-  const handleDelete = useCallback(() => {
-    // Emit custom event for parent to handle
+  const handleDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     window.dispatchEvent(new CustomEvent('deleteNode', { detail: { nodeId: id } }));
     setShowContextMenu(false);
   }, [id]);
   
-  const handleDuplicate = useCallback(() => {
-    // Emit custom event for parent to handle
+  const handleDuplicate = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     window.dispatchEvent(new CustomEvent('duplicateNode', { detail: { nodeId: id, component } }));
     setShowContextMenu(false);
   }, [id, component]);
   
-  const closeContextMenu = useCallback(() => {
+  const handleContextMenuClose = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     setShowContextMenu(false);
   }, []);
   
@@ -146,11 +155,13 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
         <div className="text-white">{domainConfig.icon}</div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-white truncate">
-            {component.name}
+            {component.name || 'Unnamed Component'}
           </div>
-          <div className="text-[10px] text-gray-400 truncate">
-            {component.manufacturer} {component.model}
-          </div>
+          {(manufacturer || model) && (
+            <div className="text-[10px] text-gray-400 truncate">
+              {manufacturer} {model}
+            </div>
+          )}
         </div>
         <button
           className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -208,7 +219,7 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
                   position={Position.Left}
                   id={port.id}
                   style={{
-                    background: PORT_COLORS[port.domain],
+                    background: getPortColor(port.domain),
                     width: 10,
                     height: 10,
                     border: '2px solid white',
@@ -233,7 +244,7 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
                   position={Position.Right}
                   id={port.id}
                   style={{
-                    background: PORT_COLORS[port.domain],
+                    background: getPortColor(port.domain),
                     width: 10,
                     height: 10,
                     border: '2px solid white',
@@ -263,7 +274,7 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
       
       {/* Context Menu */}
       {showContextMenu && (
-        <div className="absolute top-10 right-2 z-50 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[120px]">
+        <div className="absolute top-10 right-2 z-50 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[120px]" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={handleDuplicate}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
