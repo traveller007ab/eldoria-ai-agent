@@ -142,18 +142,62 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
       }
     };
     
+    // Add to history
+    const newHistory = state.history.slice(0, state.historyIndex + 1);
+    newHistory.push({
+      blueprint: {
+        id: state.id,
+        name: state.name,
+        description: state.description,
+        domain: state.domain,
+        components: state.components,
+        connections: state.connections,
+        version: state.version,
+        createdAt: state.createdAt,
+        updatedAt: state.updatedAt
+      },
+      timestamp: new Date(),
+      action: `Added component: ${newComponent.name}`
+    });
+    
     set({
       components: [...state.components, newComponent],
+      history: newHistory.slice(-50),
+      historyIndex: newHistory.length - 1,
       updatedAt: new Date()
     });
   },
   
   removeComponent: (id) => {
     const state = get();
+    const component = state.components.find(c => c.id === id);
+    
+    if (!component) return;
+    
+    // Add to history
+    const newHistory = state.history.slice(0, state.historyIndex + 1);
+    newHistory.push({
+      blueprint: {
+        id: state.id,
+        name: state.name,
+        description: state.description,
+        domain: state.domain,
+        components: state.components,
+        connections: state.connections,
+        version: state.version,
+        createdAt: state.createdAt,
+        updatedAt: state.updatedAt
+      },
+      timestamp: new Date(),
+      action: `Removed component: ${component.name}`
+    });
+    
     set({
       components: state.components.filter(c => c.id !== id),
       connections: state.connections.filter(c => c.sourceComponentId !== id && c.targetComponentId !== id),
       selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId,
+      history: newHistory.slice(-50),
+      historyIndex: newHistory.length - 1,
       updatedAt: new Date()
     });
   },
@@ -219,99 +263,124 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
     const variables: Record<string, number> = {};
     const logs: string[] = [];
     
-    const fluidSolver = new FluidNetworkSolver();
-    const thermoSolver = new ThermodynamicSolver();
-    
-    fluidSolver.fromComponents(state.components, state.connections);
-    thermoSolver.fromComponents(state.components);
-    
-    const fluidResult = fluidSolver.solveNewtonRaphson();
-    logs.push(...fluidResult.logs);
-    
-    for (const [id, element] of fluidResult.elements) {
-      if (element.type === 'pipe' || element.type === 'valve') {
-        variables[`${id}.flow`] = Math.abs(element.flow) * 3600;
-        variables[`${id}.velocity`] = element.velocity;
-        variables[`${id}.headLoss`] = element.headLoss;
-      }
-      if (element.type === 'pump') {
-        variables[`${id}.flow`] = Math.abs(element.flow) * 3600;
-        variables[`${id}.head`] = Math.abs(element.headLoss);
-        variables[`${id}.power`] = element.parameters.power || 0;
-      }
-    }
-    
-    for (const [id, node] of fluidResult.nodes) {
-      variables[`${id}.pressure`] = node.pressure / 1000;
-      variables[`${id}.elevation`] = node.elevation;
-    }
-    
-    for (const component of state.components) {
-      const params: Record<string, number> = {};
-      for (const param of component.parameters) {
-        if (typeof param.value === 'number') {
-          params[param.symbol] = param.value;
-        }
-      }
+    try {
+      const fluidSolver = new FluidNetworkSolver();
+      const thermoSolver = new ThermodynamicSolver();
       
-      if (component.category === 'fluid' && component.subcategory === 'turbomachinery') {
-        const N = params['N'] || 1000;
-        const Q = params['Q_design'] || 0.05;
-        const H = params['H_design'] || 20;
-        const eta = params['η_BEP'] || 0.8;
+      fluidSolver.fromComponents(state.components, state.connections);
+      thermoSolver.fromComponents(state.components);
+      
+      const fluidResult = fluidSolver.solveNewtonRaphson();
+      logs.push(...fluidResult.logs);
+      
+      Array.from(fluidResult.elements.entries()).forEach(([id, element]) => {
+        if (element.type === 'pipe' || element.type === 'valve') {
+          variables[`${id}.flow`] = Math.abs(element.flow) * 3600;
+          variables[`${id}.velocity`] = element.velocity;
+          variables[`${id}.headLoss`] = element.headLoss;
+        }
+        if (element.type === 'pump') {
+          variables[`${id}.flow`] = Math.abs(element.flow) * 3600;
+          variables[`${id}.head`] = Math.abs(element.headLoss);
+          variables[`${id}.power`] = (element.parameters.power as number) || 0;
+        }
+      });
+      
+      Array.from(fluidResult.nodes.entries()).forEach(([id, node]) => {
+        variables[`${id}.pressure`] = node.pressure / 1000;
+        variables[`${id}.elevation`] = node.elevation;
+      });
+      
+      for (const component of state.components) {
+        const params: Record<string, number> = {};
+        for (const param of component.parameters) {
+          if (typeof param.value === 'number') {
+            params[param.symbol] = param.value;
+          }
+        }
         
-        variables[`${component.id}.flow`] = Q;
-        variables[`${component.id}.head`] = H;
-        variables[`${component.id}.power`] = (Q * H * 9810) / eta / 1000;
-        variables[`${component.id}.efficiency`] = eta;
+        if (component.category === 'fluid' && component.subcategory === 'turbomachinery') {
+          const N = params['N'] || 1000;
+          const Q = params['Q_design'] || 0.05;
+          const H = params['H_design'] || 20;
+          const eta = params['η_BEP'] || 0.8;
+          
+          variables[`${component.id}.flow`] = Q;
+          variables[`${component.id}.head`] = H;
+          variables[`${component.id}.power`] = (Q * H * 9810) / eta / 1000;
+          variables[`${component.id}.efficiency`] = eta;
+        }
+        
+        if (component.category === 'machineElement' && component.subcategory === 'powerTransmission') {
+          const T = params['T'] || 100;
+          const d = params['d'] || 0.1;
+          const Ft = (2 * T) / d;
+          variables[`${component.id}.torque`] = T;
+          variables[`${component.id}.tangential_force`] = Ft;
+        }
+        
+        logs.push(`Processed ${component.name}`);
       }
       
-      if (component.category === 'machineElement' && component.subcategory === 'powerTransmission') {
-        const T = params['T'] || 100;
-        const d = params['d'] || 0.1;
-        const Ft = (2 * T) / d;
-        variables[`${component.id}.torque`] = T;
-        variables[`${component.id}.tangential_force`] = Ft;
-      }
-      
-      logs.push(`Processed ${component.name}`);
-    }
-    
-    for (const conn of state.connections) {
-      const sourceVars: Record<string, number> = {};
-      for (const [key, val] of Object.entries(variables)) {
-        if (key.startsWith(conn.sourceComponentId)) {
-          const cleanKey = key.split('.').slice(1).join('.');
-          sourceVars[cleanKey] = val;
+      for (const conn of state.connections) {
+        const sourceVars: Record<string, number> = {};
+        for (const [key, val] of Object.entries(variables)) {
+          if (key.startsWith(conn.sourceComponentId)) {
+            const cleanKey = key.split('.').slice(1).join('.');
+            sourceVars[cleanKey] = val;
+          }
+        }
+        
+        for (const [key, val] of Object.entries(sourceVars)) {
+          variables[`${conn.targetComponentId}.input_${key}`] = val;
         }
       }
       
-      for (const [key, val] of Object.entries(sourceVars)) {
-        variables[`${conn.targetComponentId}.input_${key}`] = val;
-      }
+      const endTime = performance.now();
+      
+      const result: SimulationResult = {
+        id: `sim_${Date.now()}`,
+        blueprintId: state.id,
+        timestamp: new Date(),
+        status: fluidResult.status === 'converged' ? 'converged' : 'error',
+        variables,
+        iterations: fluidResult.iterations,
+        convergenceTime: endTime - startTime,
+        residual: fluidResult.flowBalance,
+        logs: [`Simulation completed in ${(endTime - startTime).toFixed(2)}ms`, ...logs]
+      };
+      
+      set({
+        isSimulating: false,
+        lastSimulationResult: result,
+        updatedAt: new Date()
+      });
+      
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logs.push(`Simulation error: ${errorMessage}`);
+      
+      const result: SimulationResult = {
+        id: `sim_${Date.now()}`,
+        blueprintId: state.id,
+        timestamp: new Date(),
+        status: 'error',
+        variables,
+        iterations: 0,
+        convergenceTime: performance.now() - startTime,
+        residual: 1,
+        logs: [`Simulation failed: ${errorMessage}`, ...logs]
+      };
+      
+      set({
+        isSimulating: false,
+        lastSimulationResult: result,
+        updatedAt: new Date()
+      });
+      
+      return result;
     }
-    
-    const endTime = performance.now();
-    
-    const result: SimulationResult = {
-      id: `sim_${Date.now()}`,
-      blueprintId: state.id,
-      timestamp: new Date(),
-      status: fluidResult.status === 'converged' ? 'converged' : 'error',
-      variables,
-      iterations: fluidResult.iterations,
-      convergenceTime: endTime - startTime,
-      residual: fluidResult.flowBalance,
-      logs: [`Simulation completed in ${(endTime - startTime).toFixed(2)}ms`, ...logs]
-    };
-    
-    set({
-      isSimulating: false,
-      lastSimulationResult: result,
-      updatedAt: new Date()
-    });
-    
-    return result;
   },
   
   clearSimulation: () => {

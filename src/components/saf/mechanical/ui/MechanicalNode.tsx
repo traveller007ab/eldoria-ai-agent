@@ -3,7 +3,7 @@
  * Custom ReactFlow node for mechanical components
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState, useCallback } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { 
   Droplets, 
@@ -14,7 +14,10 @@ import {
   Box, 
   Layers,
   Activity,
-  Wifi
+  Wifi,
+  Trash2,
+  Copy,
+  MoreHorizontal
 } from 'lucide-react';
 import { MechanicalComponent, EnergyPortType } from '../types';
 
@@ -48,9 +51,10 @@ const PORT_COLORS: Record<EnergyPortType, string> = {
   pneumatic: '#8b5cf6'
 };
 
-const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selected }) => {
+const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selected, id }) => {
   const { component, isSelected, simVars, showPorts = true } = data;
   const domainConfig = DOMAIN_CONFIG[component.category] || DOMAIN_CONFIG.fluid;
+  const [showContextMenu, setShowContextMenu] = useState(false);
   
   // Get key simulation values for display
   const getDisplayValue = (symbol: string): string => {
@@ -63,32 +67,75 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
     return '--';
   };
   
-  // Calculate port positions based on port count
+  // Calculate port positions based on port count with better spacing
   const getPortPositions = (ports: typeof component.ports, type: 'input' | 'output') => {
     const filteredPorts = ports.filter(p => {
       if (type === 'input') return p.type === 'input' || p.type === 'bidirectional';
       return p.type === 'output' || p.type === 'bidirectional';
     });
     
-    const spacing = 100 / (filteredPorts.length + 1);
-    return filteredPorts.map((port, index) => ({
-      port,
-      position: 10 + (index + 1) * spacing
-    }));
+    const count = filteredPorts.length;
+    if (count === 0) return [];
+    
+    const spacing = count <= 3 ? 33.33 : 100 / (count + 1);
+    
+    return filteredPorts.map((port, index) => {
+      const position = count <= 3 
+        ? 16.67 + index * 33.33
+        : 100 / (count + 1) * (index + 1);
+      
+      return {
+        port,
+        position
+      };
+    });
   };
   
   const inputPorts = showPorts ? getPortPositions(component.ports, 'input') : [];
   const outputPorts = showPorts ? getPortPositions(component.ports, 'output') : [];
   
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowContextMenu(true);
+  }, []);
+  
+  const handleDelete = useCallback(() => {
+    // Emit custom event for parent to handle
+    window.dispatchEvent(new CustomEvent('deleteNode', { detail: { nodeId: id } }));
+    setShowContextMenu(false);
+  }, [id]);
+  
+  const handleDuplicate = useCallback(() => {
+    // Emit custom event for parent to handle
+    window.dispatchEvent(new CustomEvent('duplicateNode', { detail: { nodeId: id, component } }));
+    setShowContextMenu(false);
+  }, [id, component]);
+  
+  const closeContextMenu = useCallback(() => {
+    setShowContextMenu(false);
+  }, []);
+  
+  // Close context menu on click outside
+  React.useEffect(() => {
+    const handleClick = () => setShowContextMenu(false);
+    if (showContextMenu) {
+      window.addEventListener('click', handleClick);
+      return () => window.removeEventListener('click', handleClick);
+    }
+  }, [showContextMenu]);
+  
   return (
-    <div className={`
-      min-w-[180px] rounded-lg border-2 transition-all duration-200
-      ${isSelected 
-        ? 'border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.4)]' 
-        : 'border-gray-700 hover:border-gray-600'
-      }
-      bg-gray-900/95 backdrop-blur-sm overflow-hidden
-    `}>
+    <div 
+      className={`
+        min-w-[180px] rounded-lg border-2 transition-all duration-200
+        ${isSelected 
+          ? 'border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.4)]' 
+          : 'border-gray-700 hover:border-gray-600'
+        }
+        bg-gray-900/95 backdrop-blur-sm overflow-hidden
+      `}
+      onContextMenu={handleContextMenu}
+    >
       {/* Header */}
       <div className={`flex items-center gap-2 px-3 py-2 border-b ${domainConfig.bgColor}`}>
         <div className="text-white">{domainConfig.icon}</div>
@@ -100,6 +147,15 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
             {component.manufacturer} {component.model}
           </div>
         </div>
+        <button
+          className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowContextMenu(!showContextMenu);
+          }}
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
       </div>
       
       {/* Parameters Display */}
@@ -197,6 +253,26 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
       {data.constraintViolations && data.constraintViolations.length > 0 && (
         <div className="absolute bottom-2 right-2">
           <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Constraint violations" />
+        </div>
+      )}
+      
+      {/* Context Menu */}
+      {showContextMenu && (
+        <div className="absolute top-10 right-2 z-50 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[120px]">
+          <button
+            onClick={handleDuplicate}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            <Copy className="w-4 h-4" />
+            Duplicate
+          </button>
+          <button
+            onClick={handleDelete}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
         </div>
       )}
     </div>

@@ -24,6 +24,52 @@ import ReactFlow, {
   ConnectionLineType
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+
+// CSS Animinations
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 10px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+  .animate-fade-in-up {
+    animation: fadeInUp 0.3s ease-out forwards;
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 5px currentColor;
+    }
+    50% {
+      box-shadow: 0 0 20px currentColor;
+    }
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .context-menu-animate {
+    animation: slideIn 0.15s ease-out forwards;
+  }
+`;
+document.head.appendChild(style);
+
 import { 
   Play, 
   Pause, 
@@ -36,7 +82,11 @@ import {
   Settings,
   AlertTriangle,
   CheckCircle,
-  Loader2
+  Loader2,
+  Keyboard,
+  HelpCircle,
+  Trash2,
+  X
 } from 'lucide-react';
 import MechanicalNode, { nodeTypes, componentToNode } from './MechanicalNode';
 import { useSAFMechanicalStore } from '../store';
@@ -101,25 +151,131 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' | 'success' } | null>(null);
   
   const reactFlowInstance = useReactFlow();
   
+  // Show toast notification
+  const showToast = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedComponentId) {
+          removeComponent(selectedComponentId);
+          selectComponent(null);
+          showToast('Component deleted', 'info');
+        }
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        setNodes(nds => nds.map(n => ({ ...n, selected: true })));
+        showToast('All components selected', 'info');
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        setNodes(nds => nds.map(n => ({ ...n, selected: false })));
+        selectComponent(null);
+        showToast('Selection cleared', 'info');
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedComponentId, removeComponent, selectComponent, showToast, setNodes]);
+  
+  // Context menu event handlers from MechanicalNode
+  useEffect(() => {
+    const handleDeleteNode = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.nodeId) {
+        removeComponent(detail.nodeId);
+        selectComponent(null);
+        showToast('Component deleted', 'info');
+      }
+    };
+    
+    const handleDuplicateNode = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.nodeId && detail?.component) {
+        const reactFlowBounds = reactFlowInstance.screenToFlowPosition({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
+        });
+        
+        addComponent({
+          ...detail.component,
+          id: createComponentId('comp'),
+          name: `${detail.component.name} (copy)`
+        }, { x: reactFlowBounds.x + 50, y: reactFlowBounds.y + 50 });
+        
+        showToast('Component duplicated', 'success');
+      }
+    };
+    
+    window.addEventListener('deleteNode', handleDeleteNode);
+    window.addEventListener('duplicateNode', handleDuplicateNode);
+    
+    return () => {
+      window.removeEventListener('deleteNode', handleDeleteNode);
+      window.removeEventListener('duplicateNode', handleDuplicateNode);
+    };
+  }, [reactFlowInstance, addComponent, removeComponent, selectComponent, showToast]);
+  
+  // Zoom level tracking
+  useEffect(() => {
+    const updateZoom = () => {
+      if (reactFlowInstance) {
+        setZoomLevel(reactFlowInstance.getZoom());
+      }
+    };
+    
+    const interval = setInterval(updateZoom, 500);
+    return () => clearInterval(interval);
+  }, [reactFlowInstance]);
+  
   // Convert SAF components to ReactFlow nodes
   useEffect(() => {
-    const newNodes: Node[] = components.map(comp => {
-      const existingNode = nodes.find(n => n.id === comp.id);
-      if (existingNode && !existingNode.selected) {
-        return existingNode;
-      }
-      return componentToNode(comp, { x: comp.geometry?.dimensions?.x || 100, y: comp.geometry?.dimensions?.y || 100 });
-    });
+    const componentIds = new Set(components.map(c => c.id));
     
     // Remove nodes for deleted components
-    const componentIds = new Set(components.map(c => c.id));
-    const filteredNodes = nodes.filter(n => componentIds.has(n.id) || n.selected);
+    const validNodes = nodes.filter(n => componentIds.has(n.id));
     
-    setNodes(filteredNodes.length > 0 ? filteredNodes : newNodes);
-  }, [components, nodes.length, setNodes]);
+    // Add or update nodes for existing components
+    const updatedNodes = components.map(comp => {
+      const existingNode = validNodes.find(n => n.id === comp.id);
+      if (existingNode) {
+        // Update position if changed, preserve selection state
+        const position = { 
+          x: comp.geometry?.dimensions?.x || 100, 
+          y: comp.geometry?.dimensions?.y || 100 
+        };
+        if (existingNode.position.x !== position.x || existingNode.position.y !== position.y) {
+          return { ...existingNode, position };
+        }
+        return existingNode;
+      }
+      // Create new node
+      return componentToNode(comp, { 
+        x: comp.geometry?.dimensions?.x || 100, 
+        y: comp.geometry?.dimensions?.y || 100 
+      });
+    });
+    
+    // Only update if changed
+    if (JSON.stringify(updatedNodes) !== JSON.stringify(nodes)) {
+      setNodes(updatedNodes);
+    }
+  }, [components, setNodes]);
   
   // Convert SAF connections to ReactFlow edges
   useEffect(() => {
@@ -152,24 +308,49 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
   // Handle connections
   const handleConnect: OnConnect = useCallback((params: Connection) => {
     if (!params.source || !params.target || !params.sourceHandle || !params.targetHandle) {
+      showToast('Invalid connection: missing ports', 'error');
       return;
     }
     
     const sourceComp = components.find(c => c.id === params.source);
     const targetComp = components.find(c => c.id === params.target);
     
-    if (!sourceComp || !targetComp) return;
+    if (!sourceComp || !targetComp) {
+      showToast('Invalid connection: component not found', 'error');
+      return;
+    }
     
     const sourcePort = sourceComp.ports.find(p => p.id === params.sourceHandle);
     const targetPort = targetComp.ports.find(p => p.id === params.targetHandle);
     
-    if (!sourcePort || !targetPort) return;
+    if (!sourcePort || !targetPort) {
+      showToast('Invalid connection: port not found', 'error');
+      return;
+    }
     
     // Check port compatibility
     const compatibleDomains = ['fluid', 'mechanical', 'thermal', 'signal'];
     if (!compatibleDomains.includes(sourcePort.domain) || 
-        !compatibleDomains.includes(targetPort.domain) ||
-        sourcePort.domain !== targetPort.domain) {
+        !compatibleDomains.includes(targetPort.domain)) {
+      showToast(`Cannot connect ${sourcePort.domain} to ${targetPort.domain}`, 'error');
+      return;
+    }
+    
+    if (sourcePort.domain !== targetPort.domain) {
+      showToast(`Domain mismatch: ${sourcePort.domain} ≠ ${targetPort.domain}`, 'error');
+      return;
+    }
+    
+    // Check if connection already exists
+    const existingConnection = connections.find(
+      c => c.sourceComponentId === params.source &&
+           c.targetComponentId === params.target &&
+           c.sourcePortId === params.sourceHandle &&
+           c.targetPortId === params.targetHandle
+    );
+    
+    if (existingConnection) {
+      showToast('Connection already exists', 'info');
       return;
     }
     
@@ -178,7 +359,7 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
       sourcePortId: params.sourceHandle,
       targetComponentId: params.target,
       targetPortId: params.targetHandle,
-      type: sourcePort.domain as any
+      type: sourcePort.domain as 'fluid' | 'mechanical' | 'thermal' | 'signal'
     });
     
     if (success) {
@@ -193,8 +374,11 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
         markerEnd: { type: MarkerType.ArrowClosed, color: '#6b7280' },
         style: { stroke: '#6b7280', strokeWidth: 2 }
       }, eds));
+      showToast('Connection created', 'success');
+    } else {
+      showToast('Failed to create connection', 'error');
     }
-  }, [components, addConnection, setEdges]);
+  }, [components, addConnection, showToast, connections]);
   
   // Handle drag and drop from palette
   const handleDrop = useCallback((event: React.DragEvent) => {
@@ -329,21 +513,33 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
           <button
             onClick={handleZoomIn}
             className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+            title="Zoom In (+)"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
             onClick={handleZoomOut}
             className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+            title="Zoom Out (-)"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
           <button
             onClick={handleResetView}
             className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+            title="Fit to View (0)"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
+          <span className="text-xs text-gray-500 px-2 min-w-[50px] text-center" title="Current Zoom Level">
+            {Math.round(zoomLevel * 100)}%
+          </span>
+        </div>
+        
+        {/* Keyboard Shortcuts Help */}
+        <div className="flex items-center gap-1 px-2 border-l border-gray-700">
+          <Keyboard className="w-4 h-4 text-gray-500" />
+          <span className="text-xs text-gray-500">Del</span>
         </div>
         
         {/* Right Actions */}
@@ -396,6 +592,57 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
             }}
           />
         </ReactFlow>
+        
+        {/* Empty State Guidance */}
+        {components.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-800/50 flex items-center justify-center">
+                <Settings className="w-8 h-8 text-gray-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-400 mb-2">No Components Yet</h3>
+              <p className="text-sm text-gray-600 mb-4">Drag components from the palette to get started</p>
+              <div className="flex items-center justify-center gap-4 text-xs text-gray-600">
+                <span className="px-2 py-1 rounded bg-gray-800/50">Del to delete</span>
+                <span className="px-2 py-1 rounded bg-gray-800/50">Ctrl+A to select all</span>
+                <span className="px-2 py-1 rounded bg-gray-800/50">Scroll to zoom</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`
+            absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2
+            animate-fade-in-up
+            ${toast.type === 'error' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : ''}
+            ${toast.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : ''}
+            ${toast.type === 'info' ? 'bg-gray-800/80 text-gray-300 border border-gray-700' : ''}
+          `}>
+            {toast.type === 'error' && <AlertTriangle className="w-4 h-4" />}
+            {toast.type === 'success' && <CheckCircle className="w-4 h-4" />}
+            {toast.type === 'info' && <HelpCircle className="w-4 h-4" />}
+            <span className="text-sm">{toast.message}</span>
+            <button 
+              onClick={() => setToast(null)}
+              className="ml-2 p-0.5 rounded hover:bg-white/10"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+        
+        {/* Simulation Progress Overlay */}
+        {isSimulating && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center backdrop-blur-sm">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-300">Running Simulation...</p>
+              <p className="text-xs text-gray-500 mt-1">Calculating fluid networks</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
