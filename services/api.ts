@@ -7,4 +7,4 @@ export * from './apiClient';
 
 // Re-export existing services
 export { bridgeClient } from './bridgeClient';
-export { supabaseClient } from './supabaseClient';
+export { supabase } from './supabaseClient';

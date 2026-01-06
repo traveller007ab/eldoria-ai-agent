@@ -235,7 +235,7 @@ interface WorkspaceContextType extends WorkspaceState {
   addAcademicProject: (project: AcademicProject) => void;
   updateAcademicProject: (project: AcademicProject) => void;
   deleteAcademicProject: (id: string) => Promise<void>;
-  publishToAcademicHub: (projectId: string, fileName: string, content: string) => Promise<void>;
+  publishToAcademicHub: (projectId?: string, fileName?: string, content?: string) => Promise<void>;
   openLocalFile: (path: string) => Promise<void>;
   isIndexing: boolean;
   completeOnboarding: () => void;

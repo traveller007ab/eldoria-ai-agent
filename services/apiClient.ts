@@ -91,8 +91,8 @@ class ApiClient {
   private async request<T>(
     method: string,
     endpoint: string,
-    body?: unknown,
-    config?: ApiRequestConfig
+    config: ApiRequestConfig | undefined,
+    body?: unknown
   ): Promise<ApiResponse<T>> {
     const cacheKey = `${method}:${endpoint}`;
     
@@ -112,8 +112,8 @@ class ApiClient {
         const response = await this.fetchWithTimeout(
           method,
           endpoint,
-          body,
-          config?.timeout ?? this.defaultTimeout
+          config?.timeout ?? this.defaultTimeout,
+          body
         );
         
         if (!response.ok) {
@@ -145,6 +145,7 @@ class ApiClient {
     }
     
     return {
+      data: {} as T,
       error: {
         message: lastError?.message || 'Request failed after retries',
         details: lastError,
@@ -155,8 +156,8 @@ class ApiClient {
   private async fetchWithTimeout(
     method: string,
     endpoint: string,
-    body?: unknown,
-    timeout: number
+    timeout: number,
+    body?: unknown
   ): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);

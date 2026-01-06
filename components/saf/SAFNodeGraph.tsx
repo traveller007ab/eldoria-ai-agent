@@ -361,7 +361,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, node, onClose, onDuplic
 
     React.useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+            if (menuRef.current && !menuRef.current.contains(event.target as globalThis.Node)) {
                 onClose();
             }
         };
