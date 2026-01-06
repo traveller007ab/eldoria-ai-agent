@@ -149,6 +149,10 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
         bg-gray-900/95 backdrop-blur-sm overflow-hidden
       `}
       onContextMenu={handleContextMenu}
+      role="article"
+      aria-label={`${component.name || 'Unnamed Component'}, ${component.category} component`}
+      aria-selected={isSelected}
+      tabIndex={0}
     >
       {/* Header */}
       <div className={`flex items-center gap-2 px-3 py-2 border-b ${domainConfig.bgColor}`}>
@@ -169,6 +173,9 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
             e.stopPropagation();
             setShowContextMenu(!showContextMenu);
           }}
+          aria-label="Show component menu"
+          aria-expanded={showContextMenu}
+          aria-haspopup="true"
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>
@@ -206,8 +213,8 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
       {/* Ports */}
       {showPorts && (
         <>
-          {/* Input Ports (Left) */}
-          <div className="absolute left-0 top-0 bottom-0 w-1 flex flex-col justify-around py-2">
+           {/* Input Ports (Left) */}
+          <div className="absolute left-0 top-0 bottom-0 w-1 flex flex-col justify-around py-2" aria-label="Input ports">
             {inputPorts.map(({ port, position }) => (
               <div
                 key={port.id}
@@ -226,13 +233,14 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
                     borderRadius: '50%'
                   }}
                   className="opacity-80 hover:opacity-100 cursor-pointer"
+                  aria-label={`${port.name} (${port.type} ${port.domain})`}
                 />
               </div>
             ))}
           </div>
           
           {/* Output Ports (Right) */}
-          <div className="absolute right-0 top-0 bottom-0 w-1 flex flex-col justify-around py-2">
+          <div className="absolute right-0 top-0 bottom-0 w-1 flex flex-col justify-around py-2" aria-label="Output ports">
             {outputPorts.map(({ port, position }) => (
               <div
                 key={port.id}
@@ -251,6 +259,7 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
                     borderRadius: '50%'
                   }}
                   className="opacity-80 hover:opacity-100 cursor-pointer"
+                  aria-label={`${port.name} (${port.type} ${port.domain})`}
                 />
               </div>
             ))}
@@ -260,33 +269,44 @@ const MechanicalNode: React.FC<NodeProps<MechanicalNodeData>> = ({ data, selecte
       
       {/* Status Indicator */}
       {simVars && (
-        <div className="absolute top-2 right-2">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+        <div className="absolute top-2 right-2" role="status" aria-label="Component has simulation results">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" aria-hidden="true" />
         </div>
       )}
       
       {/* Failure Warning Indicator */}
       {data.constraintViolations && data.constraintViolations.length > 0 && (
-        <div className="absolute bottom-2 right-2">
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Constraint violations" />
+        <div 
+          className="absolute bottom-2 right-2" 
+          role="alert"
+          aria-label={`Component has ${data.constraintViolations.length} constraint violations`}
+        >
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Constraint violations" aria-hidden="true" />
         </div>
       )}
       
       {/* Context Menu */}
       {showContextMenu && (
-        <div className="absolute top-10 right-2 z-50 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[120px]" onClick={(e) => e.stopPropagation()}>
+        <div 
+          className="absolute top-10 right-2 z-50 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[120px]" 
+          role="menu"
+          aria-label="Component actions"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             onClick={handleDuplicate}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+            role="menuitem"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="w-4 h-4" aria-hidden="true" />
             Duplicate
           </button>
           <button
             onClick={handleDelete}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors"
+            role="menuitem"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
             Delete
           </button>
         </div>

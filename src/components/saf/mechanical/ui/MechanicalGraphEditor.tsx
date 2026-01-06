@@ -134,8 +134,10 @@ const edgeTypes = {
 };
 
 function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGraphEditorProps) {
-  const { 
-    components, 
+  const {
+    name,
+    domain,
+    components,
     connections,
     selectedComponentId,
     lastSimulationResult,
@@ -145,7 +147,16 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
     removeComponent,
     selectComponent,
     runSimulation,
-    snapToGrid
+    snapToGrid,
+    undo,
+    redo,
+    copyComponent,
+    pasteComponent,
+    saveBlueprint,
+    selectConnection,
+    updateComponent,
+    canUndo,
+    canRedo
   } = useSAFMechanicalStore();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -187,11 +198,131 @@ function GraphEditorContent({ onSelectComponent, onOpenSettings }: MechanicalGra
         selectComponent(null);
         showToast('Selection cleared', 'info');
       }
+      
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          if (canRedo()) {
+            redo();
+            showToast('Redone', 'info');
+          } else {
+            showToast('Nothing to redo', 'error');
+          }
+        } else {
+          if (canUndo()) {
+            undo();
+            showToast('Undone', 'info');
+          } else {
+            showToast('Nothing to undo', 'error');
+          }
+        }
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        if (canRedo()) {
+          redo();
+          showToast('Redone', 'info');
+        } else {
+          showToast('Nothing to redo', 'error');
+        }
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        if (selectedComponentId) {
+          copyComponent(selectedComponentId);
+          showToast('Component copied', 'info');
+        }
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        pasteComponent();
+        showToast('Component pasted', 'info');
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        saveBlueprint();
+        showToast('Blueprint saved', 'success');
+      }
+      
+      if (e.key === 'Escape') {
+        selectComponent(null);
+        selectConnection(null);
+        setNodes(nds => nds.map(n => ({ ...n, selected: false })));
+        showToast('Selection cleared', 'info');
+      }
+      
+      if (e.key === 'ArrowLeft' && selectedComponentId) {
+        e.preventDefault();
+        const component = components.find(c => c.id === selectedComponentId);
+        if (component?.geometry?.dimensions?.x) {
+          updateComponent(selectedComponentId, {
+            geometry: {
+              ...component.geometry!,
+              dimensions: {
+                ...component.geometry.dimensions,
+                x: component.geometry.dimensions.x - (e.shiftKey ? 10 : 1)
+              }
+            }
+          });
+        }
+      }
+      
+      if (e.key === 'ArrowRight' && selectedComponentId) {
+        e.preventDefault();
+        const component = components.find(c => c.id === selectedComponentId);
+        if (component?.geometry?.dimensions?.x) {
+          updateComponent(selectedComponentId, {
+            geometry: {
+              ...component.geometry!,
+              dimensions: {
+                ...component.geometry.dimensions,
+                x: component.geometry.dimensions.x + (e.shiftKey ? 10 : 1)
+              }
+            }
+          });
+        }
+      }
+      
+      if (e.key === 'ArrowUp' && selectedComponentId) {
+        e.preventDefault();
+        const component = components.find(c => c.id === selectedComponentId);
+        if (component?.geometry?.dimensions?.y) {
+          updateComponent(selectedComponentId, {
+            geometry: {
+              ...component.geometry!,
+              dimensions: {
+                ...component.geometry.dimensions,
+                y: component.geometry.dimensions.y - (e.shiftKey ? 10 : 1)
+              }
+            }
+          });
+        }
+      }
+      
+      if (e.key === 'ArrowDown' && selectedComponentId) {
+        e.preventDefault();
+        const component = components.find(c => c.id === selectedComponentId);
+        if (component?.geometry?.dimensions?.y) {
+          updateComponent(selectedComponentId, {
+            geometry: {
+              ...component.geometry!,
+              dimensions: {
+                ...component.geometry.dimensions,
+                y: component.geometry.dimensions.y + (e.shiftKey ? 10 : 1)
+              }
+            }
+          });
+        }
+      }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedComponentId, removeComponent, selectComponent, showToast, setNodes]);
+  }, [selectedComponentId, removeComponent, selectComponent, showToast, setNodes, undo, redo, copyComponent, pasteComponent, saveBlueprint, components, updateComponent]);
   
   // Context menu event handlers from MechanicalNode
   useEffect(() => {

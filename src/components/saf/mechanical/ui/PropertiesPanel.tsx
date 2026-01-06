@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useSAFMechanicalStore } from '../store';
 import { MechanicalComponent, ComponentParameter, ConstraintViolation } from '../types';
+import { validateParameter, ValidationError } from '../utils/parameterValidation';
 
 interface PropertiesPanelProps {
   isOpen: boolean;
@@ -40,6 +41,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['parameters']));
   const [editedParams, setEditedParams] = useState<Record<string, number>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, ValidationError[]>>({});
+  const [showValidation, setShowValidation] = useState<Record<string, boolean>>({});
   
   const selectedComponent = components.find(c => c.id === selectedComponentId);
   
@@ -75,6 +78,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
   const handleParamChange = (paramName: string, value: number) => {
     setEditedParams(prev => ({ ...prev, [paramName]: value }));
     setHasChanges(true);
+
+    // Validate parameter in real-time
+    if (selectedComponent) {
+      const param = (selectedComponent.parameters || []).find(p => p.name === paramName);
+      if (param) {
+        const errors = validateParameter(param, value, selectedComponent.parameters);
+        setValidationErrors(prev => ({
+          ...prev,
+          [paramName]: errors
+        }));
+      }
+    }
   };
   
   const handleSaveChanges = () => {
@@ -256,27 +271,70 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
           
           {expandedSections.has('parameters') && (
             <div className="px-4 pb-3 space-y-3">
-              {selectedComponent.parameters.map((param) => (
-                <div key={param.symbol}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-300 font-mono">{param.symbol}</span>
-                    <span className="text-gray-500">{param.unit}</span>
-                  </div>
-                  <input
-                    type="number"
-                    value={editedParams[param.name] ?? param.value}
-                    onChange={(e) => handleParamChange(param.name, parseFloat(e.target.value) || 0)}
-                    step={param.tolerance || 0.1}
-                    className="w-full px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-white focus:outline-none focus:border-cyan-500"
-                  />
-                  {param.designRange && (
-                    <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
-                      <span>Min: {param.designRange.min}</span>
-                      <span>Max: {param.designRange.max}</span>
+              {(selectedComponent.parameters || []).map((param) => {
+                const paramErrors = validationErrors[param.name] || [];
+                const hasError = paramErrors.some(e => e.severity === 'error');
+                const hasWarning = paramErrors.some(e => e.severity === 'warning');
+                const showValidationForParam = showValidation[param.name] || hasError;
+
+                return (
+                  <div key={param.symbol} className="space-y-1">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-300 font-mono">{param.symbol}</span>
+                      <span className="text-gray-500">{param.unit}</span>
                     </div>
-                  )}
-                </div>
-              ))}
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={editedParams[param.name] ?? param.value}
+                        onChange={(e) => handleParamChange(param.name, parseFloat(e.target.value) || 0)}
+                        step={param.tolerance || 0.1}
+                        className={`w-full px-2 py-1 bg-gray-800 border rounded text-sm text-white focus:outline-none transition-colors
+                          ${hasError ? 'border-red-500 focus:border-red-400' : 
+                            hasWarning ? 'border-yellow-500 focus:border-yellow-400' : 
+                            'border-gray-700 focus:border-cyan-500'}
+                        `}
+                        onFocus={() => setShowValidation(prev => ({ ...prev, [param.name]: true }))}
+                        onBlur={() => setShowValidation(prev => ({ ...prev, [param.name]: false }))}
+                        aria-invalid={hasError}
+                        aria-describedby={`param-${param.name}-validation`}
+                      />
+                      {(hasError || hasWarning) && (
+                        <button
+                          onClick={() => setShowValidation(prev => ({ ...prev, [param.name]: !showValidationForParam }))}
+                          className="absolute right-2 top-1/2 -translate-y-1/2"
+                          aria-label={`Show validation for ${param.name}`}
+                        >
+                          <AlertTriangle className={`w-4 h-4 ${hasError ? 'text-red-500' : 'text-yellow-500'}`} />
+                        </button>
+                      )}
+                    </div>
+                    {showValidationForParam && paramErrors.length > 0 && (
+                      <div 
+                        id={`param-${param.name}-validation`}
+                        className="text-[10px] space-y-0.5"
+                        role="alert"
+                      >
+                        {paramErrors.map((error, idx) => (
+                          <div 
+                            key={idx}
+                            className={`flex items-start gap-1 ${error.severity === 'error' ? 'text-red-400' : 'text-yellow-400'}`}
+                          >
+                            <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                            <span>{error.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {param.designRange && !showValidationForParam && (
+                      <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
+                        <span>Min: {param.designRange.min}</span>
+                        <span>Max: {param.designRange.max}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

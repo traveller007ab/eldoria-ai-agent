@@ -16,6 +16,7 @@ import {
 } from './types';
 import { FluidNetworkSolver } from './solvers/fluidNetworkSolver';
 import { ThermodynamicSolver } from './solvers/thermodynamicSolver';
+import { blueprintTemplates, BlueprintTemplate } from './templates/blueprintTemplates';
 
 interface SAFMechanicalState {
   // Blueprint data
@@ -51,6 +52,8 @@ interface SAFMechanicalState {
   // Actions
   loadBlueprint: (bp: SAFBlueprint) => void;
   closeBlueprint: () => void;
+  saveBlueprint: () => void;
+  exportBlueprint: (format: 'json' | 'csv' | 'pdf') => void;
   addComponent: (component: MechanicalComponent, position: { x: number; y: number }) => void;
   removeComponent: (id: string) => void;
   updateComponent: (id: string, updates: Partial<MechanicalComponent>) => void;
@@ -66,6 +69,9 @@ interface SAFMechanicalState {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  copyComponent: (id: string) => void;
+  pasteComponent: () => void;
+  loadTemplate: (templateId: string) => void;
 }
 
 export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
@@ -145,7 +151,7 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
       }
     };
     
-    // Add to history
+    // Add to history - save current state first
     const newHistory = state.history.slice(0, state.historyIndex + 1);
     newHistory.push({
       blueprint: {
@@ -398,9 +404,33 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
     if (state.historyIndex > 0) {
       const previousState = state.history[state.historyIndex - 1];
       set({
-        ...previousState.blueprint,
+        id: previousState.blueprint.id,
+        name: previousState.blueprint.name,
+        description: previousState.blueprint.description,
+        domain: previousState.blueprint.domain,
+        components: previousState.blueprint.components,
+        connections: previousState.blueprint.connections,
+        version: previousState.blueprint.version,
+        createdAt: new Date(previousState.blueprint.createdAt),
+        updatedAt: new Date(),
         history: state.history,
         historyIndex: state.historyIndex - 1,
+        lastSimulationResult: null
+      });
+    } else if (state.historyIndex === 0 && state.history.length > 0) {
+      // Going back to initial state (empty)
+      set({
+        id: '',
+        name: 'Untitled System',
+        description: '',
+        domain: 'fluid',
+        components: [],
+        connections: [],
+        version: '1.0.0',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        history: state.history,
+        historyIndex: -1,
         lastSimulationResult: null
       });
     }
@@ -408,10 +438,18 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
   
   redo: () => {
     const state = get();
-    if (state.historyIndex < state.history.length - 1) {
+    if (state.historyIndex >= 0 && state.historyIndex < state.history.length - 1) {
       const nextState = state.history[state.historyIndex + 1];
       set({
-        ...nextState.blueprint,
+        id: nextState.blueprint.id,
+        name: nextState.blueprint.name,
+        description: nextState.blueprint.description,
+        domain: nextState.blueprint.domain,
+        components: nextState.blueprint.components,
+        connections: nextState.blueprint.connections,
+        version: nextState.blueprint.version,
+        createdAt: new Date(nextState.blueprint.createdAt),
+        updatedAt: new Date(),
         history: state.history,
         historyIndex: state.historyIndex + 1,
         lastSimulationResult: null
@@ -419,8 +457,145 @@ export const useSAFMechanicalStore = create<SAFMechanicalState>((set, get) => ({
     }
   },
   
-  canUndo: () => get().historyIndex > 0,
-  canRedo: () => get().historyIndex < get().history.length - 1
+  saveBlueprint: () => {
+    const state = get();
+    const blueprint: SAFBlueprint = {
+      id: state.id || 'bp_' + Date.now(),
+      name: state.name,
+      description: state.description,
+      domain: state.domain,
+      components: state.components,
+      connections: state.connections,
+      version: state.version,
+      createdAt: state.createdAt,
+      updatedAt: new Date()
+    };
+    
+    localStorage.setItem(`saf-mech-blueprint-${blueprint.id}`, JSON.stringify(blueprint));
+    localStorage.setItem('saf-mech-last-blueprint', blueprint.id);
+    
+    set({ id: blueprint.id, updatedAt: new Date() });
+  },
+  
+  exportBlueprint: (format: 'json' | 'csv' | 'pdf') => {
+    const state = get();
+    const blueprint: SAFBlueprint = {
+      id: state.id || 'bp_' + Date.now(),
+      name: state.name,
+      description: state.description,
+      domain: state.domain,
+      components: state.components,
+      connections: state.connections,
+      version: state.version,
+      createdAt: state.createdAt,
+      updatedAt: new Date()
+    };
+    
+    if (format === 'json') {
+      const data = JSON.stringify(blueprint, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${blueprint.name.replace(/\s+/g, '_')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'csv') {
+      let csv = 'Component ID,Name,Category,Subcategory,Parameters\n';
+      blueprint.components.forEach(comp => {
+        const params = (comp.parameters || []).map(p => `${p.name}=${p.value}`).join('; ');
+        csv += `${comp.id},${comp.name},${comp.category},${comp.subcategory},"${params}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${blueprint.name.replace(/\s+/g, '_')}_bom.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'pdf') {
+      alert('PDF export requires additional library (jsPDF). Implementing JSON export instead.');
+    }
+  },
+  
+  copyComponent: (id) => {
+    const state = get();
+    const component = state.components.find(c => c.id === id);
+    if (component) {
+      const data = JSON.stringify(component);
+      localStorage.setItem('saf-mech-clipboard', data);
+    }
+  },
+  
+  pasteComponent: () => {
+    const data = localStorage.getItem('saf-mech-clipboard');
+    if (data) {
+      try {
+        const component = JSON.parse(data) as MechanicalComponent;
+        const state = get();
+        
+        const newComponent: MechanicalComponent = {
+          ...component,
+          id: createComponentId('comp'),
+          name: `${component.name} (copy)`,
+          geometry: component.geometry ? {
+            ...component.geometry,
+            dimensions: {
+              ...(component.geometry.dimensions || {}),
+              x: (component.geometry.dimensions?.x || 0) + 50,
+              y: (component.geometry.dimensions?.y || 0) + 50
+            }
+          } : {
+            type: 'primitive',
+            dimensions: { x: 100, y: 100 }
+          }
+        };
+        
+        state.addComponent(newComponent, {
+          x: newComponent.geometry?.dimensions?.x || 100,
+          y: newComponent.geometry?.dimensions?.y || 100
+        });
+      } catch (e) {
+        console.error('Failed to paste component:', e);
+      }
+    }
+  },
+  
+  loadTemplate: (templateId) => {
+    const template = blueprintTemplates.find(t => t.id === templateId);
+    if (template) {
+      const state = get();
+      const newBlueprint: SAFBlueprint = {
+        id: `bp_${Date.now()}`,
+        name: template.name,
+        description: template.description,
+        domain: template.domain,
+        components: template.components,
+        connections: template.connections,
+        version: '1.0.0',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      set({
+        ...newBlueprint,
+        selectedComponentId: null,
+        selectedConnectionId: null,
+        lastSimulationResult: null,
+        history: [],
+        historyIndex: -1
+      });
+    }
+  },
+  
+  canUndo: () => {
+    const state = get();
+    return state.historyIndex >= 0 || (state.history.length > 0 && state.historyIndex === -1);
+  },
+  canRedo: () => {
+    const state = get();
+    return state.historyIndex >= 0 && state.historyIndex < state.history.length - 1;
+  }
 }));
 
 export default useSAFMechanicalStore;

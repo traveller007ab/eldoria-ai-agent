@@ -265,22 +265,21 @@ export const SAFLab: React.FC = () => {
 
                 {/* 2. Center: Canvas */}
                 <div className="flex-grow relative bg-gray-900/40">
-                    <SAFNodeGraph
-                        blueprint={blueprint}
-                        selectedNodeId={selectedId}
-                        simVars={blueprint.last_simulation?.system_vars} // Optional
-                        // simplified props for 2.0
-                        onSelectNode={selectNode}
-                        onNodeDragStop={handleNodeDragStop}
-                        onConnect={handleConnect}
-                        onAddNode={addNode}
-                        onDropComponent={handleDropComponent}
-                        onAskAI={() => setLocalActivePanel('ai')}
-                        // Reuse existing styling props
-                        expandedNodes={[]}
-                        onToggleExpand={() => { }}
-                        constraintViolations={validationIssues.map(i => i.targetId)}
-                    />
+                <SAFNodeGraph
+                    blueprint={blueprint}
+                    selectedNodeId={selectedId}
+                    onSelectNode={selectNode}
+                    onNodeDragStop={handleNodeDragStop}
+                    onConnect={handleConnect}
+                    onAddNode={addNode}
+                    onDropComponent={handleDropComponent}
+                    onAskAI={() => setLocalActivePanel('ai')}
+                    // Reuse existing styling props
+                    expandedNodes={[]}
+                    onToggleExpand={() => { }}
+                    constraintViolations={validationIssues.map(i => i.targetId)}
+                    // simulationVars not needed for 2.0 version
+                />
 
                     {/* Floating Validation Overlay (VS Code Problems style) */}
                     {validationIssues?.length > 0 && (

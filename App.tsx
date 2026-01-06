@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ConfigErrorOverlay } from './components/ConfigErrorOverlay';
 import { FileExplorerPanel } from './components/FileExplorerPanel';
@@ -16,9 +16,10 @@ import { UserLevelModal } from './components/onboarding/UserLevelModal';
 import { OnboardingTour } from './components/onboarding/OnboardingTour';
 import { EldoriaLogo } from './components/Icons';
 import { DownloadHub } from './components/DownloadHub';
-import { useState } from 'react';
 import { TitleBar } from './components/layout/TitleBar';
 import { MechanicalSAFLab } from './src/components/saf/mechanical/MechanicalSAFLab';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { Sun, Moon } from 'lucide-react';
 
 const IdeWorkspace: React.FC = () => {
   const { isTerminalVisible, isTerminalExpanded } = useWorkspace();
@@ -42,6 +43,7 @@ const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isTerminalVisible, isTerminalExpanded, onboarding_completed, eldoria_user_level, completeOnboarding } = useWorkspace();
+  const { theme, toggleTheme } = useTheme();
   const [onboardingPhase, setOnboardingPhase] = useState<'splash' | 'level_prompt' | 'tour' | 'done'>(
     onboarding_completed ? 'done' : 'splash'
   );
@@ -93,38 +95,47 @@ const App: React.FC = () => {
     return <ConfigErrorOverlay />;
   }
 
-  // ... (other imports remain, auto-handled by simpler replacement if possible, but I need to be precise)
-
   return (
-    <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50 pt-8">
-      <TitleBar />
-      <div className="animated-bg"></div>
+    <ThemeProvider defaultTheme="dark">
+      <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50 pt-8">
+        {/* Theme Toggle Button - Fixed position */}
+        <button
+          onClick={toggleTheme}
+          className="fixed top-20 right-16 z-50 p-2 rounded-lg bg-gray-800/90 backdrop-blur-sm border border-gray-700 hover:border-cyan-500/50 transition-all shadow-lg"
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-cyan-400" />}
+        </button>
 
-      {/* Sentient Watermark */}
-      <div className="fixed bottom-12 right-12 w-64 h-64 opacity-[0.07] pointer-events-none select-none z-[1]">
-        <EldoriaLogo className="w-full h-full text-cyan-400" />
-      </div>
+        <TitleBar />
+        <div className="animated-bg"></div>
 
-      {onboardingPhase === 'splash' && <SplashScreen />}
-      {onboardingPhase === 'level_prompt' && <UserLevelModal onSelect={handleLevelSelect} />}
-      {onboardingPhase === 'tour' && <OnboardingTour />}
-
-      <div className="ide-layout flex flex-row h-full overflow-hidden pl-16">
-        <div className="flex-grow flex flex-col h-full overflow-hidden">
-          <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<IdeWorkspace />} />
-            <Route path="/academic-hub" element={<AcademicHub />} />
-            <Route path="/saf-lab" element={<SAFLab />} />
-            <Route path="/mech-saf-lab" element={<MechanicalSAFLab />} />
-            <Route path="/download-hub" element={<DownloadHub />} />
-          </Routes>
-          <StatusBar />
+        {/* Sentient Watermark */}
+        <div className="fixed bottom-12 right-12 w-64 h-64 opacity-[0.07] pointer-events-none select-none z-[1]">
+          <EldoriaLogo className="w-full h-full text-cyan-400" />
         </div>
-      </div>
 
-      {/* Sidebar rendered LAST to guarantee stacking priority */}
-      <Sidebar />
-    </div>
+        {onboardingPhase === 'splash' && <SplashScreen />}
+        {onboardingPhase === 'level_prompt' && <UserLevelModal onSelect={handleLevelSelect} />}
+        {onboardingPhase === 'tour' && <OnboardingTour />}
+
+        <div className="ide-layout flex flex-row h-full overflow-hidden pl-16">
+          <div className="flex-grow flex flex-col h-full overflow-hidden">
+            <Routes location={location} key={location.pathname}>
+              <Route path="/" element={<IdeWorkspace />} />
+              <Route path="/academic-hub" element={<AcademicHub />} />
+              <Route path="/saf-lab" element={<SAFLab />} />
+              <Route path="/mech-saf-lab" element={<MechanicalSAFLab />} />
+              <Route path="/download-hub" element={<DownloadHub />} />
+            </Routes>
+            <StatusBar />
+          </div>
+        </div>
+
+        {/* Sidebar rendered LAST to guarantee stacking priority */}
+        <Sidebar />
+      </div>
+    </ThemeProvider>
   );
 };
 
