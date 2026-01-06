@@ -18,6 +18,7 @@ import { EldoriaLogo } from './components/Icons';
 import { DownloadHub } from './components/DownloadHub';
 import { useState } from 'react';
 import { TitleBar } from './components/layout/TitleBar';
+import { MechanicalSAFLab } from './src/components/saf/mechanical/MechanicalSAFLab';
 
 const IdeWorkspace: React.FC = () => {
   const { isTerminalVisible, isTerminalExpanded } = useWorkspace();
@@ -114,6 +115,7 @@ const App: React.FC = () => {
             <Route path="/" element={<IdeWorkspace />} />
             <Route path="/academic-hub" element={<AcademicHub />} />
             <Route path="/saf-lab" element={<SAFLab />} />
+            <Route path="/mech-saf-lab" element={<MechanicalSAFLab />} />
             <Route path="/download-hub" element={<DownloadHub />} />
           </Routes>
           <StatusBar />
