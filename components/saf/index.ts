@@ -14,3 +14,4 @@ export { SAFAIExplainer } from './SAFAIExplainer';
 export { SAFBreadcrumbs } from './SAFBreadcrumbs';
 export { SAFOutputPanel } from './SAFOutputPanel';
 export { ExportStyleModal } from './ExportStyleModal';
+export { UnifiedSAFLab } from './unified/UnifiedSAFLab';

@@ -8,7 +8,7 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { StatusBar } from './components/layout/StatusBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { AcademicHub } from './academic-hub/AcademicHub';
-import { SAFLab } from './components/saf';
+
 import { API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY } from './config';
 import { useWorkspace } from './context/WorkspaceContext';
 import { SplashScreen } from './components/onboarding/SplashScreen';
@@ -17,9 +17,7 @@ import { OnboardingTour } from './components/onboarding/OnboardingTour';
 import { EldoriaLogo } from './components/Icons';
 import { DownloadHub } from './components/DownloadHub';
 import { TitleBar } from './components/layout/TitleBar';
-import { MechanicalSAFLab } from './src/components/saf/mechanical/MechanicalSAFLab';
-import { MechanicalSAFLab as MechanicalSAFLabV2 } from './src/components/saf/mechanical-v2/MechanicalSAFLab';
-import { UnifiedSAFLab } from './src/components/saf/unified/UnifiedSAFLab';
+import { UnifiedSAFLab } from './components/saf/unified/UnifiedSAFLab';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 
@@ -121,9 +119,9 @@ const AppContent: React.FC = () => {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<IdeWorkspace />} />
             <Route path="/academic-hub" element={<AcademicHub />} />
-            <Route path="/saf-lab" element={<SAFLab />} />
-            <Route path="/mech-saf-lab" element={<MechanicalSAFLab />} />
-            <Route path="/mech-saf-lab-v2" element={<MechanicalSAFLabV2 />} />
+            <Route path="/saf-lab" element={<UnifiedSAFLab />} />
+            <Route path="/mech-saf-lab" element={<UnifiedSAFLab />} />
+            <Route path="/mech-saf-lab-v2" element={<UnifiedSAFLab />} />
             <Route path="/unified-saf-lab" element={<UnifiedSAFLab />} />
             <Route path="/download-hub" element={<DownloadHub />} />
           </Routes>
