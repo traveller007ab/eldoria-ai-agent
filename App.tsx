@@ -39,7 +39,7 @@ const IdeWorkspace: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isTerminalVisible, isTerminalExpanded, onboarding_completed, eldoria_user_level, completeOnboarding } = useWorkspace();
@@ -66,7 +66,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Keyboard shortcut: Ctrl+Shift+A for Academic Hub
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.key === 'A') {
@@ -90,51 +89,53 @@ const App: React.FC = () => {
     }
   }, [onboarding_completed, onboardingPhase]);
 
-  // Allow app to run if any supported AI key is present
   if (!API_KEY && !GROQ_API_KEY && !OPENROUTER_API_KEY) {
     return <ConfigErrorOverlay />;
   }
 
   return (
-    <ThemeProvider defaultTheme="dark">
-      <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50 pt-8">
-        {/* Theme Toggle Button - Fixed position */}
-        <button
-          onClick={toggleTheme}
-          className="fixed top-20 right-16 z-50 p-2 rounded-lg bg-gray-800/90 backdrop-blur-sm border border-gray-700 hover:border-cyan-500/50 transition-all shadow-lg"
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        >
-          {theme === 'dark' ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-cyan-400" />}
-        </button>
+    <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50 pt-8">
+      <button
+        onClick={toggleTheme}
+        className="fixed top-20 right-16 z-50 p-2 rounded-lg bg-gray-800/90 backdrop-blur-sm border border-gray-700 hover:border-cyan-500/50 transition-all shadow-lg"
+        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      >
+        {theme === 'dark' ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-cyan-400" />}
+      </button>
 
-        <TitleBar />
-        <div className="animated-bg"></div>
+      <TitleBar />
+      <div className="animated-bg"></div>
 
-        {/* Sentient Watermark */}
-        <div className="fixed bottom-12 right-12 w-64 h-64 opacity-[0.07] pointer-events-none select-none z-[1]">
-          <EldoriaLogo className="w-full h-full text-cyan-400" />
-        </div>
-
-        {onboardingPhase === 'splash' && <SplashScreen />}
-        {onboardingPhase === 'level_prompt' && <UserLevelModal onSelect={handleLevelSelect} />}
-        {onboardingPhase === 'tour' && <OnboardingTour />}
-
-        <div className="ide-layout flex flex-row h-full overflow-hidden pl-16">
-          <div className="flex-grow flex flex-col h-full overflow-hidden">
-            <Routes location={location} key={location.pathname}>
-              <Route path="/" element={<IdeWorkspace />} />
-              <Route path="/academic-hub" element={<AcademicHub />} />
-              <Route path="/saf-lab" element={<SAFLab />} />
-              <Route path="/mech-saf-lab" element={<MechanicalSAFLab />} />
-              <Route path="/download-hub" element={<DownloadHub />} />
-            </Routes>
-            <StatusBar />
-          </div>
-        </div>
-
-        {/* Sidebar rendered LAST to guarantee stacking priority */}
-        <Sidebar />
+      <div className="fixed bottom-12 right-12 w-64 h-64 opacity-[0.07] pointer-events-none select-none z-[1]">
+        <EldoriaLogo className="w-full h-full text-cyan-400" />
       </div>
+
+      {onboardingPhase === 'splash' && <SplashScreen />}
+      {onboardingPhase === 'level_prompt' && <UserLevelModal onSelect={handleLevelSelect} />}
+      {onboardingPhase === 'tour' && <OnboardingTour />}
+
+      <div className="ide-layout flex flex-row h-full overflow-hidden pl-16">
+        <div className="flex-grow flex flex-col h-full overflow-hidden">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<IdeWorkspace />} />
+            <Route path="/academic-hub" element={<AcademicHub />} />
+            <Route path="/saf-lab" element={<SAFLab />} />
+            <Route path="/mech-saf-lab" element={<MechanicalSAFLab />} />
+            <Route path="/download-hub" element={<DownloadHub />} />
+          </Routes>
+          <StatusBar />
+        </div>
+      </div>
+
+      <Sidebar />
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <ThemeProvider defaultTheme="dark">
+      <AppContent />
     </ThemeProvider>
   );
 };
