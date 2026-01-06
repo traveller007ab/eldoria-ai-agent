@@ -41,12 +41,15 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/katex": "^0.16.7",
     "@types/node": "^22.14.0",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-pwa": "^1.2.0",

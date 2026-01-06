@@ -18,6 +18,8 @@ import { EldoriaLogo } from './components/Icons';
 import { DownloadHub } from './components/DownloadHub';
 import { TitleBar } from './components/layout/TitleBar';
 import { MechanicalSAFLab } from './src/components/saf/mechanical/MechanicalSAFLab';
+import { MechanicalSAFLab as MechanicalSAFLabV2 } from './src/components/saf/mechanical-v2/MechanicalSAFLab';
+import { UnifiedSAFLab } from './src/components/saf/unified/UnifiedSAFLab';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 
@@ -121,6 +123,8 @@ const AppContent: React.FC = () => {
             <Route path="/academic-hub" element={<AcademicHub />} />
             <Route path="/saf-lab" element={<SAFLab />} />
             <Route path="/mech-saf-lab" element={<MechanicalSAFLab />} />
+            <Route path="/mech-saf-lab-v2" element={<MechanicalSAFLabV2 />} />
+            <Route path="/unified-saf-lab" element={<UnifiedSAFLab />} />
             <Route path="/download-hub" element={<DownloadHub />} />
           </Routes>
           <StatusBar />
