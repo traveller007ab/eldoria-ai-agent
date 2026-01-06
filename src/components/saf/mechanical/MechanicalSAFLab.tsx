@@ -220,7 +220,11 @@ export const MechanicalSAFLab: React.FC<MechanicalSAFLabProps> = ({ onBack }) =>
       {/* Footer */}
       <div className="shrink-0 h-6 bg-black/40 border-t border-white/5 flex items-center justify-between px-4 text-[10px] text-gray-500">
         <div className="flex items-center gap-4">
-          <span>Last updated: {updatedAt.toLocaleTimeString()}</span>
+          <span>Last updated: {
+            updatedAt instanceof Date 
+              ? updatedAt.toLocaleTimeString() 
+              : new Date(updatedAt).toLocaleTimeString()
+          }</span>
           <span>|</span>
           <span>Snap to Grid: {snapToGrid ? 'ON' : 'OFF'}</span>
         </div>
