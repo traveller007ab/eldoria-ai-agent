@@ -32,8 +32,8 @@ import {
 
 // Mechanical Imports
 import { useMechanicalSAFStore } from '../mechanical/core/store';
-import { COMPONENT_CATALOG } from '../mechanical/components/fluid';
-import { DOMAIN_CONFIG, COMPONENT_GROUPS, getComponentEntry } from './catalog'; // Ensure catalog.ts is in unified folder
+// import { COMPONENT_CATALOG } from '../mechanical/components/fluid'; // Removed in favor of unified catalog
+import { DOMAIN_CONFIG, COMPONENT_GROUPS, UNIFIED_CATALOG } from './catalog'; // Ensure catalog.ts is in unified folder
 import { exportToCSV, downloadJSON } from '../mechanical/services/export';
 import { exportToModelica } from '../mechanical/services/export';
 import {
@@ -43,6 +43,7 @@ import {
   connectionToEdge,
   minimapNodeColor
 } from '../mechanical/ui/canvas/MechanicalCanvas';
+import { PropertiesPanel } from '../mechanical/ui/properties/PropertiesPanel';
 
 // Original SAF Imports
 import { useSAFStore } from '../../../stores/useSAFStore';
@@ -131,9 +132,9 @@ const UnifiedSAFLabContent: React.FC = () => {
       instance.isSelected = mechStore.selectedComponentId === instance.id;
 
       const defId = component.getDefinitionId();
-      const definition = COMPONENT_CATALOG[defId];
-      if (definition) {
-        newNodes.push(componentToNode(instance, definition));
+      const entry = UNIFIED_CATALOG[defId];
+      if (entry) {
+        newNodes.push(componentToNode(instance, entry.definition));
       }
     });
 
@@ -300,8 +301,8 @@ const UnifiedSAFLabContent: React.FC = () => {
         <button
           onClick={labMode === 'mechanical' ? () => mechStore.runSimulation() : () => archStore.runSimulation()}
           className={`flex items-center gap-2 px-4 py-1.5 rounded-lg font-medium transition-all ${(labMode === 'mechanical' ? mechStore.isSimulating : false)
-              ? 'bg-yellow-500/20 text-yellow-400'
-              : 'bg-cyan-500 hover:bg-cyan-400 text-black'
+            ? 'bg-yellow-500/20 text-yellow-400'
+            : 'bg-cyan-500 hover:bg-cyan-400 text-black'
             }`}
         >
           <Play className="w-4 h-4" />
@@ -354,15 +355,15 @@ const UnifiedSAFLabContent: React.FC = () => {
                 {labMode === 'mechanical' && Object.entries(COMPONENT_GROUPS).map(([groupKey, group]) => (
                   <div key={groupKey} className="mb-4">
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">{group.name}</h3>
-                    {Object.values(COMPONENT_CATALOG).filter(c => group.components.includes(c.id)).map(c => (
+                    {Object.values(UNIFIED_CATALOG).filter(c => group.components.includes(c.definition.id)).map(c => (
                       <div
-                        key={c.id}
+                        key={c.definition.id}
                         draggable
-                        onDragStart={(e) => handleDragStart(e, c)}
+                        onDragStart={(e) => handleDragStart(e, c.definition)}
                         className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 cursor-grab mb-1"
                       >
-                        <div className="w-6 h-6 rounded flex items-center justify-center bg-white/5 text-xs">{c.id.slice(0, 2)}</div>
-                        <span className="text-sm">{c.name}</span>
+                        <div className="w-6 h-6 rounded flex items-center justify-center bg-white/5 text-xs">{c.definition.id.slice(0, 2)}</div>
+                        <span className="text-sm">{c.definition.name}</span>
                       </div>
                     ))}
                   </div>
@@ -459,30 +460,34 @@ const UnifiedSAFLabContent: React.FC = () => {
         {/* RIGHT PROPERTY PANEL */}
         {showProperties && (
           <aside className="w-80 bg-gray-900/50 border-l border-gray-800 flex flex-col shrink-0">
-            <div className="p-4 border-b border-gray-800"><h3 className="font-semibold">Properties</h3></div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {labMode === 'architect' && archStore.selectedId ? (
-                <SAFParameterEditor
-                  component={archStore.blueprint?.components.find(c => c.id === archStore.selectedId)}
-                  onParameterChange={handleArchParameterChange}
-                  onAddParameter={archStore.addParameter}
-                />
-              ) : labMode === 'mechanical' && mechStore.selectedComponentId ? (
-                <div className="text-gray-400 text-sm">
-                  <p className="mb-2">Selected: {mechStore.selectedComponentId}</p>
-                  {/* Using a simplified view. Real app would use PropertiesPanel */}
-                  <p className="text-xs text-gray-500">Properties handled by PropertiesPanel component (not fully integrated in this merged view yet)</p>
+            {labMode === 'architect' ? (
+              <>
+                <div className="p-4 border-b border-gray-800"><h3 className="font-semibold">Properties</h3></div>
+                <div className="flex-1 overflow-y-auto p-4">
+                  {archStore.selectedId ? (
+                    <SAFParameterEditor
+                      component={archStore.blueprint?.components.find(c => c.id === archStore.selectedId)}
+                      onParameterChange={handleArchParameterChange}
+                      onAddParameter={archStore.addParameter}
+                    />
+                  ) : (
+                    <div className="text-gray-500 text-sm text-center">Select a component.</div>
+                  )}
                 </div>
-              ) : (
-                <div className="text-gray-500 text-sm text-center">Select a component.</div>
-              )}
-            </div>
 
-            {/* Simulation Graph for Architect */}
-            {labMode === 'architect' && archStore.blueprint?.last_simulation && (
-              <div className="h-48 border-t border-gray-800">
-                <SimulationGraphPanel blueprint={archStore.blueprint} simulationHistory={archStore.simulationHistory} />
-              </div>
+                {/* Simulation Graph for Architect */}
+                {archStore.blueprint?.last_simulation && (
+                  <div className="h-48 border-t border-gray-800">
+                    <SimulationGraphPanel blueprint={archStore.blueprint} simulationHistory={archStore.simulationHistory} />
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Mechanical Properties Panel */
+              <PropertiesPanel
+                isOpen={!!mechStore.selectedComponentId}
+                onClose={() => setShowProperties(false)}
+              />
             )}
           </aside>
         )}
