@@ -84,7 +84,7 @@ export const TimelineControls: React.FC = () => {
     };
 
     return (
-        <div className={`absolute bottom-10 left-1/2 -translate-x-1/2 z-20 w-[500px] bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 shadow-xl transition-opacity ${isDisabled ? 'opacity-60 grayscale' : 'opacity-100'}`}>
+        <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-50 w-[500px] bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 shadow-xl transition-opacity ${isDisabled ? 'opacity-60 grayscale' : 'opacity-100'}`}>
             <div className="flex items-center gap-3 mb-2">
                 {/* Controls */}
                 <button

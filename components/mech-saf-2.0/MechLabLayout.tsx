@@ -354,9 +354,6 @@ export const MechLabLayout: React.FC = () => {
                 </div>
             </header>
 
-            {/* Overlays */}
-            <TimelineControls />
-
             {/* Hidden file input */}
             <div className="flex flex-1 overflow-hidden relative">
                 {/* Left Sidebar (Palette) */}
@@ -368,6 +365,7 @@ export const MechLabLayout: React.FC = () => {
                 <div className="flex-1 bg-slate-900 relative" onClick={() => setShowExportMenu(false)}>
                     <EnhancedGearBackground />
                     <Canvas />
+                    <TimelineControls />
                 </div >
 
                 {/* Right Sidebar (Properties / Results / Analysis) */}
