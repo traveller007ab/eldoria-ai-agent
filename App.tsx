@@ -120,8 +120,8 @@ const AppContent: React.FC = () => {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<IdeWorkspace />} />
             <Route path="/academic-hub" element={<AcademicHub />} />
-            <Route path="/saf-lab" element={<UnifiedSAFLab />} />
-            <Route path="/mech-saf-lab" element={<UnifiedSAFLab />} />
+            <Route path="/saf-lab" element={<MechLabLayout />} />
+            <Route path="/mech-saf-lab" element={<MechLabLayout />} />
             <Route path="/mech-saf-lab-v2" element={<MechLabLayout />} />
             <Route path="/unified-saf-lab" element={<UnifiedSAFLab />} />
             <Route path="/download-hub" element={<DownloadHub />} />
