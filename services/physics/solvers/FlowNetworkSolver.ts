@@ -162,24 +162,23 @@ export class FlowNetworkSolver implements ISolver {
         });
 
         const totalFlowRate = links.reduce((sum, link) => {
-            // Simplified sum: Sum positive flow out of PUMPS? Or sum absolute flow?
-            // User just wants "Total Flow"
-            return sum + (link.type === 'pump' ? (variables[`${link.componentId}_flow_rate`] || 0) : 0);
-            // Wait, variable name is namePrefix, not componentId.
-            // Let's iterate variables.
+            // Only sum PUMPS to represent "System Throughout"
+            if (link.type === 'pump') {
+                // Use more robust variable lookup matching the prefix logic earlier
+                const comp = blueprint.components.find(c => c.id === link.componentId);
+                if (comp) {
+                    const namePrefix = comp.name.replace(/\s+/g, '_');
+                    return sum + Math.abs(variables[`${namePrefix}_flow_rate`] || 0);
+                }
+            }
+            return sum;
         }, 0);
 
         // Better metrics calculation
-        let calculatedTotalFlow = 0;
         let calculatedMaxPressure = 0;
         Object.keys(variables).forEach(k => {
-            if (k.endsWith('_flow_rate')) calculatedTotalFlow += variables[k]; // This sums ALL flows, probably double counting.
             if (k.endsWith('_pressure')) calculatedMaxPressure = Math.max(calculatedMaxPressure, variables[k]);
         });
-        // Correct total flow: Sum of Pumps flow
-        // We need to match comp id again.
-        // Let's store Q in links directly?
-        // Re-looping above is finer.
 
         return {
             id: crypto.randomUUID(),
@@ -190,7 +189,7 @@ export class FlowNetworkSolver implements ISolver {
             configuration: config,
             variables,
             metrics: {
-                totalFlowRate: calculatedTotalFlow / 2, // Very approximate for single loop
+                totalFlowRate: totalFlowRate,
                 totalPowerInput: 0,
                 totalPowerOutput: 0,
                 overallEfficiency: 0,

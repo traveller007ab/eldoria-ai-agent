@@ -74,6 +74,14 @@ export class MechanicalNetworkSolver implements ISolver {
             variables[`${prefix}_speed_target`] = N_driver;
             variables[`${prefix}_torque_max`] = Torque_max;
 
+            // Calculate "Potential" Power Input (assuming full load for now, or just capacity?)
+            // Real power input depends on Load, but for "System Metrics" usually we confirm Capacity or current Load.
+            // Let's assume we report the "Available Power" or "Current Load Power" if we had feedback.
+            // Without feedback, let's report what the engine *could* deliver or is trying to at this speed.
+            const w_current = (N_driver * 2 * Math.PI) / 60;
+            const P_avail = (Torque_max * w_current) / 1000;
+            metrics.totalPowerInput += P_avail;
+
             // --- Step 2: Propagate Forward (Speed) ---
             // Traverse downstream mechanical links
             this.propagateSpeed(driver, N_driver, blueprint, variables, registry);

@@ -7,6 +7,7 @@ export interface FluidProperties {
     bulkModulus: number; // Pa
     gamma?: number; // Ratio of specific heats (Cp/Cv) for gases
     type: 'liquid' | 'gas';
+    tags?: string[]; // Semantic tags: 'combustible', 'coolant', 'lubricant'
 }
 
 export class MaterialRegistry {
@@ -33,7 +34,74 @@ export class MaterialRegistry {
             viscosity: 0.001, // 1 cP
             specificHeat: 4.18,
             bulkModulus: 2.2e9,
-            type: 'liquid'
+            type: 'liquid',
+            tags: ['coolant']
+        });
+
+        this.register({
+            id: 'diesel',
+            name: 'Diesel Fuel',
+            density: 832,
+            viscosity: 0.004,
+            specificHeat: 2.0,
+            bulkModulus: 1.5e9,
+            type: 'liquid',
+            tags: ['combustible', 'fuel']
+        });
+
+        this.register({
+            id: 'gasoline',
+            name: 'Gasoline / Petrol',
+            density: 740,
+            viscosity: 0.0006,
+            specificHeat: 2.22,
+            bulkModulus: 1.0e9,
+            type: 'liquid',
+            tags: ['combustible', 'fuel', 'volatile']
+        });
+
+        this.register({
+            id: 'kerosene',
+            name: 'Kerosene (Jet A-1)',
+            density: 810,
+            viscosity: 0.00164,
+            specificHeat: 2.01,
+            bulkModulus: 1.3e9,
+            type: 'liquid',
+            tags: ['combustible', 'fuel']
+        });
+
+        this.register({
+            id: 'seawater',
+            name: 'Sea Water',
+            density: 1025,
+            viscosity: 0.00107,
+            specificHeat: 3.99,
+            bulkModulus: 2.3e9,
+            type: 'liquid',
+            tags: ['coolant', 'corrosive']
+        });
+
+        this.register({
+            id: 'crude_oil',
+            name: 'Crude Oil (Heavy)',
+            density: 930,
+            viscosity: 0.1, // Very viscous
+            specificHeat: 1.8,
+            bulkModulus: 1.6e9,
+            type: 'liquid',
+            tags: ['combustible', 'viscous', 'dirty']
+        });
+
+        this.register({
+            id: 'lh2',
+            name: 'Liquid Hydrogen',
+            density: 71,
+            viscosity: 1.3e-5,
+            specificHeat: 9.4, // High Cp
+            bulkModulus: 0.2e9, // Compressible
+            type: 'liquid',
+            tags: ['fuel', 'combustible', 'cryogenic', 'volatile']
         });
 
         this.register({
@@ -43,7 +111,8 @@ export class MaterialRegistry {
             viscosity: 0.046,
             specificHeat: 1.67,
             bulkModulus: 1.5e9,
-            type: 'liquid'
+            type: 'liquid',
+            tags: ['lubricant']
         });
 
         this.register({
@@ -53,7 +122,8 @@ export class MaterialRegistry {
             viscosity: 0.003,
             specificHeat: 3.4,
             bulkModulus: 2.5e9,
-            type: 'liquid'
+            type: 'liquid',
+            tags: ['coolant', 'antifreeze']
         });
 
         // Gases
@@ -65,7 +135,8 @@ export class MaterialRegistry {
             specificHeat: 1.005,
             bulkModulus: 101325,
             gamma: 1.4,
-            type: 'gas'
+            type: 'gas',
+            tags: ['pneumatic', 'gas']
         });
 
         this.register({
