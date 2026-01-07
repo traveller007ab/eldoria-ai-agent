@@ -221,3 +221,158 @@ export interface ExtractedEquation {
   source?: string; // e.g., "research_paper.pdf"
   extractedAt?: string; // ISO timestamp
 }
+
+// --- MECHANICAL SAF LAB v2.0 TYPES ---
+
+export type MechanicalDomain = 'fluid' | 'thermal' | 'mechanical' | 'control' | 'material';
+
+export type MechSubDomain =
+  | 'turbomachinery' | 'piping' | 'hydraulic' // fluid
+  | 'heatExchanger' | 'thermal' // thermal
+  | 'powerCycle' | 'refrigeration' // thermodynamic
+  | 'powerTransmission' | 'bearing' | 'fastener' | 'spring' // machineElement
+  | 'sensor' | 'actuator' | 'controller'; // control
+
+export type MechPortType = 'input' | 'output' | 'bidirectional';
+export type EnergyPortType = 'fluid' | 'thermal' | 'mechanical' | 'electrical' | 'signal';
+
+export interface MechPortVariable {
+  name: string;
+  symbol: string;
+  unit: string;
+}
+
+export interface MechPortDefinition {
+  id: string;
+  name: string;
+  type: MechPortType;
+  domain: EnergyPortType;
+  variables: MechPortVariable[];
+  state: 'connected' | 'disconnected' | 'specified';
+  required: boolean;
+  position?: { x: number; y: number; side: 'top' | 'bottom' | 'left' | 'right' };
+}
+
+export interface MechParameterDefinition {
+  id: string;
+  name: string;
+  symbol: string;
+  unit: string;
+  dataType: 'number' | 'string' | 'boolean' | 'lookup';
+  value: number | string | boolean | null;
+  source: 'design' | 'calculated' | 'derived' | 'lookup' | 'constant';
+  designRange?: { min: number; max: number };
+}
+
+export interface MechEquationDefinition {
+  id: string;
+  name: string;
+  expression: string;
+  latex: string;
+  source: string;
+  solutionMethod: 'analytic' | 'numerical' | 'iterative' | 'lookup';
+}
+
+export interface MechComponentDefinition {
+  id: string;
+  version: string;
+  domain: MechanicalDomain;
+  subcategory: MechSubDomain;
+  name: string;
+  description: string;
+  tags: string[];
+  references: string[];
+  ports: MechPortDefinition[];
+  parameters: MechParameterDefinition[];
+  equations: MechEquationDefinition[];
+}
+
+export interface MechComponentInstance {
+  id: string;
+  componentDefinitionId: string;
+  name: string;
+  position: { x: number; y: number };
+  rotation: number;
+  parameterValues: Record<string, number | string>;
+  isSelected: boolean;
+  groupIds: string[];
+}
+
+export interface MechConnection {
+  id: string;
+  sourceComponentId: string;
+  sourcePortId: string;
+  targetComponentId: string;
+  targetPortId: string;
+  type: string;
+  isSelected: boolean;
+}
+
+export interface MechBlueprint {
+  id: string;
+  name: string;
+  description: string;
+  domain: MechanicalDomain;
+  version: string;
+  components: MechComponentInstance[];
+  connections: MechConnection[];
+  simulations: MechSimulationResult[];
+  createdAt: Date;
+  updatedAt: Date;
+  author: string;
+  tags: string[];
+  fluidId?: string;
+}
+
+export type MechSolverMethod =
+  | 'linsolver_lu' | 'linsolver_cg'
+  | 'nonlin_newton'
+  | 'opt_sqp'
+  | 'time_rk4';
+
+export interface MechSolverConfiguration {
+  method: MechSolverMethod;
+  tolerance: number;
+  maxIterations: number;
+  outputLevel: 'quiet' | 'normal' | 'verbose';
+  initialGuess: 'design' | 'zero' | 'warm' | 'custom';
+}
+
+export interface MechSimulationResult {
+  id: string;
+  blueprintId: string;
+  status: 'completed' | 'failed' | 'cancelled';
+  completedAt: Date;
+  duration: number;
+  configuration: MechSolverConfiguration;
+  variables: Record<string, number>;
+  metrics: MechSimulationMetrics;
+  diagnostics: MechSimulationDiagnostics;
+  constraintViolations: any[];
+}
+
+export interface MechSimulationMetrics {
+  totalPowerInput: number;
+  totalPowerOutput: number;
+  overallEfficiency: number;
+  totalFlowRate: number;
+  maxPressure: number;
+  pressureDrop: number;
+  totalHeatInput: number;
+  totalHeatOutput: number;
+  componentMetrics: Record<string, any>;
+}
+
+export interface MechSimulationDiagnostics {
+  massBalance: { status: 'ok' | 'warning' | 'error'; inlet: number; outlet: number; imbalance: number; imbalancePercent: number; };
+  energyBalance: { status: 'ok' | 'warning' | 'error'; input: number; output: number; imbalance: number; imbalancePercent: number; };
+  convergence: { iterations: number; residual: number; converged: boolean; };
+}
+
+export interface MechDynamicSimulationResult extends MechSimulationResult {
+  isDynamic: true;
+  timeStep: number;
+  totalDuration: number;
+  timeSeries: Record<string, number[]>;
+  timePoints: number[];
+}
