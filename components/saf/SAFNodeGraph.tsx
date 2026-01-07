@@ -426,223 +426,237 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
         return blueprint.components.map((comp) => ({
             id: comp.id,
             type: 'safNode',
-            // Convert Blueprint Flows to React Flow Edges
-            const initialEdges = useMemo(() => {
-                if (!blueprint?.flows) return [];
-                return blueprint.flows.map((flow) => {
-                    const flowType = (flow.type && FLOW_STYLES[flow.type as keyof typeof FLOW_STYLES]) ? flow.type as keyof typeof FLOW_STYLES : 'material';
-                    const baseStyle = FLOW_STYLES[flowType] || { color: '#999', strokeWidth: 1 };
+            position: comp.position || { x: 0, y: 0 },
+            data: {
+                component: comp,
+                isExpanded: expandedNodes.includes(comp.id),
+                isSelected: selectedNodeId === comp.id,
+                onToggleExpand,
+                onSelect: onSelectNode,
+                onAskAI,
+                simulationVars,
+                hasConstraintViolation: constraintViolations?.includes(comp.id)
+            },
+        }));
+    }, [blueprint, expandedNodes, selectedNodeId, onToggleExpand, onSelectNode, onAskAI, simulationVars, constraintViolations]);
 
-                    // CHECK ACTIVE FLOW
-                    // In our simple engine, flow is driven by the source's output or specific flow variable
-                    // For now, heuristic: if source has output > 0, edge is active.
-                    const flowVal = simulationVars?.[`${flow.from}.output`] ?? 0;
-                    const isActive = flowVal > 0;
+    // Convert Blueprint Flows to React Flow Edges
+    const initialEdges = useMemo(() => {
+        if (!blueprint?.flows) return [];
+        return blueprint.flows.map((flow) => {
+            const flowType = (flow.type && FLOW_STYLES[flow.type as keyof typeof FLOW_STYLES]) ? flow.type as keyof typeof FLOW_STYLES : 'material';
+            const baseStyle = FLOW_STYLES[flowType] || { color: '#999', strokeWidth: 1 };
 
-                    return {
-                        id: flow.id,
-                        source: flow.from,
-                        target: flow.to,
-                        type: 'animated', // Use our custom animated edge
-                        animated: false, // We handle animation ourselves
-                        data: {
-                            flowValue: flowVal,
-                            flowType: flowType,
-                            isActive: isActive,
-                        },
-                        markerEnd: { type: MarkerType.ArrowClosed, color: isActive ? baseStyle.color : '#555' },
-                    };
-                });
-            }, [blueprint, simulationVars]); // Added simulationVars dependency
+            // CHECK ACTIVE FLOW
+            // In our simple engine, flow is driven by the source's output or specific flow variable
+            // For now, heuristic: if source has output > 0, edge is active.
+            const flowVal = simulationVars?.[`${flow.from}.output`] ?? 0;
+            const isActive = flowVal > 0;
 
-            const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-            const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
-            // Sync when blueprint changes (AI update or external load)
-            React.useEffect(() => {
-                setNodes(initialNodes);
-                setEdges(initialEdges);
-            }, [initialNodes, initialEdges, setNodes, setEdges]);
-
-
-            const handleConnect: OnConnect = useCallback((params) => {
-                if (onConnect) onConnect(params);
-            }, [onConnect]);
-
-            const handleNodesDelete = useCallback((nodesToDelete: Node[]) => {
-                if (onDeleteNodes) onDeleteNodes(nodesToDelete.map(n => n.id));
-            }, [onDeleteNodes]);
-
-            const handleEdgesDelete = useCallback((edgesToDelete: Edge[]) => {
-                if (onDeleteEdges) onDeleteEdges(edgesToDelete.map(e => e.id));
-            }, [onDeleteEdges]);
-
-            const handleNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
-                if (onNodeDragStop) onNodeDragStop(node.id, node.position);
-            }, [onNodeDragStop]);
-
-            const onNodeClick = useCallback(
-                (_: React.MouseEvent, node: Node) => {
-                    onSelectNode(node.id);
+            return {
+                id: flow.id,
+                source: flow.from,
+                target: flow.to,
+                type: 'animated', // Use our custom animated edge
+                animated: false, // We handle animation ourselves
+                data: {
+                    flowValue: flowVal,
+                    flowType: flowType,
+                    isActive: isActive,
                 },
-                [onSelectNode]
-            );
+                markerEnd: { type: MarkerType.ArrowClosed, color: isActive ? baseStyle.color : '#555' },
+            };
+        });
+    }, [blueprint, simulationVars]);
 
-            const onPaneClick = useCallback((event: React.MouseEvent) => {
-                onSelectNode(null);
-                setQuickAddPos(null); // Close if open
-                setContextMenu(null); // Close context menu
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+    // Sync when blueprint changes (AI update or external load)
+    React.useEffect(() => {
+        setNodes(initialNodes);
+        setEdges(initialEdges);
+    }, [initialNodes, initialEdges, setNodes, setEdges]);
 
 
-                // Double Click Detection
-                const now = Date.now();
-                if (now - lastClickRef.current < 300) {
-                    // Double Click!
-                    const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-                    if (bounds) {
-                        setQuickAddPos({
-                            x: event.clientX - bounds.left,
-                            y: event.clientY - bounds.top
-                        });
-                    }
-                }
-                lastClickRef.current = now;
-            }, [onSelectNode]);
+    const handleConnect: OnConnect = useCallback((params) => {
+        if (onConnect) onConnect(params);
+    }, [onConnect]);
 
-            // Toolbar for adding nodes
-            const [showNodeMenu, setShowNodeMenu] = React.useState(false);
+    const handleNodesDelete = useCallback((nodesToDelete: Node[]) => {
+        if (onDeleteNodes) onDeleteNodes(nodesToDelete.map(n => n.id));
+    }, [onDeleteNodes]);
 
-            // Drag and Drop from Palette
-            const onDragOver = useCallback((event: React.DragEvent) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'copy';
-            }, []);
+    const handleEdgesDelete = useCallback((edgesToDelete: Edge[]) => {
+        if (onDeleteEdges) onDeleteEdges(edgesToDelete.map(e => e.id));
+    }, [onDeleteEdges]);
 
-            const onDrop = useCallback((event: React.DragEvent) => {
-                event.preventDefault();
-                const data = event.dataTransfer.getData('application/saf-component');
-                if (!data || !onDropComponent) return;
+    const handleNodeDragStop = useCallback((event: React.MouseEvent, node: Node) => {
+        if (onNodeDragStop) onNodeDragStop(node.id, node.position);
+    }, [onNodeDragStop]);
 
-                try {
-                    const componentData = JSON.parse(data);
-                    const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-                    if (!bounds) return;
+    const onNodeClick = useCallback(
+        (_: React.MouseEvent, node: Node) => {
+            onSelectNode(node.id);
+        },
+        [onSelectNode]
+    );
 
-                    // Calculate position relative to the ReactFlow canvas
-                    const position = {
-                        x: event.clientX - bounds.left - 100, // Offset for node center
-                        y: event.clientY - bounds.top - 50,
-                    };
+    const onPaneClick = useCallback((event: React.MouseEvent) => {
+        onSelectNode(null);
+        setQuickAddPos(null); // Close if open
+        setContextMenu(null); // Close context menu
 
-                    onDropComponent(componentData, position);
-                } catch (e) {
-                    console.error('Failed to parse drop data:', e);
-                }
-            }, [onDropComponent]);
 
-            const handleQuickAdd = useCallback((item: PaletteItem) => {
-                if (!quickAddPos || !onDropComponent) return;
-
-                // Use existing drop handler logic
-                onDropComponent(item, {
-                    x: quickAddPos.x - 100, // Center node
-                    y: quickAddPos.y - 50
+        // Double Click Detection
+        const now = Date.now();
+        if (now - lastClickRef.current < 300) {
+            // Double Click!
+            const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+            if (bounds) {
+                setQuickAddPos({
+                    x: event.clientX - bounds.left,
+                    y: event.clientY - bounds.top
                 });
-                setQuickAddPos(null);
-            }, [quickAddPos, onDropComponent]);
+            }
+        }
+        lastClickRef.current = now;
+    }, [onSelectNode]);
 
-            const handleNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
-                event.preventDefault();
-                const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-                if (bounds) {
-                    setContextMenu({
-                        x: event.clientX - bounds.left,
-                        y: event.clientY - bounds.top,
-                        node
-                    });
-                    setQuickAddPos(null); // Close quick add if open
-                }
-            }, []);
+    // Toolbar for adding nodes
+    const [showNodeMenu, setShowNodeMenu] = React.useState(false);
 
-            const handleDuplicate = useCallback((node: Node) => {
-                if (!onDropComponent || !node.data.component) return;
-                setContextMenu(null);
-                const newData = { ...node.data.component };
-                // Clean ID to ensure new one is generated
-                delete newData.id;
-                onDropComponent(newData, {
-                    x: node.position.x + 50,
-                    y: node.position.y + 50
-                });
-            }, [onDropComponent]);
+    // Drag and Drop from Palette
+    const onDragOver = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+    }, []);
 
-            const handleIsolate = useCallback((node: Node) => {
-                setContextMenu(null);
-                if (onDeleteEdges) {
-                    const edgesToDelete = edges.filter(e => e.source === node.id || e.target === node.id);
-                    onDeleteEdges(edgesToDelete.map(e => e.id));
-                }
-            }, [edges, onDeleteEdges]);
+    const onDrop = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
+        const data = event.dataTransfer.getData('application/saf-component');
+        if (!data || !onDropComponent) return;
 
-            const handleDelete = useCallback((node: Node) => {
-                setContextMenu(null);
-                if (onDeleteNodes) onDeleteNodes([node.id]);
-            }, [onDeleteNodes]);
+        try {
+            const componentData = JSON.parse(data);
+            const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+            if (!bounds) return;
+
+            // Calculate position relative to the ReactFlow canvas
+            const position = {
+                x: event.clientX - bounds.left - 100, // Offset for node center
+                y: event.clientY - bounds.top - 50,
+            };
+
+            onDropComponent(componentData, position);
+        } catch (e) {
+            console.error('Failed to parse drop data:', e);
+        }
+    }, [onDropComponent]);
+
+    const handleQuickAdd = useCallback((item: PaletteItem) => {
+        if (!quickAddPos || !onDropComponent) return;
+
+        // Use existing drop handler logic
+        onDropComponent(item, {
+            x: quickAddPos.x - 100, // Center node
+            y: quickAddPos.y - 50
+        });
+        setQuickAddPos(null);
+    }, [quickAddPos, onDropComponent]);
+
+    const handleNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+        event.preventDefault();
+        const bounds = reactFlowWrapper.current?.getBoundingClientRect();
+        if (bounds) {
+            setContextMenu({
+                x: event.clientX - bounds.left,
+                y: event.clientY - bounds.top,
+                node
+            });
+            setQuickAddPos(null); // Close quick add if open
+        }
+    }, []);
+
+    const handleDuplicate = useCallback((node: Node) => {
+        if (!onDropComponent || !node.data.component) return;
+        setContextMenu(null);
+        const newData = { ...node.data.component };
+        // Clean ID to ensure new one is generated
+        delete newData.id;
+        onDropComponent(newData, {
+            x: node.position.x + 50,
+            y: node.position.y + 50
+        });
+    }, [onDropComponent]);
+
+    const handleIsolate = useCallback((node: Node) => {
+        setContextMenu(null);
+        if (onDeleteEdges) {
+            const edgesToDelete = edges.filter(e => e.source === node.id || e.target === node.id);
+            onDeleteEdges(edgesToDelete.map(e => e.id));
+        }
+    }, [edges, onDeleteEdges]);
+
+    const handleDelete = useCallback((node: Node) => {
+        setContextMenu(null);
+        if (onDeleteNodes) onDeleteNodes([node.id]);
+    }, [onDeleteNodes]);
 
 
 
-            return(
+    return (
         <div
-            ref = { reactFlowWrapper }
-            className = "w-full h-full relative"
-            onDrop = { onDrop }
-            onDragOver = { onDragOver }
-                    >
-                    <ReactFlow
-                        nodes={nodes}
-                        edges={edges}
-                        onNodesChange={onNodesChange}
-                        onEdgesChange={onEdgesChange}
-                        onConnect={handleConnect}
-                        onNodesDelete={handleNodesDelete}
-                        onEdgesDelete={handleEdgesDelete}
-                        onNodeDragStop={handleNodeDragStop}
-                        onNodeClick={onNodeClick}
-                        onNodeContextMenu={handleNodeContextMenu}
-                        onPaneClick={onPaneClick}
-                        nodeTypes={nodeTypes}
-                        edgeTypes={edgeTypes}
-                        fitView
-                        fitViewOptions={{ padding: 0.2 }}
-                        minZoom={0.1}
-                        maxZoom={2}
-                        defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
-                        proOptions={{ hideAttribution: true }}
-                        deleteKeyCode={['Backspace', 'Delete']}
-                    >
-                        <Background
-                            variant={BackgroundVariant.Dots}
-                            gap={20}
-                            size={1}
-                            color="#374151"
-                        />
-                        <Controls
-                            className="!bg-gray-900/80 !border-cyan-900/30 !rounded-xl overflow-hidden"
-                            showInteractive={false}
-                        />
-                        <MiniMap
-                            className="!bg-gray-900/80 !border-cyan-900/30 !rounded-xl overflow-hidden"
-                            nodeColor={(node) => {
-                                const comp = blueprint.components.find((c) => c.id === node.id);
-                                if (!comp) return '#6b7280';
-                                return COMPONENT_STYLES[comp.type].borderColor;
-                            }}
-                            maskColor="rgba(0, 0, 0, 0.7)"
-                        />
-                    </ReactFlow>
+            ref={reactFlowWrapper}
+            className="w-full h-full relative"
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+        >
+            <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={handleConnect}
+                onNodesDelete={handleNodesDelete}
+                onEdgesDelete={handleEdgesDelete}
+                onNodeDragStop={handleNodeDragStop}
+                onNodeClick={onNodeClick}
+                onNodeContextMenu={handleNodeContextMenu}
+                onPaneClick={onPaneClick}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                fitView
+                fitViewOptions={{ padding: 0.2 }}
+                minZoom={0.1}
+                maxZoom={2}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                proOptions={{ hideAttribution: true }}
+                deleteKeyCode={['Backspace', 'Delete']}
+            >
+                <Background
+                    variant={BackgroundVariant.Dots}
+                    gap={20}
+                    size={1}
+                    color="#374151"
+                />
+                <Controls
+                    className="!bg-gray-900/80 !border-cyan-900/30 !rounded-xl overflow-hidden"
+                    showInteractive={false}
+                />
+                <MiniMap
+                    className="!bg-gray-900/80 !border-cyan-900/30 !rounded-xl overflow-hidden"
+                    nodeColor={(node) => {
+                        const comp = blueprint.components.find((c) => c.id === node.id);
+                        if (!comp) return '#6b7280';
+                        return COMPONENT_STYLES[comp.type].borderColor;
+                    }}
+                    maskColor="rgba(0, 0, 0, 0.7)"
+                />
+            </ReactFlow>
 
-            {/* Spotlight Menu */ }
-            { quickAddPos && (
+            {/* Spotlight Menu */}
+            {quickAddPos && (
                 <QuickAddMenu
                     position={quickAddPos}
                     onClose={() => setQuickAddPos(null)}
@@ -650,60 +664,60 @@ export const SAFNodeGraph: React.FC<SAFNodeGraphProps> = ({
                 />
             )}
 
-            {/* Context Menu */ }
-            { contextMenu && (
-            <ContextMenu
-                x={contextMenu.x}
-                y={contextMenu.y}
-                node={contextMenu.node}
-                onClose={() => setContextMenu(null)}
-                onDuplicate={handleDuplicate}
-                onIsolate={handleIsolate}
-                onDelete={handleDelete}
-            />
-        )}
+            {/* Context Menu */}
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    node={contextMenu.node}
+                    onClose={() => setContextMenu(null)}
+                    onDuplicate={handleDuplicate}
+                    onIsolate={handleIsolate}
+                    onDelete={handleDelete}
+                />
+            )}
 
-{/* Quick Action Toolbar */ }
-<div className="absolute top-4 left-4 flex flex-col gap-2">
-    <div className="relative">
-        <button
-            onClick={() => setShowNodeMenu(!showNodeMenu)}
-            className="p-3 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center"
-            title="Add Component"
-        >
-            <Plus className={`w-5 h-5 transition-transform ${showNodeMenu ? 'rotate-45' : ''}`} />
-        </button>
-
-        {showNodeMenu && (
-            <div className="absolute top-full left-0 mt-2 p-2 bg-gray-900/90 backdrop-blur border border-white/10 rounded-xl flex flex-col gap-1 min-w-[140px] animate-in fade-in slide-in-from-top-2">
-                {(['core', 'subcore', 'micro'] as const).map(type => (
+            {/* Quick Action Toolbar */}
+            <div className="absolute top-4 left-4 flex flex-col gap-2">
+                <div className="relative">
                     <button
-                        key={type}
-                        onClick={() => {
-                            if (onAddNode) onAddNode(type, { x: Math.random() * 400, y: Math.random() * 400 });
-                            setShowNodeMenu(false);
-                        }}
-                        className="px-3 py-2 text-left text-xs bg-white/5 hover:bg-cyan-500/20 text-white rounded-lg flex items-center gap-2 group"
+                        onClick={() => setShowNodeMenu(!showNodeMenu)}
+                        className="p-3 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center"
+                        title="Add Component"
                     >
-                        <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: COMPONENT_STYLES[type].borderColor }}
-                        />
-                        <span className="capitalize text-white/80 group-hover:text-white">Add {type}</span>
+                        <Plus className={`w-5 h-5 transition-transform ${showNodeMenu ? 'rotate-45' : ''}`} />
                     </button>
-                ))}
-            </div>
-        )}
-    </div>
 
-    <button
-        onClick={() => onSelectNode(null)}
-        className="p-3 bg-gray-800/80 hover:bg-gray-700/80 text-white rounded-xl shadow-lg border border-white/5 flex items-center justify-center"
-        title="Select logic"
-    >
-        <MousePointer2 className="w-5 h-5" />
-    </button>
-</div>
+                    {showNodeMenu && (
+                        <div className="absolute top-full left-0 mt-2 p-2 bg-gray-900/90 backdrop-blur border border-white/10 rounded-xl flex flex-col gap-1 min-w-[140px] animate-in fade-in slide-in-from-top-2">
+                            {(['core', 'subcore', 'micro'] as const).map(type => (
+                                <button
+                                    key={type}
+                                    onClick={() => {
+                                        if (onAddNode) onAddNode(type, { x: Math.random() * 400, y: Math.random() * 400 });
+                                        setShowNodeMenu(false);
+                                    }}
+                                    className="px-3 py-2 text-left text-xs bg-white/5 hover:bg-cyan-500/20 text-white rounded-lg flex items-center gap-2 group"
+                                >
+                                    <div
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: COMPONENT_STYLES[type].borderColor }}
+                                    />
+                                    <span className="capitalize text-white/80 group-hover:text-white">Add {type}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <button
+                    onClick={() => onSelectNode(null)}
+                    className="p-3 bg-gray-800/80 hover:bg-gray-700/80 text-white rounded-xl shadow-lg border border-white/5 flex items-center justify-center"
+                    title="Select logic"
+                >
+                    <MousePointer2 className="w-5 h-5" />
+                </button>
+            </div>
         </div >
     );
 };
