@@ -269,6 +269,33 @@ export class FlowNetworkSolver implements ISolver {
             return Math.sqrt(val / B);
         }
 
+        if (link.type === 'valve') {
+            // Q = Cv * sqrt(dp/SG)
+            // Cv is usually US GPM @ 1 psi drop. 
+            // We work in SI (m3/s, m head).
+
+            // Conversion: Q(m3/h) = 0.865 * Cv * sqrt(dp(bar) / SG)
+            // Let's use simplified: Q = K_valve * sqrt(dh)
+
+            // K_valve scales with opening %
+            const opening = Number(link.params['opening']) || 100; // 0-100
+            const Cv_max = Number(link.params['cv']) || 10;
+
+            if (opening <= 0) return 0;
+
+            const Cv_current = Cv_max * (opening / 100);
+
+            // Cv to SI (approx):
+            // 1 Cv = 1 gpm / sqrt(psi)
+            // ... constant K roughly:
+            // Q [m3/s] approx 2.4e-5 * Cv * sqrt(dh[m])
+            const K_si = 2.4e-5 * Cv_current;
+
+            if (Math.abs(dh) < 1e-6) return 0;
+            const Q = K_si * Math.sqrt(Math.abs(dh));
+            return dh > 0 ? Q : -Q;
+        }
+
         return 0;
     }
 
