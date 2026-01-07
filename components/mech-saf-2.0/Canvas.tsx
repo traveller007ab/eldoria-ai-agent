@@ -153,22 +153,26 @@ const CanvasContent: React.FC = () => {
 
                 if (sourcePort && targetPort) {
                     // 1. Check Domain Compatibility
-                    if (sourcePort.type !== targetPort.type && sourcePort.type !== 'mechanical-flange' && targetPort.type !== 'signal') {
-                        // Allow some flexibility or strict? Let's be strict on domain.
-                        // Actually types are 'inlet', 'outlet', 'flange', 'signal-in', 'signal-out'
-                        // We should check the domain property of the component mostly, but ports have types.
-                        // Let's check based on port definition logic if available, or just simple meaningful checks.
-
-                        // Better check: Port types should match broad categories
-                        const isFluidResult = ['inlet', 'outlet'].includes(sourcePort.type) && ['inlet', 'outlet'].includes(targetPort.type);
-                        const isSignalResult = ['signal-in', 'signal-out'].includes(sourcePort.type) && ['signal-in', 'signal-out'].includes(targetPort.type);
-                        const isMechResult = sourcePort.type.includes('flange') && targetPort.type.includes('flange');
-
-                        if (!isFluidResult && !isSignalResult && !isMechResult) {
-                            alert(`Cannot connect ${sourcePort.type} to ${targetPort.type}`);
-                            return;
-                        }
+                    // Ideally we check domains.
+                    if (sourcePort.domain !== targetPort.domain) {
+                        alert(`Cannot connect ${sourcePort.domain} port to ${targetPort.domain} port.`);
+                        return;
                     }
+
+                    // For Fluid, allow input/output/bidirectional combinations
+                    if (sourcePort.domain === 'fluid') {
+                        // Check strictly if trying to connect Input-Input or Output-Output?
+                        // But pipes are bidirectional.
+                        // Let's just allow it for now unless we want to enforce direction.
+                        // Actually, 'input' to 'input' is usually bad for flow, but maybe allowed in relaxed mode.
+                        // Let's NOT block it for now to be safe, just warn if needed.
+                        // But if user saw "Cannot connect...", it's because the previous logic fell through to the alert.
+                    }
+
+                    // Legacy check cleanup:
+                    /* 
+                    if (sourcePort.type !== targetPort.type && ...
+                    */
 
                     // 2. Prevent Input-Input or Output-Output for Fluid (strictly directional)
                     if (['inlet', 'outlet'].includes(sourcePort.type) && ['inlet', 'outlet'].includes(targetPort.type)) {
