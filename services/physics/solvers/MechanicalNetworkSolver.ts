@@ -1,15 +1,15 @@
 import { ISolver } from '../SolverRegistry';
 import {
-    Blueprint,
-    SimulationResult,
-    SolverConfiguration,
-    SimulationMetrics
-} from '../../types/mech-saf-2.0';
-import { ComponentRegistry } from '../ComponentRegistry';
+    MechBlueprint,
+    MechSimulationResult,
+    MechSolverConfiguration,
+    MechSimulationMetrics
+} from '../../../types';
+import { ComponentRegistry } from '../../ComponentRegistry';
 
 export class MechanicalNetworkSolver implements ISolver {
 
-    async solve(blueprint: Blueprint, config: SolverConfiguration): Promise<SimulationResult> {
+    async solve(blueprint: MechBlueprint, config: MechSolverConfiguration): Promise<MechSimulationResult> {
         // Mechanical Solver Strategy:
         // 1. Identify Drivers (Sources of RPM): Motors, Engines.
         // 2. Identify Driven Loads (Sinks of Torque): Pumps, Compressors, Generators, Propellers.
@@ -19,7 +19,7 @@ export class MechanicalNetworkSolver implements ISolver {
 
         const registry = ComponentRegistry.getInstance();
         const variables: Record<string, number> = {};
-        const metrics: SimulationMetrics = {
+        const metrics: MechSimulationMetrics = {
             totalPowerInput: 0,
             totalPowerOutput: 0,
             overallEfficiency: 0,
@@ -34,7 +34,7 @@ export class MechanicalNetworkSolver implements ISolver {
         // --- Step 1: Find Drivers ---
         const drivers = blueprint.components.filter(c => {
             const def = registry.getComponent(c.componentDefinitionId);
-            return def.subcategory === 'powerSource' || def.subcategory === 'powerTransmission'; // Motors usually declared here if valid
+            return def && (def.subcategory === 'powerSource' || def.subcategory === 'powerTransmission');
             // Simplification: Look for 'motor' or 'engine' in ID
         }).filter(c => c.componentDefinitionId.includes('motor') || c.componentDefinitionId.includes('engine'));
 
@@ -42,6 +42,8 @@ export class MechanicalNetworkSolver implements ISolver {
             const prefix = driver.name.replace(/\s+/g, '_');
             const params = driver.parameterValues;
             const def = registry.getComponent(driver.componentDefinitionId);
+
+            if (!def) continue;
 
             // Determine Driver Speed (Throttle / Rated)
             let N_driver = 0;
@@ -105,7 +107,7 @@ export class MechanicalNetworkSolver implements ISolver {
     private propagateSpeed(
         currentComponent: any,
         currentSpeed: number,
-        blueprint: Blueprint,
+        blueprint: MechBlueprint,
         variables: Record<string, number>,
         registry: any
     ) {
@@ -113,13 +115,14 @@ export class MechanicalNetworkSolver implements ISolver {
         variables[`${prefix}_speed`] = currentSpeed;
 
         // Find output connections
-        const outConnections = blueprint.connections.filter(c => c.sourceId === currentComponent.id);
+        const outConnections = blueprint.connections.filter(c => c.sourceComponentId === currentComponent.id);
 
         for (const conn of outConnections) {
-            const nextComp = blueprint.components.find(c => c.id === conn.targetId);
+            const nextComp = blueprint.components.find(c => c.id === conn.targetComponentId);
             if (!nextComp) continue;
 
             const nextDef = registry.getComponent(nextComp.componentDefinitionId);
+            if (!nextDef) continue;
 
             // Handle Gear Ratios
             let nextSpeed = currentSpeed;
@@ -131,7 +134,8 @@ export class MechanicalNetworkSolver implements ISolver {
             }
 
             // Recursive Call
-            if (!variables[`${nextComp.name.replace(/\s+/g, '_')}_speed`]) {
+            const nextPrefix = nextComp.name.replace(/\s+/g, '_');
+            if (!variables[`${nextPrefix}_speed`]) {
                 this.propagateSpeed(nextComp, nextSpeed, blueprint, variables, registry);
             }
         }

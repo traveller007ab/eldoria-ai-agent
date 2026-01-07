@@ -1,20 +1,13 @@
 import { ISolver } from '../SolverRegistry';
 import {
-    Blueprint,
-    SimulationResult,
-    SolverConfiguration,
+    MechBlueprint,
+    MechSimulationResult,
+    MechSolverConfiguration,
     SimulationMetrics,
     SimulationDiagnostics
-} from '../../types/mech-saf-2.0';
+} from '../../../types';
 import { NumericMethods } from '../NumericMethods';
 
-import { ISolver } from '../SolverRegistry';
-import {
-    Blueprint,
-    SimulationResult,
-    SolverConfiguration
-} from '../../types/mech-saf-2.0';
-import { NumericMethods } from '../NumericMethods';
 import { MaterialRegistry } from '../MaterialRegistry';
 
 interface HydraulicNode {
@@ -37,7 +30,7 @@ interface HydraulicLink {
 
 export class FlowNetworkSolver implements ISolver {
 
-    async solve(blueprint: Blueprint, config: SolverConfiguration): Promise<SimulationResult> {
+    async solve(blueprint: MechBlueprint, config: MechSolverConfiguration): Promise<MechSimulationResult> {
         // 1. Build Hydraulic Graph
         const { nodes, links, unknownsMap } = this.parseBlueprint(blueprint);
 
@@ -291,7 +284,7 @@ export class FlowNetworkSolver implements ISolver {
         return { nodes: [], links: [], unknownsMap: {} }; // Placeholder to avoid breaking immediately
     }
 
-    private mockResult(blueprint: Blueprint, config: SolverConfiguration): SimulationResult {
+    private mockResult(blueprint: MechBlueprint, config: MechSolverConfiguration): MechSimulationResult {
         // Keeping the mock for safety until parseBlueprint is robust
         return {
             id: crypto.randomUUID(),

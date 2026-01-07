@@ -63,7 +63,6 @@ export class MaterialRegistry {
             density: 1.225,
             viscosity: 1.81e-5,
             specificHeat: 1.005,
-            specificHeat: 1.005,
             bulkModulus: 101325,
             gamma: 1.4,
             type: 'gas'
@@ -74,7 +73,6 @@ export class MaterialRegistry {
             name: 'Steam (10 bar)',
             density: 5.15,
             viscosity: 1.2e-5,
-            specificHeat: 2.0,
             specificHeat: 2.0,
             bulkModulus: 1e6,
             gamma: 1.33,

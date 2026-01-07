@@ -38,8 +38,6 @@ export class DynamicSimulationService {
                     ...state[comp.id],
                     temperature: Number(params.initial_temp) || 25, // °C
                     mass: Number(params.mass) || 1000, // kg
-                    temperature: Number(params.initial_temp) || 25, // °C
-                    mass: Number(params.mass) || 1000, // kg
                     cp: cp // kJ/kg.K
                 };
             }

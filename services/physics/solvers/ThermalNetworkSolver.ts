@@ -1,14 +1,14 @@
 import { ISolver } from '../SolverRegistry';
 import {
-    Blueprint,
-    SimulationResult,
-    SolverConfiguration
-} from '../../types/mech-saf-2.0';
+    MechBlueprint,
+    MechSimulationResult,
+    MechSolverConfiguration
+} from '../../../types';
 import { MaterialRegistry } from '../MaterialRegistry';
 
 export class ThermalNetworkSolver implements ISolver {
 
-    async solve(blueprint: Blueprint, config: SolverConfiguration): Promise<SimulationResult> {
+    async solve(blueprint: MechBlueprint, config: MechSolverConfiguration): Promise<MechSimulationResult> {
         // Industry Level Thermal Analysis
         // 1. Mass Balance (Flows must be known or solved first).
         //    Ideally, we run Hydraulic Solver first if fluid loops exist.

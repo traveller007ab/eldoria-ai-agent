@@ -370,96 +370,95 @@ export const mechanicalComponents: MechComponentDefinition[] = [
                 solutionMethod: 'analytic'
             }
         ]
-        ]
     },
-{
-    id: 'mechanical.engine.ic',
+    {
+        id: 'mechanical.engine.ic',
         version: '1.0.0',
-            domain: 'mechanical',
-                subcategory: 'powerSource',
-                    name: 'Internal Combustion Engine',
-                        description: 'Multi-cylinder internal combustion engine with torque map.',
-                            tags: ['engine', 'diesel', 'petrol', 'power', 'source'],
-                                references: ['SAE J1349'],
-                                    ports: [
-                                        {
-                                            id: 'shaft_out',
-                                            name: 'Crankshaft',
-                                            type: 'output',
-                                            domain: 'mechanical',
-                                            variables: [{ name: 'Torque', symbol: 'τ_out', unit: 'N·m' }, { name: 'Speed', symbol: 'ω_out', unit: 'rad/s' }],
-                                            state: 'disconnected',
-                                            required: true,
-                                            position: { x: 1, y: 0.5, side: 'right' }
-                                        },
-                                        {
-                                            id: 'thermal_out',
-                                            name: 'Heat Rejection',
-                                            type: 'output',
-                                            domain: 'thermal',
-                                            variables: [],
-                                            state: 'disconnected',
-                                            required: false,
-                                            position: { x: 0.5, y: 0, side: 'top' }
-                                        }
-                                    ],
-                                        parameters: [
-                                            {
-                                                id: 'displacement',
-                                                name: 'Displacement',
-                                                symbol: 'V_d',
-                                                unit: 'L',
-                                                dataType: 'number',
-                                                value: 2.0,
-                                                source: 'design'
-                                            },
-                                            {
-                                                id: 'max_power',
-                                                name: 'Max Power',
-                                                symbol: 'P_max',
-                                                unit: 'kW',
-                                                dataType: 'number',
-                                                value: 150,
-                                                source: 'design'
-                                            },
-                                            {
-                                                id: 'idle_speed',
-                                                name: 'Idle Speed',
-                                                symbol: 'N_idle',
-                                                unit: 'rpm',
-                                                dataType: 'number',
-                                                value: 800,
-                                                source: 'design'
-                                            },
-                                            {
-                                                id: 'max_speed',
-                                                name: 'Max Speed',
-                                                symbol: 'N_redline',
-                                                unit: 'rpm',
-                                                dataType: 'number',
-                                                value: 6500,
-                                                source: 'design'
-                                            },
-                                            {
-                                                id: 'throttle',
-                                                name: 'Throttle Position',
-                                                symbol: 'TPS',
-                                                unit: '%',
-                                                dataType: 'number',
-                                                value: 50,
-                                                source: 'control',
-                                                designRange: { min: 0, max: 100 }
-                                            }
-                                        ],
-                                            equations: [
-                                                {
-                                                    id: 'power_curve',
-                                                    name: 'Engine Output',
-                                                    expression: 'P = f(N, TPS)',
-                                                    latex: 'P = \\mathcal{T}(N) \\cdot \\omega',
-                                                    source: 'Torque Map',
-                                                    solutionMethod: 'analytic'
-                                                }
-                                            ]
-}
+        domain: 'mechanical',
+        subcategory: 'powerSource',
+        name: 'Internal Combustion Engine',
+        description: 'Multi-cylinder internal combustion engine with torque map.',
+        tags: ['engine', 'diesel', 'petrol', 'power', 'source'],
+        references: ['SAE J1349'],
+        ports: [
+            {
+                id: 'shaft_out',
+                name: 'Crankshaft',
+                type: 'output',
+                domain: 'mechanical',
+                variables: [{ name: 'Torque', symbol: 'τ_out', unit: 'N·m' }, { name: 'Speed', symbol: 'ω_out', unit: 'rad/s' }],
+                state: 'disconnected',
+                required: true,
+                position: { x: 1, y: 0.5, side: 'right' }
+            },
+            {
+                id: 'thermal_out',
+                name: 'Heat Rejection',
+                type: 'output',
+                domain: 'thermal',
+                variables: [],
+                state: 'disconnected',
+                required: false,
+                position: { x: 0.5, y: 0, side: 'top' }
+            }
+        ],
+        parameters: [
+            {
+                id: 'displacement',
+                name: 'Displacement',
+                symbol: 'V_d',
+                unit: 'L',
+                dataType: 'number',
+                value: 2.0,
+                source: 'design'
+            },
+            {
+                id: 'max_power',
+                name: 'Max Power',
+                symbol: 'P_max',
+                unit: 'kW',
+                dataType: 'number',
+                value: 150,
+                source: 'design'
+            },
+            {
+                id: 'idle_speed',
+                name: 'Idle Speed',
+                symbol: 'N_idle',
+                unit: 'rpm',
+                dataType: 'number',
+                value: 800,
+                source: 'design'
+            },
+            {
+                id: 'max_speed',
+                name: 'Max Speed',
+                symbol: 'N_redline',
+                unit: 'rpm',
+                dataType: 'number',
+                value: 6500,
+                source: 'design'
+            },
+            {
+                id: 'throttle',
+                name: 'Throttle Position',
+                symbol: 'TPS',
+                unit: '%',
+                dataType: 'number',
+                value: 50,
+                source: 'control',
+                designRange: { min: 0, max: 100 }
+            }
+        ],
+        equations: [
+            {
+                id: 'power_curve',
+                name: 'Engine Output',
+                expression: 'P = f(N, TPS)',
+                latex: 'P = \\mathcal{T}(N) \\cdot \\omega',
+                source: 'Torque Map',
+                solutionMethod: 'analytic'
+            }
+        ]
+    }
 ];

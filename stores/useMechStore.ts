@@ -63,7 +63,7 @@ interface MechLabState {
 
     // Simulation
     setIsSimulating: (val: boolean) => void;
-    setIsSimulating: (val: boolean) => void;
+
     setLastSimulationResult: (result: MechSimulationResult | null) => void;
 
     // Playback Actions

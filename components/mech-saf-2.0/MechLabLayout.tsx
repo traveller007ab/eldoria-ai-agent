@@ -34,7 +34,8 @@ export const MechLabLayout: React.FC = () => {
         undo,
         redo,
         canUndo,
-        canRedo
+        canRedo,
+        setIsPlaying
     } = useMechStore();
 
     const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('properties');
