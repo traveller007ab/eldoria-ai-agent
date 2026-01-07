@@ -55,48 +55,89 @@ export class OptimizationService {
         let x_curr = x1;
         let y_curr = y1;
 
-        while (iterations < config.maxIterations) {
-            iterations++;
+        // Brent's Method Implementation
+        // Adapted for goal seek: f(x) = evaluate(x) - target = 0
 
-            // Avoid division by zero
-            if (Math.abs(y_curr - y_prev) < 1e-9) {
-                // Fallback to bisection or slight perturbation
-                x_curr += (config.maxAdjust - config.minAdjust) * 0.01;
-            } else {
-                // Secant formula: x_new = x_curr - y_err_curr * (x_curr - x_prev) / (y_err_curr - y_err_prev)
-                // But we want y to be target. Let f(x) = evaluate(x) - target.
-                // x_new = x_curr - (y_curr - target) * (x_curr - x_prev) / ((y_curr - target) - (y_prev - target))
-                //       = x_curr - (y_curr - target) * (x_curr - x_prev) / (y_curr - y_prev)
+        let a = config.minAdjust;
+        let b = config.maxAdjust;
+        let fa = (await this.evaluate(blueprint, config, a)) - config.targetValue;
+        let fb = (await this.evaluate(blueprint, config, b)) - config.targetValue;
 
-                const f_curr = y_curr - config.targetValue;
-                const f_prev = y_prev - config.targetValue;
+        history.push({ iteration: 0, parameter: a, value: fa + config.targetValue, error: fa });
+        history.push({ iteration: 0, parameter: b, value: fb + config.targetValue, error: fb });
 
-                const x_new = x_curr - f_curr * (x_curr - x_prev) / (f_curr - f_prev);
-
-                // Constrain x_new
-                let x_next = Math.max(config.minAdjust, Math.min(config.maxAdjust, x_new));
-
-                // Check convergence
-                if (Math.abs(x_next - x_curr) < 1e-4) {
-                    // Parameter converged
-                }
-
-                x_prev = x_curr;
-                y_prev = y_curr;
-                x_curr = x_next;
-            }
-
-            const y_new = await this.evaluate(blueprint, config, x_curr);
-            history.push({ iteration: iterations + 1, parameter: x_curr, value: y_new, error: y_new - config.targetValue });
-
-            if (Math.abs(y_new - config.targetValue) < config.tolerance) {
-                return this.buildResult(true, iterations, y_new, x_curr, y_new - config.targetValue, history, blueprint, config);
-            }
-
-            y_curr = y_new;
+        if (fa * fb >= 0) {
+            // Root not bracketed or multiple roots. Fallback to heuristic or fail.
+            // For engineering systems (monotonic), this implies target is outside range.
+            return this.buildResult(false, iterations, fb + config.targetValue, b, fb, history, blueprint, config);
         }
 
-        return this.buildResult(false, iterations, y_curr, x_curr, y_curr - config.targetValue, history, blueprint, config);
+        if (Math.abs(fa) < Math.abs(fb)) {
+            [a, b] = [b, a];
+            [fa, fb] = [fb, fa];
+        }
+
+        let c = a;
+        let fc = fa;
+        let d = 0; // Stepsize
+        let s = b;
+        let fs = fb;
+        let mflag = true;
+
+        while (iterations < config.maxIterations && Math.abs(b - a) > config.tolerance && Math.abs(fb) > config.tolerance) {
+            iterations++;
+
+            // Inverse quadratic interpolation or Secant
+            if (fa !== fc && fb !== fc) {
+                // Inverse quadratic
+                const s1 = (a * fb * fc) / ((fa - fb) * (fa - fc));
+                const s2 = (b * fa * fc) / ((fb - fa) * (fb - fc));
+                const s3 = (c * fa * fb) / ((fc - fa) * (fc - fb));
+                s = s1 + s2 + s3;
+            } else {
+                // Secant
+                s = b - fb * (b - a) / (fb - fa);
+            }
+
+            // Check if s is reasonable (within bounds and bracketed)
+            // Condition 1: s betwen (3a+b)/4 and b
+            const cond1 = !((s > (3 * a + b) / 4 && s < b) || (s < (3 * a + b) / 4 && s > b));
+            // Condition 2: Step size shrinking?
+            const cond2 = mflag && Math.abs(s - b) >= Math.abs(b - c) / 2;
+            const cond3 = !mflag && Math.abs(s - b) >= Math.abs(c - d) / 2;
+            const cond4 = mflag && Math.abs(b - c) < Math.abs(config.tolerance);
+            const cond5 = !mflag && Math.abs(c - d) < Math.abs(config.tolerance);
+
+            if (cond1 || cond2 || cond3 || cond4 || cond5) {
+                // Bisection fallback
+                s = (a + b) / 2;
+                mflag = true;
+            } else {
+                mflag = false;
+            }
+
+            fs = (await this.evaluate(blueprint, config, s)) - config.targetValue;
+            history.push({ iteration: iterations, parameter: s, value: fs + config.targetValue, error: fs });
+            d = c;
+            c = b;
+            fc = fb;
+
+            if (fa * fs < 0) {
+                b = s;
+                fb = fs;
+            } else {
+                a = s;
+                fa = fs;
+            }
+
+            if (Math.abs(fa) < Math.abs(fb)) {
+                [a, b] = [b, a];
+                [fa, fb] = [fb, fa];
+            }
+        }
+
+        return this.buildResult(iterations < config.maxIterations, iterations, fb + config.targetValue, b, fb, history, blueprint, config);
+
     }
 
     private static async evaluate(initialBlueprint: MechBlueprint, config: OptimizationConfig, paramValue: number): Promise<number> {
@@ -110,10 +151,8 @@ export class OptimizationService {
         }
 
         // Run simulation
-        // Note: SimulationService might be slow with its artificial delay. 
-        // For optimization, we might bypass the delay or use a fast mode if available.
-        // Since we can't easily change the delay in SimulationService without editing it, we accept it for now.
-        const result = await SimulationService.run(blueprint);
+        // Use fastMode to bypass artificial delays
+        const result = await SimulationService.run(blueprint, true);
 
         // Extract target variable
         // The variables are flat, e.g., "Pump_1_flow".
