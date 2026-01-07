@@ -118,6 +118,9 @@ export class MechanicalNetworkSolver implements ISolver {
         const outConnections = blueprint.connections.filter(c => c.sourceComponentId === currentComponent.id);
 
         for (const conn of outConnections) {
+            // STRICT TYPING: Only propagate through mechanical connections
+            if (conn.type !== 'mechanical') continue;
+
             const nextComp = blueprint.components.find(c => c.id === conn.targetComponentId);
             if (!nextComp) continue;
 

@@ -1,0 +1,33 @@
+● Validation Warning:
+
+  Unknown option "fontFamily" with value "Iosevka" was found.
+  This is probably a typing mistake. Fixing it will remove this message.
+
+  Configuration Documentation:
+  https://jestjs.io/docs/configuration
+
+● Validation Warning:
+
+  Unknown option "fontFamily" with value "Iosevka" was found.
+  This is probably a typing mistake. Fixing it will remove this message.
+
+  Configuration Documentation:
+  https://jestjs.io/docs/configuration
+
+ts-jest[config] (WARN) [94mmessage[0m[90m TS151001: [0mIf you have issues related to imports, you should consider setting `esModuleInterop` to `true` in your TypeScript configuration file (usually `tsconfig.json`). See https://blogs.msdn.microsoft.com/typescript/2018/01/31/announcing-typescript-2-7/#easier-ecmascript-module-interoperability for more information.
+FAIL tests/verify_flow.test.ts
+  Physics Engine Verification
+    × Engine-Pump Demo should generate valid Flow and Pressure (2545 ms)
+
+  ● Physics Engine Verification › Engine-Pump Demo should generate valid Flow and Pressure
+
+    [96mservices/physics/solvers/FlowNetworkSolver.ts[0m:[93m43[0m:[93m1[0m - [91merror[0m[90m TS1068: [0mUnexpected token. A constructor, method, accessor, or property was expected.
+
+      [7m43[0m interface HydraulicLink {
+      [7m  [0m [91m~~~~~~~~~[0m
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        5.151 s
+Ran all test suites matching tests/verify_flow.test.ts.

@@ -1,0 +1,63 @@
+● Validation Warning:
+
+  Unknown option "fontFamily" with value "Iosevka" was found.
+  This is probably a typing mistake. Fixing it will remove this message.
+
+  Configuration Documentation:
+  https://jestjs.io/docs/configuration
+
+● Validation Warning:
+
+  Unknown option "fontFamily" with value "Iosevka" was found.
+  This is probably a typing mistake. Fixing it will remove this message.
+
+  Configuration Documentation:
+  https://jestjs.io/docs/configuration
+
+ts-jest[config] (WARN) [94mmessage[0m[90m TS151001: [0mIf you have issues related to imports, you should consider setting `esModuleInterop` to `true` in your TypeScript configuration file (usually `tsconfig.json`). See https://blogs.msdn.microsoft.com/typescript/2018/01/31/announcing-typescript-2-7/#easier-ecmascript-module-interoperability for more information.
+  console.log
+    --- Simulation Results ---
+
+      at Object.<anonymous> (tests/verify_flow.test.ts:23:17)
+
+  console.log
+    Status: completed
+
+      at Object.<anonymous> (tests/verify_flow.test.ts:24:17)
+
+  console.log
+    Total Flow: 0.00 m3/h
+
+      at Object.<anonymous> (tests/verify_flow.test.ts:25:17)
+
+  console.log
+    Max Pressure: 0.00 kPa
+
+      at Object.<anonymous> (tests/verify_flow.test.ts:26:17)
+
+FAIL tests/verify_flow.test.ts
+  Physics Engine Verification
+    × Engine-Pump Demo should generate valid Flow and Pressure (2946 ms)
+
+  ● Physics Engine Verification › Engine-Pump Demo should generate valid Flow and Pressure
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 10
+    Received:   0
+
+    [0m [90m 28 |[39m         [90m// Assertions[39m
+     [90m 29 |[39m         expect(result[33m.[39mstatus)[33m.[39mtoBe([32m'completed'[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 30 |[39m         expect(result[33m.[39mmetrics[33m.[39mtotalFlowRate)[33m.[39mtoBeGreaterThan([35m10[39m)[33m;[39m [90m// Expect significant flow[39m
+     [90m    |[39m                                              [31m[1m^[22m[39m
+     [90m 31 |[39m         expect(result[33m.[39mmetrics[33m.[39mmaxPressure)[33m.[39mtoBeGreaterThan([35m5[39m)[33m;[39m [90m// Expect pressure boost[39m
+     [90m 32 |[39m
+     [90m 33 |[39m         [90m// Check Iterations[39m[0m
+
+      at Object.<anonymous> (tests/verify_flow.test.ts:30:46)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        5.139 s
+Ran all test suites matching tests/verify_flow.test.ts.
