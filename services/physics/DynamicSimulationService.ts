@@ -45,102 +45,135 @@ export class DynamicSimulationService {
             }
         });
 
+        const { SimulationService } = await import('./SimulationService');
+
         // 2. Time Stepping Loop
         for (let t = 0; t <= duration; t += timeStep) {
             timePoints.push(t);
 
-            // A. Calculate Rates (Flows, Heat Transfer) based on current state
-            // This mirrors SimulationService logic but allows state feedback
-
-            // Simplification: We recalculate "Steady State" flow based on current levels
-            // In a real solver, this would resolve the pressure network.
-            // Here we use a simplified logic: Pump Flow depends on Tank Head diff? 
-            // For now, let's assume Pump Flow is constant or controlled.
-
-            // temporary variables for this step
-            const stepVars: Record<string, number> = {};
-
-            // Loop components to calculate flows/power
-            let totalFlow = 0;
-
+            // A. Update Blueprint Parameters from State
+            // Map state (e.g., Tank Level) -> Component Parameters (e.g., Pressure/Head)
+            // This allows the steady-state solver to "see" the current system state.
             blueprint.components.forEach(comp => {
-                const def = registry.getComponent(comp.componentDefinitionId);
-                const prefix = comp.name.replace(/\s+/g, '_');
-
-                if (def?.id.includes('pump')) {
-                    let flow = Number(comp.parameterValues.design_flow) || 100;
-
-                    // Simple Control Logic Simulation
-                    // If connected to a PID/Valve, modulate flow
-                    // (Mocking this interaction for now)
-                    if (t > 10 && t < 30) flow = flow * 0.8; // Simulate disturbance
-
-                    stepVars[`${prefix}_flow`] = flow;
-                    totalFlow += flow;
-                }
-
-                if (def?.id.includes('valve')) {
-                    // Valve logic
-                    stepVars[`${prefix}_opening`] = 50 + 20 * Math.sin(t * 0.1);
+                if (state[comp.id]) {
+                    // Tank: Head = Level (simple)
+                    if (state[comp.id].level !== undefined) {
+                        comp.parameterValues.head = state[comp.id].level;
+                    }
+                    // Thermal: Inlet Temp depends on Tank Temp?
+                    // This requires updating CONNECTION parameters or upstream component args.
+                    // Simplified: We assume Tanks act as boundary conditions.
                 }
             });
 
-            // B. Update State (Integration)
-            // Forward Euler: y[n+1] = y[n] + dy/dt * dt
+            // B. Solve Physics (Institute Quasi-Steady State)
+            // Call the full rigorous solver for this time step's snapshot
+            const snapshotResult = await SimulationService.run(blueprint, true);
+            // fastMode = true to skip delays
 
+            // C. Extract Rates for Integration
+            // Flow Rates, Heat Transfer Rates
+            const rates: Record<string, number> = {};
+
+            // Map snapshot variables to necessary rates
+            Object.entries(snapshotResult.variables).forEach(([key, val]) => {
+                // Store all vars for trending
+                if (!timeSeries[key]) timeSeries[key] = [];
+                timeSeries[key].push(val);
+            });
+
+            // D. Integrate State (Forward Euler)
+            // State[new] = State[old] + Rate * dt
             blueprint.components.forEach(comp => {
-                const def = registry.getComponent(comp.componentDefinitionId);
                 const prefix = comp.name.replace(/\s+/g, '_');
 
                 if (state[comp.id]) {
-                    // Tank Level Dynamics
+                    // 1. Tank Level Integration
                     if (state[comp.id].level !== undefined) {
-                        // Determine Net Flow (Simplification: Assume 1 pump in, 1 pump out or gravity)
-                        // If it's a Source tank, level decreases. If Sink, increases.
-                        // Let's mock a scenario: One Tank fills, One drains.
+                        // Net Flow into Tank? 
+                        // We need to identify flows connected to this tank.
+                        // Difficult from just 'variables' map unless we parse convention.
+                        // Alternative: FlowNetworkSolver could return "Node Balance" for each node.
+
+                        // Simplified Rate finding:
+                        // Find all pipes connected to this tank.
+                        // If pipe flows IN, add. If OUT, subtract.
 
                         let netFlow = 0;
-                        // Find connections
-                        const inputs = blueprint.connections.filter(c => c.targetComponentId === comp.id);
-                        const outputs = blueprint.connections.filter(c => c.sourceComponentId === comp.id);
+                        const connections = blueprint.connections.filter(c => c.targetComponentId === comp.id || c.sourceComponentId === comp.id);
 
-                        // inputs add flow (from pumps?), outputs remove flow
-                        // For the mock, let's just oscillate level to show dynamics if no proper flow graph
-                        // netFlow = Math.sin(t) * 10; 
+                        connections.forEach(conn => {
+                            // Find flow variable for this partial link?
+                            // Or find the COMPONENT on the other end?
+                            // Actually flow is uniform in a simple series branch. 
+                            // Try to find flow variable of the connecting component (Pipe/Pump/Valve).
 
-                        // Better Mock:
-                        // Level changes based on total system flow if it's the "Reservoir"
-                        // dL/dt = Q / A
-                        const Q_net_m3s = (totalFlow / 3600) * (Math.random() - 0.5); // Random fluctuation
-                        const dL_dt = Q_net_m3s / state[comp.id].area;
+                            // Heuristic: Check variables for flow related to known neighbors?
+                            // Better: Use Total Flow if simple loop?
 
-                        state[comp.id].level += dL_dt * timeStep;
-                        stepVars[`${prefix}_level`] = state[comp.id].level;
+                            // Fallback for Demo:
+                            // Use the total system flow for the reservoir loop
+                            if (snapshotResult.metrics?.totalFlowRate) {
+                                // If this is the "Source" tank (lower head), it gains flow in closed loop? 
+                                // Actually closed loop mass is constant.
+                                // Level only changes in Open systems (Source -> Sink).
+
+                                // Let's use the net flow heuristic:
+                                // if ID includes 'source' -> loses flow
+                                // if ID includes 'sink' -> gains flow
+                                // if 'reservoir' -> net zero usually unless leak.
+
+                                // For the Engine Demo (closed loop): Level is constant.
+                                // So let's focus on THERMAL integration (Heating Up).
+                            }
+                        });
                     }
 
-                    // Thermal Dynamics
+                    // 2. Thermal Integration (Engine Warmup)
                     if (state[comp.id].temperature !== undefined) {
-                        // dT/dt = Q_net / (m * Cp)
-                        // Mock heating
-                        const Q_in = 50; // kW
-                        const dT_dt = Q_in / (state[comp.id].mass * state[comp.id].cp);
-                        state[comp.id].temperature += dT_dt * timeStep;
-                        stepVars[`${prefix}_temperature`] = state[comp.id].temperature;
+                        // dT/dt = (Heat_In - Heat_Rejection) / (Mass * Cp)
+                        // Heat_In = Fuel Energy (if Boiler/Engine)
+                        // Heat_Rejection = Radiator/HX Heat Duty
+
+                        let Q_net = 0; // kW
+
+                        // If Engine: Heat Gen = Total Heat Input
+                        if (comp.componentDefinitionId.includes('engine')) {
+                            Q_net += (snapshotResult.metrics?.totalHeatInput || 0); // Engine Heat Gen
+                            // Minus Heat Rejection (if connected to Radiator)
+                            // Radiator effectiveness?
+                            const radiatorRejection = Object.values(snapshotResult.variables)
+                                .find((v, k) => String(k).includes('Radiator') && String(k).includes('Heat_Rejection'));
+
+                            if (radiatorRejection) Q_net -= (radiatorRejection as number);
+                        }
+
+                        // Calculate Temp Rise
+                        const mass = state[comp.id].mass;
+                        const cp = state[comp.id].cp;
+
+                        if (mass && cp) {
+                            const dT = (Q_net / (mass * cp)) * timeStep;
+                            state[comp.id].temperature += dT;
+
+                            // Clamp to max?
+                            if (state[comp.id].temperature > 120) state[comp.id].temperature = 120; // Boil over
+                        }
+
+                        // Push new temp to time series
+                        const tempKey = `${prefix}_temperature`;
+                        if (!timeSeries[tempKey]) timeSeries[tempKey] = [];
+                        timeSeries[tempKey].push(state[comp.id].temperature);
                     }
                 }
-            });
-
-            // C. Store Step Variables
-            Object.entries(stepVars).forEach(([key, val]) => {
-                if (!timeSeries[key]) timeSeries[key] = [];
-                timeSeries[key].push(val);
             });
         }
 
         // Final State for standard result
         const finalVariables: Record<string, number> = {};
         Object.keys(timeSeries).forEach(k => {
-            finalVariables[k] = timeSeries[k][timeSeries[k].length - 1];
+            const arr = timeSeries[k];
+            if (arr.length > 0) finalVariables[k] = arr[arr.length - 1];
         });
 
         return {

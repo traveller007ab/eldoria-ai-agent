@@ -280,5 +280,78 @@ export const thermalComponents: MechComponentDefinition[] = [
                 solutionMethod: 'analytic'
             }
         ]
-    }
+        ]
+    },
+{
+    id: 'thermal.radiator',
+        version: '1.0.0',
+            domain: 'thermal',
+                subcategory: 'heatExchanger',
+                    name: 'Radiator (Air Cooled)',
+                        description: 'Cross-flow heat exchanger rejecting heat to air.',
+                            tags: ['radiator', 'cooling', 'automotive'],
+                                references: ['Automotive Cooling Systems'],
+                                    ports: [
+                                        {
+                                            id: 'coolant_in',
+                                            name: 'Coolant Inlet',
+                                            type: 'input',
+                                            domain: 'fluid',
+                                            variables: [],
+                                            state: 'disconnected',
+                                            required: true,
+                                            position: { x: 0, y: 0.3, side: 'left' }
+                                        },
+                                        {
+                                            id: 'coolant_out',
+                                            name: 'Coolant Outlet',
+                                            type: 'output',
+                                            domain: 'fluid',
+                                            variables: [],
+                                            state: 'disconnected',
+                                            required: true,
+                                            position: { x: 1, y: 0.7, side: 'right' }
+                                        },
+                                        {
+                                            id: 'air_in',
+                                            name: 'Air Flow',
+                                            type: 'input',
+                                            domain: 'fluid',
+                                            variables: [],
+                                            state: 'disconnected',
+                                            required: false, // Implicit ambient
+                                            position: { x: 0.5, y: 0, side: 'top' }
+                                        }
+                                    ],
+                                        parameters: [
+                                            {
+                                                id: 'heat_rejection',
+                                                name: 'Max Heat Rejection',
+                                                symbol: 'Q_max',
+                                                unit: 'kW',
+                                                dataType: 'number',
+                                                value: 100,
+                                                source: 'design'
+                                            },
+                                            {
+                                                id: 'air_temp',
+                                                name: 'Ambient Air Temp',
+                                                symbol: 'T_air',
+                                                unit: '°C',
+                                                dataType: 'number',
+                                                value: 25,
+                                                source: 'constant'
+                                            }
+                                        ],
+                                            equations: [
+                                                {
+                                                    id: 'cooling_capacity',
+                                                    name: 'Heat Rejection',
+                                                    expression: 'Q = f(Flow, dT)',
+                                                    latex: 'Q = \\dot{m} C_p \\Delta T',
+                                                    source: 'Heat Transfer',
+                                                    solutionMethod: 'analytic'
+                                                }
+                                            ]
+}
 ];

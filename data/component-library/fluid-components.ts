@@ -30,6 +30,16 @@ export const fluidComponents: MechComponentDefinition[] = [
                 state: 'disconnected',
                 required: true,
                 position: { x: 1, y: 0.5, side: 'right' }
+            },
+            {
+                id: 'shaft_in',
+                name: 'Drive Shaft',
+                type: 'input',
+                domain: 'mechanical',
+                variables: [{ name: 'Torque', symbol: 'τ', unit: 'N·m' }, { name: 'Speed', symbol: 'ω', unit: 'rad/s' }],
+                state: 'disconnected',
+                required: false,  // Optional for backward compatibility, but recommended
+                position: { x: 0.5, y: 0, side: 'top' }
             }
         ],
         parameters: [
@@ -251,7 +261,17 @@ export const fluidComponents: MechComponentDefinition[] = [
         references: [],
         ports: [
             { id: 'inlet', name: 'Suction', type: 'input', domain: 'fluid', required: true, position: { x: 0, y: 0.5, side: 'left' } },
-            { id: 'outlet', name: 'Discharge', type: 'output', domain: 'fluid', required: true, position: { x: 1, y: 0.5, side: 'right' } }
+            { id: 'outlet', name: 'Discharge', type: 'output', domain: 'fluid', required: true, position: { x: 1, y: 0.5, side: 'right' } },
+            {
+                id: 'shaft_in',
+                name: 'Drive Shaft',
+                type: 'input',
+                domain: 'mechanical',
+                variables: [{ name: 'Torque', symbol: 'τ', unit: 'N·m' }, { name: 'Speed', symbol: 'ω', unit: 'rad/s' }],
+                state: 'disconnected',
+                required: false, // Optional for easy testing
+                position: { x: 0.5, y: 0, side: 'top' }
+            }
         ],
         parameters: [
             { id: 'ratio', name: 'Pressure Ratio', symbol: 'Rc', unit: '-', dataType: 'number', value: 3.0, source: 'design' },

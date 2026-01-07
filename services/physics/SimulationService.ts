@@ -8,6 +8,7 @@ export class SimulationService {
     static async run(blueprint: MechBlueprint, fastMode: boolean = false): Promise<MechSimulationResult> {
         const startTime = Date.now();
         const registry = ComponentRegistry.getInstance();
+        const variables: Record<string, number> = {};
 
         // Default solver configuration
         const config: MechSolverConfiguration = {
@@ -18,53 +19,84 @@ export class SimulationService {
             initialGuess: 'design'
         };
 
-        // Simulate processing time based on complexity
-        // If fastMode is true, skip or minimize delay
         if (!fastMode) {
             const complexity = blueprint.components.length + blueprint.connections.length;
-            await new Promise(resolve => setTimeout(resolve, 500 + complexity * 100 + Math.random() * 300));
+            await new Promise(resolve => setTimeout(resolve, 500 + complexity * 100));
         }
 
+        // ============ MULTI-PHYSICS COUPLING LOOP ============
+        // 1. Mechanical Solver: Establishes shaft speeds (N) for all driven components.
+        // 2. Fluid Solver: Uses (N) to calculate Flows (Q) and Heads (H). returns Hydraulic Torques.
+        // 3. Thermal Solver: Uses (Q) and Heat Loads to calculate Temperatures (T).
 
-        // Determine primary domain of the blueprint
-        // Count components
-        let fluidCount = 0;
-        let thermalCount = 0;
-        let mechCount = 0;
+        // --- Stage 1: Mechanical Kinematics ---
+        const { MechanicalNetworkSolver } = await import('./solvers/MechanicalNetworkSolver');
+        const mechSolver = new MechanicalNetworkSolver();
+        const mechResult = await mechSolver.solve(blueprint, config);
+        Object.assign(variables, mechResult.variables);
 
-        blueprint.components.forEach(c => {
-            const def = registry.getComponent(c.componentDefinitionId);
-            if (def?.domain === 'fluid') fluidCount++;
-            if (def?.domain === 'thermal') thermalCount++;
-            if (def?.domain === 'mechanical') mechCount++;
-        });
+        // --- Stage 2: Fluid Dynamics ---
+        // Inject derived speeds into global variables so Fluid Solver can pick them up
+        // Note: FlowNetworkSolver needs to look for "CompName_speed" in variables if connected to shaft
 
-        let result: MechSimulationResult | null = null;
+        const { FlowNetworkSolver } = await import('./solvers/FlowNetworkSolver');
+        const fluidSolver = new FlowNetworkSolver();
 
-        // Priority: Fluid -> Thermal -> Mechanical (if mixed, multi-physics would be needed)
-        // For now, simpler delegation.
+        // Ensure fluid solver has access to mechanical variables if needed (via blueprint mutation or context)
+        // For now, we rely on variable merging at the end, assuming Solvers are independent 1-pass for V2.0
+        // Real V3.0 would pass context.
 
-        if (fluidCount > 0) {
-            const { FlowNetworkSolver } = await import('./solvers/FlowNetworkSolver');
-            const solver = new FlowNetworkSolver();
-            result = await solver.solve(blueprint, config);
-        } else if (thermalCount > 0) {
-            const { ThermalNetworkSolver } = await import('./solvers/ThermalNetworkSolver');
-            const solver = new ThermalNetworkSolver();
-            result = await solver.solve(blueprint, config);
-        } else {
-            // Fallback for Mechanical or Control pure blueprints (simpler logic)
-            // We can keep a simplified version of the old loop here for mechanical
-            return this.runLegacySupport(blueprint, config);
-        }
+        const fluidResult = await fluidSolver.solve(blueprint, config);
+        Object.assign(variables, fluidResult.variables);
 
-        if (!result) throw new Error("Solver produced no result");
+        // --- Stage 3: Thermal Analysis ---
+        const { ThermalNetworkSolver } = await import('./solvers/ThermalNetworkSolver');
+        const thermalSolver = new ThermalNetworkSolver();
+        const thermalResult = await thermalSolver.solve(blueprint, config);
+        Object.assign(variables, thermalResult.variables);
 
-        // Run Diagnostics on the rigorous result
-        const issues = DiagnosticService.analyze(blueprint, result);
-        result.issues = issues;
 
-        return result;
+        // Consolidate Metrics
+        const totalPowerInput = (mechResult.metrics?.totalPowerInput || 0) + (fluidResult.metrics?.totalPowerInput || 0);
+        const totalHeatInput = (thermalResult.metrics?.totalHeatInput || 0);
+
+        const resultId = crypto.randomUUID();
+        const resultMetrics = {
+            totalPowerInput,
+            totalPowerOutput: mechResult.metrics?.totalPowerOutput || 0,
+            overallEfficiency: (mechResult.metrics?.overallEfficiency || 0),
+            totalFlowRate: fluidResult.metrics?.totalFlowRate || 0,
+            maxPressure: fluidResult.metrics?.maxPressure || 0,
+            pressureDrop: fluidResult.metrics?.pressureDrop || 0,
+            totalHeatInput,
+            totalHeatOutput: thermalResult.metrics?.totalHeatOutput || 0,
+            componentMetrics: {
+                ...mechResult.metrics?.componentMetrics,
+                ...fluidResult.metrics?.componentMetrics,
+                ...thermalResult.metrics?.componentMetrics
+            }
+        };
+
+        const resultDiagnostics = fluidResult.diagnostics || mechResult.diagnostics; // Prioritize fluid diagnostics for now
+
+        const finalResult: MechSimulationResult = {
+            id: resultId,
+            blueprintId: blueprint.id,
+            status: 'completed',
+            completedAt: new Date(),
+            duration: Date.now() - startTime,
+            configuration: config,
+            variables,
+            metrics: resultMetrics,
+            diagnostics: resultDiagnostics,
+            constraintViolations: [],
+            issues: []
+        };
+
+        // Run Diagnostics on the aggregated result
+        finalResult.issues = DiagnosticService.analyze(blueprint, finalResult);
+
+        return finalResult;
     }
 
     // Keep legacy logic for Mechanical/Control pure simulations until we build MechanicalSolver

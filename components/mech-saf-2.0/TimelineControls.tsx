@@ -56,14 +56,20 @@ export const TimelineControls: React.FC = () => {
         };
     }, [isPlaying, playbackTime, playbackSpeed, lastSimulationResult]);
 
-    if (!lastSimulationResult || !(lastSimulationResult as any).isDynamic) return null;
-    const dynResult = lastSimulationResult as MechDynamicSimulationResult;
+    // Derived state
+    const dynResult = (lastSimulationResult as any)?.isDynamic ? lastSimulationResult as MechDynamicSimulationResult : null;
+    const duration = dynResult?.totalDuration || 60;
+    const isDisabled = !dynResult;
 
     const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (isDisabled) return;
         setPlaybackTime(Number(e.target.value));
     };
 
-    const togglePlay = () => setIsPlaying(!isPlaying);
+    const togglePlay = () => {
+        if (isDisabled) return;
+        setIsPlaying(!isPlaying);
+    };
 
     const handleReset = () => {
         setIsPlaying(false);
@@ -78,12 +84,13 @@ export const TimelineControls: React.FC = () => {
     };
 
     return (
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 w-[500px] bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 shadow-xl">
+        <div className={`absolute bottom-10 left-1/2 -translate-x-1/2 z-20 w-[500px] bg-slate-800/95 backdrop-blur-sm border border-slate-700 rounded-lg p-3 shadow-xl transition-opacity ${isDisabled ? 'opacity-60 grayscale' : 'opacity-100'}`}>
             <div className="flex items-center gap-3 mb-2">
                 {/* Controls */}
                 <button
                     onClick={handleReset}
-                    className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-white"
+                    disabled={isDisabled}
+                    className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-white disabled:cursor-not-allowed"
                     title="Reset"
                 >
                     <RotateCcw className="w-4 h-4" />
@@ -91,7 +98,8 @@ export const TimelineControls: React.FC = () => {
 
                 <button
                     onClick={togglePlay}
-                    className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+                    disabled={isDisabled}
+                    className="p-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg transition-transform hover:scale-105 active:scale-95 disabled:bg-slate-600 disabled:shadow-none disabled:transform-none disabled:cursor-not-allowed"
                 >
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
                 </button>
@@ -101,9 +109,10 @@ export const TimelineControls: React.FC = () => {
                         <button
                             key={speed}
                             onClick={() => setPlaybackSpeed(speed)}
+                            disabled={isDisabled}
                             className={`px-2 py-0.5 text-xs rounded font-medium transition-colors ${playbackSpeed === speed
-                                    ? 'bg-slate-600 text-white shadow'
-                                    : 'text-slate-400 hover:text-slate-200'
+                                ? 'bg-slate-600 text-white shadow'
+                                : 'text-slate-400 hover:text-slate-200'
                                 }`}
                         >
                             {speed}x
@@ -120,16 +129,23 @@ export const TimelineControls: React.FC = () => {
             <input
                 type="range"
                 min={0}
-                max={dynResult.totalDuration}
+                max={duration}
                 step={0.1}
                 value={playbackTime}
                 onChange={handleSeek}
-                className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300"
+                disabled={isDisabled}
+                className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:accent-cyan-300 disabled:cursor-not-allowed"
             />
             <div className="flex justify-between mt-1 text-[10px] text-slate-500 font-mono">
                 <span>0.0s</span>
-                <span>{dynResult.totalDuration.toFixed(1)}s</span>
+                <span>{duration.toFixed(1)}s</span>
             </div>
+
+            {isDisabled && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-xs font-semibold uppercase tracking-wider text-white/50 pointer-events-none">
+                    No Simulation Data
+                </div>
+            )}
         </div>
     );
 };
