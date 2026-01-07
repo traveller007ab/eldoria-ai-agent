@@ -3,8 +3,8 @@ import {
     MechBlueprint,
     MechSimulationResult,
     MechSolverConfiguration,
-    SimulationMetrics,
-    SimulationDiagnostics
+    MechSimulationMetrics,
+    MechSimulationDiagnostics
 } from '../../../types';
 import { NumericMethods } from '../NumericMethods';
 import { MaterialRegistry } from '../MaterialRegistry';
