@@ -263,6 +263,15 @@ export const mechanicalComponents: MechComponentDefinition[] = [
                 source: 'calculated'
             },
             {
+                id: 'throttle',
+                name: 'Throttle',
+                symbol: 'TPS',
+                unit: '%',
+                dataType: 'number',
+                value: 50,
+                source: 'control'
+            },
+            {
                 id: 'free_length',
                 name: 'Free Length',
                 symbol: 'L₀',

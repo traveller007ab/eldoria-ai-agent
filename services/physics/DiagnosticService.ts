@@ -113,46 +113,46 @@ export class DiagnosticService {
         });
 
 
-    });
+
 
 
         // 5. Semantic Compatibility Check (Robust)
         // Rule: Components that require specific fluid properties (e.g. Engine -> Combustible)
         // must operate in a context where the fluid has those tags.
         blueprint.components.forEach(comp => {
-        // Logic for Engines
-        if (comp.componentDefinitionId.includes('engine')) {
-    // Requirement: Fluid must be combustible
-    const isCombustible = fluid?.tags?.includes('combustible');
+            // Logic for Engines
+            if (comp.componentDefinitionId.includes('engine')) {
+                // Requirement: Fluid must be combustible
+                const isCombustible = fluid?.tags?.includes('combustible');
 
-    if (!isCombustible) {
-        issues.push({
-            id: `compat-engine-${comp.id}`,
-            componentId: comp.id,
-            severity: 'critical',
-            message: `Incompatible Fluid: Internal Combustion Engine cannot run on '${fluid?.name}'. Requires a 'combustible' fluid (e.g., Diesel).`,
-            value: 0,
-            threshold: 1,
-            ruleId: 'FLUID_COMPATIBILITY'
+                if (!isCombustible) {
+                    issues.push({
+                        id: `compat-engine-${comp.id}`,
+                        componentId: comp.id,
+                        severity: 'critical',
+                        message: `Incompatible Fluid: Internal Combustion Engine cannot run on '${fluid?.name}'. Requires a 'combustible' fluid (e.g., Diesel).`,
+                        value: 0,
+                        threshold: 1,
+                        ruleId: 'FLUID_COMPATIBILITY'
+                    });
+                }
+            }
+
+            // Logic for Hydraulic Pumps vs Gas?
+            if (comp.componentDefinitionId.includes('pump') && fluid?.type === 'gas') {
+                issues.push({
+                    id: `compat-pump-gas-${comp.id}`,
+                    componentId: comp.id,
+                    severity: 'warning',
+                    message: `Component Mismatch: Hydraulic Pump operating with Gas ('${fluid?.name}'). Efficiency will be near zero. Use a Compressor.`,
+                    value: 0,
+                    threshold: 1,
+                    ruleId: 'DOMAIN_MISMATCH'
+                });
+            }
         });
-    }
-}
-
-// Logic for Hydraulic Pumps vs Gas?
-if (comp.componentDefinitionId.includes('pump') && fluid?.type === 'gas') {
-    issues.push({
-        id: `compat-pump-gas-${comp.id}`,
-        componentId: comp.id,
-        severity: 'warning',
-        message: `Component Mismatch: Hydraulic Pump operating with Gas ('${fluid?.name}'). Efficiency will be near zero. Use a Compressor.`,
-        value: 0,
-        threshold: 1,
-        ruleId: 'DOMAIN_MISMATCH'
-    });
-}
-        });
 
 
-return issues;
+        return issues;
     }
 }

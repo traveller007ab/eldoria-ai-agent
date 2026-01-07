@@ -49,21 +49,62 @@ export class MechanicalNetworkSolver implements ISolver {
             let N_driver = 0;
             let Torque_max = 0;
 
-            if (def.id.includes('engine')) {
+            if (def.id === 'mechanical.engine.parametric') {
+                // High-Fidelity Physics Model
+                try {
+                    const { ParametricEngineModel } = await import('../../physics/engines/ParametricEngineModel');
+                    // Map params to interfaces
+                    const geometry = {
+                        bore_mm: Number(params.bore_mm) || 86,
+                        stroke_mm: Number(params.stroke_mm) || 86,
+                        cylinders: Number(params.cylinders) || 4,
+                        compression_ratio: Number(params.compression_ratio) || 10.0
+                    };
+                    const fuel = {
+                        type: 'custom',
+                        octane_rkm: Number(params.fuel_octane) || 93,
+                        stoichiometric_afr: Number(params.fuel_stoich) || 14.7,
+                        energy_density_mj_kg: 44.0, // Default to Gasoline
+                        knock_resistance: (Number(params.fuel_octane) || 93) / 100
+                    };
+                    const intake = {
+                        aspiration: String(params.aspiration) as any || 'na',
+                        volumetric_efficiency_curve: [], // Use default
+                        boost_pressure_bar: Number(params.boost_pressure_bar) || 0
+                    };
+
+                    const model = new ParametricEngineModel(geometry as any, fuel as any, intake as any);
+
+                    // Target RPM
+                    const N_idle = Number(params.idle_speed) || 800;
+                    const N_red = Number(params.max_speed) || 7000;
+                    const TPS = Number(params.throttle) || 50;
+                    N_driver = N_idle + (TPS / 100) * (N_red - N_idle);
+
+                    // Calculate Output
+                    const outputs = model.calculate({
+                        rpm: N_driver,
+                        throttle_position: TPS / 100,
+                        intake_temperature_k: 300 // Ambient
+                    });
+
+                    Torque_max = outputs.torque_nm;
+
+                } catch (e) {
+                    console.error('Failed to load Parametric Engine Model', e);
+                    // Fallback
+                    N_driver = 1000;
+                    Torque_max = 100;
+                }
+            } else if (def.id.includes('engine')) {
                 const TPS = Number(params.throttle) || 50;
                 const N_idle = Number(params.idle_speed) || 800;
                 const N_red = Number(params.max_speed) || 6000;
                 const P_max = Number(params.max_power) || 100;
 
-                // Simple Engine Model: RPM is set by Load balance, but for solver simplification, 
-                // we assume it runs at a "Target RPM" requested by Throttle unless overloaded.
-                // Real engine: Torque = f(RPM, TPS). Load Torque = f(RPM). Find Intersection.
-
-                // Linear mapping for target speed
+                // Simple Linear Map
                 N_driver = N_idle + (TPS / 100) * (N_red - N_idle);
-
-                // Max Torque approx at this speed
-                Torque_max = (9550 * P_max) / N_red; // Simplified Const Torque for now
+                Torque_max = (9550 * P_max) / N_red;
             } else {
                 // Electric Motor
                 N_driver = Number(params.rated_speed) || 1450;
@@ -74,10 +115,7 @@ export class MechanicalNetworkSolver implements ISolver {
             variables[`${prefix}_speed_target`] = N_driver;
             variables[`${prefix}_torque_max`] = Torque_max;
 
-            // Calculate "Potential" Power Input (assuming full load for now, or just capacity?)
-            // Real power input depends on Load, but for "System Metrics" usually we confirm Capacity or current Load.
-            // Let's assume we report the "Available Power" or "Current Load Power" if we had feedback.
-            // Without feedback, let's report what the engine *could* deliver or is trying to at this speed.
+            // Calculate "Potential" Power Input
             const w_current = (N_driver * 2 * Math.PI) / 60;
             const P_avail = (Torque_max * w_current) / 1000;
             metrics.totalPowerInput += P_avail;
