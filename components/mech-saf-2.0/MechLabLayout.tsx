@@ -15,7 +15,7 @@ import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { HelpModal } from './HelpModal';
 import { TimelineControls } from './TimelineControls';
 import { DynamicSimulationService } from '../../services/physics/DynamicSimulationService';
-import { GearBackground } from './GearBackground';
+import { EnhancedGearBackground } from './EnhancedGearBackground';
 
 type RightPanelTab = 'properties' | 'results' | 'analysis';
 
@@ -365,7 +365,7 @@ export const MechLabLayout: React.FC = () => {
 
                 {/* Center Canvas */}
                 <div className="flex-1 bg-slate-900 relative" onClick={() => setShowExportMenu(false)}>
-                    <GearBackground />
+                    <EnhancedGearBackground />
                     <Canvas />
                 </div >
 
