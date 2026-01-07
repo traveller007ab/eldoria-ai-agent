@@ -302,7 +302,7 @@ const CanvasContent: React.FC = () => {
                 onInit={setReactFlowInstance}
                 nodeTypes={nodeTypes}
                 fitView
-                className="bg-slate-900"
+                className="bg-transparent"
                 defaultEdgeOptions={{
                     style: { stroke: '#64748b', strokeWidth: 2 },
                     type: 'smoothstep',

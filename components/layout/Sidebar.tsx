@@ -48,8 +48,8 @@ export const Sidebar: React.FC = () => {
 
                 <NavLink
                     id="nav-saf-lab"
-                    to="/saf-lab"
-                    onClick={() => console.info('Sidebar: SAF Lab Clicked')}
+                    to="/mech-saf-lab-v2"
+                    onClick={() => console.info('Sidebar: Mech SAF Lab v2 Clicked')}
                     className={({ isActive }) => `p-3 rounded-xl transition-all duration-300 group ${isActive ? 'bg-orange-500/20 text-orange-300 shadow-[0_0_15px_rgba(249,115,22,0.3)]' : 'text-cyan-500/40 hover:text-orange-400 hover:bg-orange-500/5'}`}
                     title="SAF Lab - System Engineering Workbench"
                 >

@@ -32,11 +32,11 @@ const BoltIcon = ({ size, className }: { size: number, className?: string }) => 
 // Predefined positions to look aesthetically pleasing
 // (Not truly random to avoid overlap/messiness)
 const gears = [
-    { id: 1, x: '5%', y: '10%', size: 300, opacity: 0.03, duration: '60s', dir: 'normal' },
-    { id: 2, x: '85%', y: '80%', size: 400, opacity: 0.04, duration: '80s', dir: 'reverse' },
-    { id: 3, x: '15%', y: '85%', size: 200, opacity: 0.02, duration: '40s', dir: 'normal' },
-    { id: 4, x: '80%', y: '5%', size: 250, opacity: 0.03, duration: '50s', dir: 'reverse' },
-    { id: 5, x: '45%', y: '50%', size: 600, opacity: 0.02, duration: '120s', dir: 'normal' },
+    { id: 1, x: '5%', y: '10%', size: 300, opacity: 0.1, duration: '60s', dir: 'normal' },
+    { id: 2, x: '85%', y: '80%', size: 400, opacity: 0.1, duration: '80s', dir: 'reverse' },
+    { id: 3, x: '15%', y: '85%', size: 200, opacity: 0.08, duration: '40s', dir: 'normal' },
+    { id: 4, x: '80%', y: '5%', size: 250, opacity: 0.1, duration: '50s', dir: 'reverse' },
+    { id: 5, x: '45%', y: '50%', size: 600, opacity: 0.05, duration: '120s', dir: 'normal' },
 ];
 
 export const GearBackground = memo(() => {
