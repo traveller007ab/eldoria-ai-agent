@@ -12,7 +12,7 @@ class SimulationWorkerManager {
   private isBusy = false;
   private workerPath: string;
 
-  constructor(workerPath: string = '/src/components/saf/mechanical-v2/workers/simulationWorker.ts') {
+  constructor(workerPath: string = '/src/components/saf/mechanical/workers/simulationWorker.ts') {
     this.workerPath = workerPath;
   }
 
@@ -21,10 +21,10 @@ class SimulationWorkerManager {
 
     try {
       this.worker = new Worker(this.workerPath, { type: 'module' });
-      
+
       this.worker.onmessage = (e: MessageEvent) => {
         const { type, data } = e.data;
-        
+
         if (type === 'RESULT' && this.pendingResolve) {
           this.pendingResolve(data as SimulationResult);
           this.pendingResolve = null;

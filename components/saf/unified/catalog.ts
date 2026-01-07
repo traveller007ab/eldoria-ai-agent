@@ -3,15 +3,15 @@
  * Combines components from v1 and v2 into a single comprehensive catalog
  */
 
-import { ComponentDefinition, MechanicalDomain } from '../mechanical-v2/types';
+import { ComponentDefinition, MechanicalDomain } from '../mechanical/types';
 
 // ============================================================================
 // DOMAIN CONFIGURATIONS
 // ============================================================================
 
-export type UnifiedDomain = 
+export type UnifiedDomain =
   | 'fluid'
-  | 'heatTransfer' 
+  | 'heatTransfer'
   | 'thermodynamic'
   | 'machineElement'
   | 'control'
@@ -108,7 +108,7 @@ export const COMPONENT_GROUPS: Record<string, ComponentGroup> = {
       'fluid.motor.hydraulic',
     ],
   },
-  
+
   // HEAT TRANSFER
   heatExchanger: {
     name: 'Heat Exchangers',
@@ -119,7 +119,7 @@ export const COMPONENT_GROUPS: Record<string, ComponentGroup> = {
       'heatTransfer.heatExchanger.airCooled',
     ],
   },
-  
+
   // MACHINE ELEMENTS
   powerTransmission: {
     name: 'Power Transmission',
@@ -142,7 +142,7 @@ export const COMPONENT_GROUPS: Record<string, ComponentGroup> = {
       'machineElement.springs.compression',
     ],
   },
-  
+
   // CONTROL SYSTEMS
   controllers: {
     name: 'Controllers',
@@ -158,7 +158,7 @@ export const COMPONENT_GROUPS: Record<string, ComponentGroup> = {
       'control.sensors.temperature',
     ],
   },
-  
+
   // THERMODYNAMIC CYCLES (Templates)
   powerCycles: {
     name: 'Power Cycles',
@@ -194,8 +194,8 @@ export const UNIFIED_CATALOG: Record<string, UnifiedComponentEntry> = {};
 // INITIALIZE FROM V2 COMPONENTS
 // ============================================================================
 
-import { COMPONENT_CATALOG as V2_FLUID_CATALOG } from '../mechanical-v2/components/fluid';
-import { EXTENDED_COMPONENT_CATALOG } from '../mechanical-v2/components/extended';
+import { COMPONENT_CATALOG as V2_FLUID_CATALOG } from '../mechanical/components/fluid';
+import { EXTENDED_COMPONENT_CATALOG } from '../mechanical/components/extended';
 
 function initializeFromV2(): void {
   // Add V2 Fluid components
@@ -209,7 +209,7 @@ function initializeFromV2(): void {
       group: groupInfo?.group || 'piping',
     };
   }
-  
+
   // Add V2 Extended components
   for (const [id, def] of Object.entries(EXTENDED_COMPONENT_CATALOG)) {
     const groupInfo = getGroupInfo(id);
@@ -265,15 +265,15 @@ export function getComponentEntry(id: string): UnifiedComponentEntry | undefined
 export function searchComponents(query: string): string[] {
   const results: string[] = [];
   const lowerQuery = query.toLowerCase();
-  
+
   for (const [id, entry] of Object.entries(UNIFIED_CATALOG)) {
     if (id.toLowerCase().includes(lowerQuery) ||
-        entry.definition.name.toLowerCase().includes(lowerQuery) ||
-        entry.group.toLowerCase().includes(lowerQuery)) {
+      entry.definition.name.toLowerCase().includes(lowerQuery) ||
+      entry.group.toLowerCase().includes(lowerQuery)) {
       results.push(id);
     }
   }
-  
+
   return results;
 }
 
