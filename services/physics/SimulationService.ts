@@ -1,6 +1,7 @@
 import { MechBlueprint, MechSimulationResult, MechSolverConfiguration } from '../../types';
 import { ComponentRegistry } from '../ComponentRegistry';
 import { MaterialRegistry } from './MaterialRegistry';
+import { DiagnosticService } from './DiagnosticService';
 
 export class SimulationService {
 
@@ -60,10 +61,10 @@ export class SimulationService {
                     const Q_m3s = Q / 3600;
                     const power = (rho * g * Q_m3s * H) / (eta / 100) / 1000; // kW
 
-                    variables[`${prefix}_power`] = power;
-                    variables[`${prefix}_flow`] = Q;
-                    variables[`${prefix}_head`] = H;
-                    variables[`${prefix}_specific_speed`] = N * Math.sqrt(Q_m3s) / Math.pow(H, 0.75);
+                    variables[`${prefix} _power`] = power;
+                    variables[`${prefix} _flow`] = Q;
+                    variables[`${prefix} _head`] = H;
+                    variables[`${prefix} _specific_speed`] = N * Math.sqrt(Q_m3s) / Math.pow(H, 0.75);
 
                     totalPowerInput += power;
                     totalFlow += Q;
@@ -81,9 +82,9 @@ export class SimulationService {
                     const v = totalFlow > 0 ? (totalFlow / 3600) / (Math.PI * D_m * D_m / 4) : 1; // m/s
                     const headLoss = f * (L / D_m) * (v * v) / (2 * 9.81);
 
-                    variables[`${prefix}_velocity`] = v;
-                    variables[`${prefix}_head_loss`] = headLoss;
-                    variables[`${prefix}_reynolds`] = (rho * v * D_m) / mu;
+                    variables[`${prefix} _velocity`] = v;
+                    variables[`${prefix} _head_loss`] = headLoss;
+                    variables[`${prefix} _reynolds`] = (rho * v * D_m) / mu;
                 }
 
                 if (def.id.includes('valve')) {
@@ -93,19 +94,19 @@ export class SimulationService {
                     // Valve pressure drop coefficient
                     const kvFactor = Math.pow(opening / 100, 2); // Simplified
 
-                    variables[`${prefix}_opening`] = opening;
-                    variables[`${prefix}_Kv_effective`] = Cv * kvFactor;
+                    variables[`${prefix} _opening`] = opening;
+                    variables[`${prefix} _Kv_effective`] = Cv * kvFactor;
                 }
 
                 if (def.id.includes('tank')) {
                     const head = Number(params.head) || 10;
-                    variables[`${prefix}_head`] = head;
-                    variables[`${prefix}_pressure`] = 9810 * head / 1000; // kPa
+                    variables[`${prefix} _head`] = head;
+                    variables[`${prefix} _pressure`] = 9810 * head / 1000; // kPa
                 }
                 if (def.id.includes('tank')) {
                     const head = Number(params.head) || 10;
-                    variables[`${prefix}_head`] = head;
-                    variables[`${prefix}_pressure`] = 9810 * head / 1000; // kPa
+                    variables[`${prefix} _head`] = head;
+                    variables[`${prefix} _pressure`] = 9810 * head / 1000; // kPa
                 }
 
                 if (def.id.includes('compressor')) {
@@ -125,10 +126,10 @@ export class SimulationService {
                     const power = (m_dot * Cp * T_in * tempFactor) / (eta / 100); // kW (Cp is kJ/kgK)
                     const T_out = T_in * (1 + tempFactor / (eta / 100)); // K
 
-                    variables[`${prefix}_power`] = power;
-                    variables[`${prefix}_mass_flow`] = m_dot;
-                    variables[`${prefix}_T_out`] = T_out - 273.15; // °C
-                    variables[`${prefix}_pressure_ratio`] = Rc;
+                    variables[`${prefix} _power`] = power;
+                    variables[`${prefix} _mass_flow`] = m_dot;
+                    variables[`${prefix} _T_out`] = T_out - 273.15; // °C
+                    variables[`${prefix} _pressure_ratio`] = Rc;
 
                     totalPowerInput += power;
                     totalFlow += Q;
@@ -158,9 +159,9 @@ export class SimulationService {
 
                     const T_out = T_in * (1 - tempDropFactor * (eta / 100));
 
-                    variables[`${prefix}_power_output`] = P_rated;
-                    variables[`${prefix}_flow_usage`] = Q;
-                    variables[`${prefix}_T_out`] = T_out - 273.15; // °C
+                    variables[`${prefix} _power_output`] = P_rated;
+                    variables[`${prefix} _flow_usage`] = Q;
+                    variables[`${prefix} _T_out`] = T_out - 273.15; // °C
 
                     totalPowerOutput += P_rated;
                     totalFlow += Q;
@@ -177,9 +178,9 @@ export class SimulationService {
                     // LMTD = Q / (U * A)
                     const lmtd = (Q * 1000) / (U * A);
 
-                    variables[`${prefix}_heat_duty`] = Q;
-                    variables[`${prefix}_LMTD`] = lmtd;
-                    variables[`${prefix}_heat_flux`] = Q / A; // kW/m²
+                    variables[`${prefix} _heat_duty`] = Q;
+                    variables[`${prefix} _LMTD`] = lmtd;
+                    variables[`${prefix} _heat_flux`] = Q / A; // kW/m²
 
                     totalHeatInput += Q;
                     totalHeatOutput += Q * 0.95; // 5% losses
@@ -195,9 +196,9 @@ export class SimulationService {
                     const thermalPower = (steamCap / 3600) * deltaH; // kW
                     const fuelPower = thermalPower / (eta / 100);
 
-                    variables[`${prefix}_thermal_output`] = thermalPower;
-                    variables[`${prefix}_fuel_input`] = fuelPower;
-                    variables[`${prefix}_steam_rate`] = steamCap;
+                    variables[`${prefix} _thermal_output`] = thermalPower;
+                    variables[`${prefix} _fuel_input`] = fuelPower;
+                    variables[`${prefix} _steam_rate`] = steamCap;
 
                     totalHeatInput += fuelPower;
                     totalHeatOutput += thermalPower;
@@ -215,10 +216,10 @@ export class SimulationService {
                     const ratio = z2 / z1;
                     const centerDist = (m * (z1 + z2)) / 2;
 
-                    variables[`${prefix}_gear_ratio`] = ratio;
-                    variables[`${prefix}_center_distance`] = centerDist;
-                    variables[`${prefix}_pinion_diameter`] = m * z1;
-                    variables[`${prefix}_gear_diameter`] = m * z2;
+                    variables[`${prefix} _gear_ratio`] = ratio;
+                    variables[`${prefix} _center_distance`] = centerDist;
+                    variables[`${prefix} _pinion_diameter`] = m * z1;
+                    variables[`${prefix} _gear_diameter`] = m * z2;
                 }
 
                 if (def.id.includes('bearing')) {
@@ -231,8 +232,8 @@ export class SimulationService {
                     const L10_rev = Math.pow(C / P, 3) * 1e6;
                     const L10_hours = L10_rev / (60 * n);
 
-                    variables[`${prefix}_L10_life`] = L10_hours;
-                    variables[`${prefix}_equivalent_load`] = P;
+                    variables[`${prefix} _L10_life`] = L10_hours;
+                    variables[`${prefix} _equivalent_load`] = P;
                 }
 
                 if (def.id.includes('spring')) {
@@ -245,9 +246,9 @@ export class SimulationService {
                     const G = 79300; // N/mm² (steel shear modulus)
                     const k = (G * Math.pow(d, 4)) / (8 * Math.pow(D, 3) * na);
 
-                    variables[`${prefix}_spring_rate`] = k;
-                    variables[`${prefix}_coil_index`] = D / d;
-                    variables[`${prefix}_solid_length`] = d * (na + 2); // Assuming squared-ground ends
+                    variables[`${prefix} _spring_rate`] = k;
+                    variables[`${prefix} _coil_index`] = D / d;
+                    variables[`${prefix} _solid_length`] = d * (na + 2); // Assuming squared-ground ends
                 }
 
                 if (def.id.includes('motor')) {
@@ -259,9 +260,9 @@ export class SimulationService {
                     const T = (9550 * P) / n;
                     const elecInput = P / (eta / 100);
 
-                    variables[`${prefix}_torque`] = T;
-                    variables[`${prefix}_electrical_input`] = elecInput;
-                    variables[`${prefix}_slip`] = ((1500 - n) / 1500) * 100; // Assuming 4-pole, 50Hz
+                    variables[`${prefix} _torque`] = T;
+                    variables[`${prefix} _electrical_input`] = elecInput;
+                    variables[`${prefix} _slip`] = ((1500 - n) / 1500) * 100; // Assuming 4-pole, 50Hz
 
                     totalPowerInput += elecInput;
                     totalPowerOutput += P;
@@ -279,9 +280,9 @@ export class SimulationService {
                     const measuredP = pMin + (pMax - pMin) * (0.5 + Math.random() * 0.3);
                     const signal = 4 + 16 * (measuredP - pMin) / (pMax - pMin);
 
-                    variables[`${prefix}_measured_pressure`] = measuredP;
-                    variables[`${prefix}_output_signal`] = signal;
-                    variables[`${prefix}_uncertainty`] = (pMax - pMin) * accuracy / 100;
+                    variables[`${prefix} _measured_pressure`] = measuredP;
+                    variables[`${prefix} _output_signal`] = signal;
+                    variables[`${prefix} _uncertainty`] = (pMax - pMin) * accuracy / 100;
                 }
 
                 if (def.id.includes('temperature') && def.id.includes('sensor')) {
@@ -292,8 +293,8 @@ export class SimulationService {
                     const measuredT = tMin + (tMax - tMin) * (0.4 + Math.random() * 0.3);
                     const signal = 4 + 16 * (measuredT - tMin) / (tMax - tMin);
 
-                    variables[`${prefix}_measured_temperature`] = measuredT;
-                    variables[`${prefix}_output_signal`] = signal;
+                    variables[`${prefix} _measured_temperature`] = measuredT;
+                    variables[`${prefix} _output_signal`] = signal;
                 }
 
                 if (def.id.includes('flow') && def.id.includes('sensor')) {
@@ -303,8 +304,8 @@ export class SimulationService {
                     const measuredFlow = totalFlow > 0 ? totalFlow : maxFlow * (0.4 + Math.random() * 0.3);
                     const signal = 4 + 16 * (measuredFlow / maxFlow);
 
-                    variables[`${prefix}_measured_flow`] = measuredFlow;
-                    variables[`${prefix}_output_signal`] = Math.min(20, signal);
+                    variables[`${prefix} _measured_flow`] = measuredFlow;
+                    variables[`${prefix} _output_signal`] = Math.min(20, signal);
                 }
 
                 if (def.id.includes('pid') || def.id.includes('controller')) {
@@ -317,10 +318,10 @@ export class SimulationService {
                     // Simulated controller output (steady-state)
                     const cv = cvMin + (cvMax - cvMin) * (0.5 + Math.random() * 0.2);
 
-                    variables[`${prefix}_control_output`] = cv;
-                    variables[`${prefix}_Kp`] = Kp;
-                    variables[`${prefix}_Ti`] = Ti;
-                    variables[`${prefix}_Td`] = Td;
+                    variables[`${prefix} _control_output`] = cv;
+                    variables[`${prefix} _Kp`] = Kp;
+                    variables[`${prefix} _Ti`] = Ti;
+                    variables[`${prefix} _Td`] = Td;
                 }
 
                 if (def.id.includes('actuator') || (def.id.includes('control') && def.id.includes('valve'))) {
@@ -331,9 +332,9 @@ export class SimulationService {
                     const position = 50 + Math.random() * 30; // %
                     const effectiveCv = cvRated * Math.pow(position / 100, 2);
 
-                    variables[`${prefix}_position`] = position;
-                    variables[`${prefix}_effective_Cv`] = effectiveCv;
-                    variables[`${prefix}_flow_coefficient`] = effectiveCv;
+                    variables[`${prefix} _position`] = position;
+                    variables[`${prefix} _effective_Cv`] = effectiveCv;
+                    variables[`${prefix} _flow_coefficient`] = effectiveCv;
                 }
             }
         }
@@ -342,47 +343,60 @@ export class SimulationService {
         const overallEfficiency = totalPowerInput > 0 ? (totalPowerOutput / totalPowerInput) * 100 : 0;
         const thermalEfficiency = totalHeatInput > 0 ? (totalHeatOutput / totalHeatInput) * 100 : 0;
 
+        const resultId = crypto.randomUUID();
+        const resultStatus = 'completed';
+        const resultCompletedAt = new Date();
+        const resultMetrics = {
+            totalPowerInput,
+            totalPowerOutput,
+            overallEfficiency: overallEfficiency || thermalEfficiency,
+            totalFlowRate: totalFlow,
+            maxPressure: 10 + Math.random() * 5,
+            pressureDrop: Object.values(variables).filter((_, k) => String(k).includes('head_loss')).reduce((a, b) => a + b, 0),
+            totalHeatInput,
+            totalHeatOutput,
+            componentMetrics: {}
+        };
+        const resultDiagnostics = {
+            massBalance: {
+                status: 'ok',
+                inlet: totalFlow,
+                outlet: totalFlow,
+                imbalance: 0,
+                imbalancePercent: 0
+            },
+            energyBalance: {
+                status: overallEfficiency > 50 ? 'ok' : 'warning',
+                input: totalPowerInput + totalHeatInput,
+                output: totalPowerOutput + totalHeatOutput,
+                imbalance: (totalPowerInput + totalHeatInput) - (totalPowerOutput + totalHeatOutput),
+                imbalancePercent: 100 - (overallEfficiency || thermalEfficiency)
+            },
+            convergence: {
+                iterations: 3 + Math.floor(blueprint.components.length / 2) + Math.floor(Math.random() * 5),
+                residual: 1e-7 + Math.random() * 1e-8,
+                converged: true
+            }
+        };
+        const resultConstraintViolations = [];
+
+        // Run Diagnostics
+        const issues = DiagnosticService.analyze(blueprint, {
+            id: resultId, blueprintId: blueprint.id, status: resultStatus, completedAt: resultCompletedAt, duration: 0, configuration: config, variables, metrics: resultMetrics, diagnostics: resultDiagnostics, constraintViolations: resultConstraintViolations
+        });
+
         return {
-            id: crypto.randomUUID(),
+            id: resultId,
             blueprintId: blueprint.id,
-            status: 'completed',
-            completedAt: new Date(),
+            status: resultStatus,
+            completedAt: resultCompletedAt,
             duration: Date.now() - startTime,
             configuration: config,
             variables,
-            metrics: {
-                totalPowerInput,
-                totalPowerOutput,
-                overallEfficiency: overallEfficiency || thermalEfficiency,
-                totalFlowRate: totalFlow,
-                maxPressure: 10 + Math.random() * 5,
-                pressureDrop: Object.values(variables).filter((_, k) => String(k).includes('head_loss')).reduce((a, b) => a + b, 0),
-                totalHeatInput,
-                totalHeatOutput,
-                componentMetrics: {}
-            },
-            diagnostics: {
-                massBalance: {
-                    status: 'ok',
-                    inlet: totalFlow,
-                    outlet: totalFlow,
-                    imbalance: 0,
-                    imbalancePercent: 0
-                },
-                energyBalance: {
-                    status: overallEfficiency > 50 ? 'ok' : 'warning',
-                    input: totalPowerInput + totalHeatInput,
-                    output: totalPowerOutput + totalHeatOutput,
-                    imbalance: (totalPowerInput + totalHeatInput) - (totalPowerOutput + totalHeatOutput),
-                    imbalancePercent: 100 - (overallEfficiency || thermalEfficiency)
-                },
-                convergence: {
-                    iterations: 3 + Math.floor(blueprint.components.length / 2) + Math.floor(Math.random() * 5),
-                    residual: 1e-7 + Math.random() * 1e-8,
-                    converged: true
-                }
-            },
-            constraintViolations: []
+            metrics: resultMetrics,
+            diagnostics: resultDiagnostics,
+            constraintViolations: resultConstraintViolations,
+            issues
         };
     }
 }

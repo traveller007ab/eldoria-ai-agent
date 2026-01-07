@@ -349,6 +349,7 @@ export interface MechSimulationResult {
   metrics: MechSimulationMetrics;
   diagnostics: MechSimulationDiagnostics;
   constraintViolations: any[];
+  issues?: DiagnosticIssue[];
 }
 
 export interface MechSimulationMetrics {
@@ -375,4 +376,14 @@ export interface MechDynamicSimulationResult extends MechSimulationResult {
   totalDuration: number;
   timeSeries: Record<string, number[]>;
   timePoints: number[];
+}
+
+export interface DiagnosticIssue {
+  id: string;
+  componentId: string;
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  value?: number;
+  threshold?: number;
+  ruleId: string;
 }

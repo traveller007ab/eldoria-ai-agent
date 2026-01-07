@@ -62,6 +62,28 @@ export const ResultsPanel: React.FC = () => {
                 </button>
             </div>
 
+            {/* Diagnostic Issues */}
+            {lastSimulationResult.issues && lastSimulationResult.issues.length > 0 && (
+                <div className="p-4 border-b border-orange-900/30 bg-orange-900/10">
+                    <h3 className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        <AlertTriangle className="w-3 h-3" /> Diagnostics Alerts
+                    </h3>
+                    <div className="space-y-2">
+                        {lastSimulationResult.issues.map((issue) => (
+                            <div key={issue.id} className="flex items-start gap-2 text-xs bg-black/20 p-2 rounded border border-orange-500/20">
+                                <AlertTriangle className={`w-3.5 h-3.5 mt-0.5 ${issue.severity === 'critical' ? 'text-red-400' : 'text-orange-400'}`} />
+                                <div>
+                                    <div className="font-semibold text-slate-300">
+                                        {currentBlueprint?.components.find(c => c.id === issue.componentId)?.name || issue.componentId}
+                                    </div>
+                                    <div className="text-slate-400">{issue.message}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* System Metrics */}
             <div className="p-4 border-b border-slate-700">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
