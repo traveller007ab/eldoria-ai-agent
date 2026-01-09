@@ -72,17 +72,17 @@ const DEMO_V8_TURBO: MechBlueprint = {
             parameterValues: { length: 20, diameter: 150, roughness: 0.05 }
         }
     ],
-    flows: [
+    connections: [
         // Shaft Connections
-        { id: 's1', source: 'V8_Engine', target: 'Reduction_Gear', sourceHandle: 'shaft_out', targetHandle: 'shaft_in', type: 'mechanical' },
-        { id: 's2', source: 'Reduction_Gear', target: 'Main_Pump', sourceHandle: 'shaft_out', targetHandle: 'shaft_in', type: 'mechanical' },
+        { id: 's1', sourceComponentId: 'V8_Engine', targetComponentId: 'Reduction_Gear', sourcePortId: 'shaft_out', targetPortId: 'shaft_in', type: 'mechanical', isSelected: false },
+        { id: 's2', sourceComponentId: 'Reduction_Gear', targetComponentId: 'Main_Pump', sourcePortId: 'shaft_out', targetPortId: 'shaft_in', type: 'mechanical', isSelected: false },
 
         // Fluid Loop
-        { id: 'f1', source: 'Supply_Tank', target: 'Suction_Line', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f2', source: 'Suction_Line', target: 'Main_Pump', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f3', source: 'Main_Pump', target: 'Throttle_Valve', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f4', source: 'Throttle_Valve', target: 'Return_Line', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f5', source: 'Return_Line', target: 'Supply_Tank', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' }
+        { id: 'f1', sourceComponentId: 'Supply_Tank', targetComponentId: 'Suction_Line', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Suction_Line', targetComponentId: 'Main_Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Main_Pump', targetComponentId: 'Throttle_Valve', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f4', sourceComponentId: 'Throttle_Valve', targetComponentId: 'Return_Line', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f5', sourceComponentId: 'Return_Line', targetComponentId: 'Supply_Tank', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
     ]
 };
 
@@ -96,15 +96,17 @@ const BASIC_PUMP_LOOP: MechBlueprint = {
         { id: 'Tank', name: 'Reservoir', componentDefinitionId: 'mechanical.tank.atmospheric', position: { x: 400, y: 500 }, parameterValues: { level: 2 } },
         { id: 'Pipe', name: 'Discharge Pipe', componentDefinitionId: 'mechanical.pipe.standard', position: { x: 600, y: 400 }, parameterValues: { length: 50, diameter: 80 } }
     ],
-    flows: [
-        { id: 's1', source: 'Motor', target: 'Pump', sourceHandle: 'shaft_out', targetHandle: 'shaft_in', type: 'mechanical' },
-        { id: 'f1', source: 'Tank', target: 'Pump', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f2', source: 'Pump', target: 'Pipe', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f3', source: 'Pipe', target: 'Tank', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' }
+    connections: [
+        { id: 's1', sourceComponentId: 'Motor', targetComponentId: 'Pump', sourcePortId: 'shaft_out', targetPortId: 'shaft_in', type: 'mechanical', isSelected: false },
+        { id: 'f1', sourceComponentId: 'Tank', targetComponentId: 'Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Pump', targetComponentId: 'Pipe', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Pipe', targetComponentId: 'Tank', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
     ]
 };
 
 // NEW: Thermal Management System
+// Note: This template is currently not in the registry but kept for reference/future fix.
+// It has domain mismatches (Mechanical Engine -> Fluid Pipe) that need resolution.
 const THERMAL_SYSTEM: MechBlueprint = {
     id: 'thermal-sys',
     project_name: 'Engine Cooling System',
@@ -144,27 +146,10 @@ const THERMAL_SYSTEM: MechBlueprint = {
         { id: 'Pipe_Cold', name: 'Cold Leg', componentDefinitionId: 'fluid.pipe.std', position: { x: 600, y: 400 }, parameterValues: { length: 2, diameter: 40 } },
         { id: 'Pipe_Return', name: 'Return Leg', componentDefinitionId: 'fluid.pipe.std', position: { x: 300, y: 350 }, parameterValues: { length: 1, diameter: 40 } }
     ],
-    flows: [
+    connections: [
         // Engine -> Pipe_Hot -> Radiator
-        { id: 'f1', source: 'Engine_Block', target: 'Pipe_Hot', sourceHandle: 'thermal_out', targetHandle: 'in', type: 'fluid' }, // Using thermal_out as fluid port for simplified model? 
-        // Wait, Engine Parametric usually has mechanical shaft and maybe thermal out, but not fluid ports unless specified.
-        // Let's check Engine Parametric definition. It has 'thermal_out' (thermal domain).
-        // Radiator has 'coolant_in' (fluid domain).
-        // Mismatch: Thermal Domain -> Fluid Domain. This requires a bridge or the engine needs fluid ports.
-        // Re-checking Mechanical Engine: It has 'thermal_out' (domain: thermal).
-        // Radiator: 'coolant_in' (domain: fluid).
-        // This template is invalid without a "Thermal Fluid Source" or similar.
-        // FIX: Use 'thermal.hx.plate' as a "Water Jacket" placeholder or assume Engine has fluid ports.
-        // Actually, let's look at `mechanical.engine.parametric` again. It ONLY has `shaft_out` and `thermal_out`.
-        // `thermal_out` is domain: thermal.
-        // `coolant_in` on Radiator is domain: fluid.
-        // So I can't connect them directly.
-        // I will use a simple "Heater" component if available, or just connect fluid loop and assume heat input comes from "environment" or "boiler".
-        // Let's switch to "Boiler Steam Loop" which uses `thermal.boiler`.
-        // Boiler has `feedwater_in` (fluid) and `steam_out` (fluid). This is better.
-        
-        // REVISED THERMAL SYSTEM: Steam Generation Loop
-        // Boiler -> Turbine -> Condenser (Radiator) -> Pump -> Boiler
+        // Warning: 'thermal_out' is thermal domain, 'in' is fluid domain. This connection is invalid in strict mode.
+        { id: 'f1', sourceComponentId: 'Engine_Block', targetComponentId: 'Pipe_Hot', sourcePortId: 'thermal_out', targetPortId: 'in', type: 'fluid', isSelected: false },
     ]
 };
 
@@ -204,11 +189,11 @@ const RANKINE_CYCLE: MechBlueprint = {
             parameterValues: { design_flow: 6, design_head: 450 } // High head for boiler feed
         }
     ],
-    flows: [
-        { id: 'f1', source: 'Boiler', target: 'Turbine', sourceHandle: 'steam_out', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f2', source: 'Turbine', target: 'Condenser', sourceHandle: 'outlet', targetHandle: 'shell_in', type: 'fluid' }, // Shell side condensing
-        { id: 'f3', source: 'Condenser', target: 'Feed_Pump', sourceHandle: 'shell_out', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f4', source: 'Feed_Pump', target: 'Boiler', sourceHandle: 'outlet', targetHandle: 'feedwater_in', type: 'fluid' }
+    connections: [
+        { id: 'f1', sourceComponentId: 'Boiler', targetComponentId: 'Turbine', sourcePortId: 'steam_out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Turbine', targetComponentId: 'Condenser', sourcePortId: 'outlet', targetPortId: 'shell_in', type: 'fluid', isSelected: false }, // Shell side condensing
+        { id: 'f3', sourceComponentId: 'Condenser', targetComponentId: 'Feed_Pump', sourcePortId: 'shell_out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f4', sourceComponentId: 'Feed_Pump', targetComponentId: 'Boiler', sourcePortId: 'outlet', targetPortId: 'feedwater_in', type: 'fluid', isSelected: false }
     ]
 };
 
@@ -251,18 +236,18 @@ const HYDRAULIC_CONTROL: MechBlueprint = {
             name: 'Flow Controller (FIC)',
             componentDefinitionId: 'control.controller.pid',
             position: { x: 600, y: 100 },
-            parameterValues: { kp: 1.5, ti: 5, setpoint: 30 } // added imaginary setpoint param
+            parameterValues: { kp: 1.5, ti: 5, setpoint: 30 }
         }
     ],
-    flows: [
+    connections: [
         // Fluid Loop
-        { id: 'f1', source: 'Source_Tank', target: 'Main_Pump', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f2', source: 'Main_Pump', target: 'Control_Valve', sourceHandle: 'outlet', targetHandle: 'flow_in', type: 'fluid' },
-        { id: 'f3', source: 'Control_Valve', target: 'Flow_Meter', sourceHandle: 'flow_out', targetHandle: 'flow_in', type: 'fluid' },
+        { id: 'f1', sourceComponentId: 'Source_Tank', targetComponentId: 'Main_Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Main_Pump', targetComponentId: 'Control_Valve', sourcePortId: 'outlet', targetPortId: 'flow_in', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Control_Valve', targetComponentId: 'Flow_Meter', sourcePortId: 'flow_out', targetPortId: 'flow_in', type: 'fluid', isSelected: false },
         
         // Signal Loop
-        { id: 's1', source: 'Flow_Meter', target: 'PID_Ctrl', sourceHandle: 'signal_out', targetHandle: 'pv_in', type: 'signal' },
-        { id: 's2', source: 'PID_Ctrl', target: 'Control_Valve', sourceHandle: 'cv_out', targetHandle: 'signal_in', type: 'signal' }
+        { id: 's1', sourceComponentId: 'Flow_Meter', targetComponentId: 'PID_Ctrl', sourcePortId: 'signal_out', targetPortId: 'pv_in', type: 'signal', isSelected: false },
+        { id: 's2', sourceComponentId: 'PID_Ctrl', targetComponentId: 'Control_Valve', sourcePortId: 'cv_out', targetPortId: 'signal_in', type: 'signal', isSelected: false }
     ]
 };
 
@@ -308,13 +293,11 @@ const PROCESS_MIXING: MechBlueprint = {
             parameterValues: { head: 0, capacity: 5000 }
         }
     ],
-    flows: [
-        { id: 'f1', source: 'Tank_A', target: 'Pump_A', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f2', source: 'Pump_A', target: 'Reactor', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f3', source: 'Tank_B', target: 'Pump_B', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-        { id: 'f4', source: 'Pump_B', target: 'Reactor', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' } // Tank has one inlet, might need tee? 
-        // Tank definition shows 1 inlet. Simulation might allow multiple connections to same port, or I need a pipe junction.
-        // Assuming multi-connect for now as it's common in this engine's graph.
+    connections: [
+        { id: 'f1', sourceComponentId: 'Tank_A', targetComponentId: 'Pump_A', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Pump_A', targetComponentId: 'Reactor', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Tank_B', targetComponentId: 'Pump_B', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f4', sourceComponentId: 'Pump_B', targetComponentId: 'Reactor', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
     ]
 };
 
@@ -341,6 +324,13 @@ export const TEMPLATE_REGISTRY: SystemTemplate[] = [
         thumbnail: 'flame' 
     },
     { 
+        id: 'thermal-sys', 
+        name: 'Engine Cooling System', 
+        description: 'Thermal management loop with Heat Source, Radiator, and Pump.', 
+        blueprint: THERMAL_SYSTEM, 
+        thumbnail: 'thermometer' 
+    },
+    { 
         id: 'control-loop', 
         name: 'PID Flow Control', 
         description: 'Closed-loop control system with sensor, valve and PID.', 
@@ -358,7 +348,7 @@ export const TEMPLATE_REGISTRY: SystemTemplate[] = [
         id: 'empty', 
         name: 'Empty Project', 
         description: 'Start from scratch.', 
-        blueprint: { id: 'new', project_name: 'Untitled Project', updated_at: '', components: [], flows: [] }, 
+        blueprint: { id: 'new', project_name: 'Untitled Project', updated_at: '', components: [], connections: [], simulations: [], domain: 'fluid', version: '1.0.0', createdAt: new Date(), updatedAt: new Date(), author: 'User', tags: [] }, 
         thumbnail: 'file' 
     }
 ];

@@ -26,9 +26,9 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                 { id: 'Pump', name: 'Undersized Pump', componentDefinitionId: 'mechanical.pump.centrifugal', position: { x: 400, y: 300 }, parameterValues: { design_flow: 10, design_head: 5 } },
                 { id: 'Pipe', name: 'Discharge Pipe', componentDefinitionId: 'mechanical.pipe.standard', position: { x: 600, y: 300 }, parameterValues: { length: 50, diameter: 80 } }
             ],
-            flows: [
-                { id: 'f1', source: 'Tank', target: 'Pump', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-                { id: 'f2', source: 'Pump', target: 'Pipe', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' }
+            connections: [
+                { id: 'f1', sourceComponentId: 'Tank', targetComponentId: 'Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+                { id: 'f2', sourceComponentId: 'Pump', targetComponentId: 'Pipe', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
             ]
         },
         objectives: [
@@ -99,10 +99,10 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                     parameterValues: { design_flow: 15, design_head: 10 } // Undersized
                 }
             ],
-            flows: [
-                { id: 'c1', source: 'V8_Engine', target: 'Small_Radiator', sourceHandle: 'coolant_out', targetHandle: 'inlet', type: 'fluid' },
-                { id: 'c2', source: 'Small_Radiator', target: 'Coolant_Pump', sourceHandle: 'outlet', targetHandle: 'inlet', type: 'fluid' },
-                { id: 'c3', source: 'Coolant_Pump', target: 'V8_Engine', sourceHandle: 'outlet', targetHandle: 'coolant_in', type: 'fluid' }
+            connections: [
+                { id: 'c1', sourceComponentId: 'V8_Engine', targetComponentId: 'Small_Radiator', sourcePortId: 'coolant_out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+                { id: 'c2', sourceComponentId: 'Small_Radiator', targetComponentId: 'Coolant_Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+                { id: 'c3', sourceComponentId: 'Coolant_Pump', targetComponentId: 'V8_Engine', sourcePortId: 'outlet', targetPortId: 'coolant_in', type: 'fluid', isSelected: false }
             ]
         },
         objectives: [
@@ -173,7 +173,7 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                     parameterValues: { cylinders: 4, bore_mm: 86, stroke_mm: 86, aspiration: 'turbo', boost_pressure_bar: 1.0 }
                 }
             ],
-            flows: []
+            connections: []
         },
         objectives: [
             {
@@ -198,16 +198,10 @@ export function getScenarios(filter?: { category?: string; difficulty?: string }
     if (filter?.category) {
         result = result.filter(s => s.category === filter.category);
     }
+
     if (filter?.difficulty) {
         result = result.filter(s => s.difficulty === filter.difficulty);
     }
 
     return result;
-}
-
-/**
- * Get a single scenario by ID.
- */
-export function getScenarioById(id: string): Scenario | undefined {
-    return SCENARIO_REGISTRY.find(s => s.id === id);
 }
