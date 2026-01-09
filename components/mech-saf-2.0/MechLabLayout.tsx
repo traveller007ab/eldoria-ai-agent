@@ -23,6 +23,7 @@ import { ScenarioHUD } from './ScenarioHUD';
 import { BottomPanel } from './BottomPanel';
 import { scenarioService } from '../../services/scenarios/ScenarioService';
 import { ExportService } from '../../services/export/ExportService';
+import { TEMPLATE_REGISTRY } from '../../data/template-library';
 
 type RightPanelTab = 'properties' | 'results' | 'analysis' | 'diagnostics';
 
@@ -273,10 +274,11 @@ export const MechLabLayout: React.FC = () => {
 
     // Handle initial template load or empty state
     const handleLoadTemplate = (templateId: string) => {
-        const { TEMPLATE_REGISTRY } = require('../../data/template-library');
-        const template = TEMPLATE_REGISTRY.find((t: any) => t.id === templateId);
+        console.log('Loading template:', templateId);
+        const template = TEMPLATE_REGISTRY.find((t) => t.id === templateId);
 
         if (template) {
+            console.log('Template found:', template.name);
             // Confirm if current work is unsaved? For now just load.
             setIsSimulating(false);
             setBlueprint({
@@ -285,6 +287,10 @@ export const MechLabLayout: React.FC = () => {
                 updated_at: new Date().toISOString()
             });
             setLastSimulationResult(null);
+            addLog(`Loaded template: ${template.name}`, 'info');
+        } else {
+            console.error('Template not found:', templateId);
+            addLog(`Error: Template ${templateId} not found`, 'error');
         }
     };
 
