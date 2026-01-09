@@ -1,0 +1,266 @@
+import { mutation, query } from "./generated";
+import { v } from "convex/values";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+
+// AUTHENTICATION
+export const register = mutation({
+  args: { email: v.string(), password: v.string(), name: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query("users")
+      .withIndex("by_email", q => q.eq("email", args.email))
+      .first();
+
+    if (existing) {
+      throw new Error("User already exists");
+    }
+
+    const passwordHash = await bcrypt.hash(args.password, 12);
+
+    const userId = await ctx.db.insert("users", {
+      email: args.email,
+      name: args.name,
+      authProvider: "local",
+      role: "user",
+      apiQuota: 1000,
+      storageQuota: 1073741824, // 1GB
+      passwordHash,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return { id: userId, email: args.email, name: args.name, role: "user" };
+  },
+});
+
+export const login = mutation({
+  args: { email: v.string(), password: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.query("users")
+      .withIndex("by_email", q => q.eq("email", args.email))
+      .first();
+
+    if (!user || !user.passwordHash) {
+      throw new Error("Invalid credentials");
+    }
+
+    const isValid = await bcrypt.compare(args.password, user.passwordHash);
+    if (!isValid) {
+      throw new Error("Invalid credentials");
+    }
+
+    // Create session
+    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+    
+    await ctx.db.insert("sessions", {
+      userId: user._id,
+      token,
+      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      createdAt: Date.now(),
+    });
+
+    return {
+      user: { id: user._id, email: user.email, name: user.name, role: user.role },
+      token,
+    };
+  },
+});
+
+export const logout = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const sessions = await ctx.db.query("sessions")
+      .withIndex("by_token", q => q.eq("token", args.token))
+      .collect();
+    
+    for (const session of sessions) {
+      await ctx.db.delete(session._id);
+    }
+  },
+});
+
+// USER PROFILE
+export const getProfile = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    if (users.length === 0) return null;
+    return users[0];
+  },
+});
+
+// PROJECTS
+export const listProjects = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("projects")
+      .withIndex("by_status", q => q.eq("status", "active"))
+      .collect();
+  },
+});
+
+export const createProject = mutation({
+  args: { name: v.string(), description: v.optional(v.string()), type: v.string() },
+  handler: async (ctx, args) => {
+    const users = await ctx.db.query("users").collect();
+    if (users.length === 0) {
+      throw new Error("No users found - please register first");
+    }
+
+    const projectId = await ctx.db.insert("projects", {
+      name: args.name,
+      description: args.description,
+      type: args.type,
+      ownerId: users[0]._id,
+      status: "active",
+      visibility: "private",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return { id: projectId, name: args.name, description: args.description, type: args.type };
+  },
+});
+
+export const getProject = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    return project;
+  },
+});
+
+export const updateProject = mutation({
+  args: { 
+    projectId: v.id("projects"), 
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    settings: v.optional(v.any()),
+    metadata: v.optional(v.any())
+  },
+  handler: async (ctx, args) => {
+    const { projectId, ...updates } = args;
+    updates.updatedAt = Date.now();
+    
+    await ctx.db.patch(projectId, updates);
+    const updated = await ctx.db.get(projectId);
+    return updated;
+  },
+});
+
+export const deleteProject = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.projectId, { status: "archived", archivedAt: Date.now() });
+    return { success: true };
+  },
+});
+
+// CHAT SESSIONS
+export const listChatSessions = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("chatSessions")
+      .order("desc")
+      .collect();
+  },
+});
+
+export const createChatSession = mutation({
+  args: { title: v.optional(v.string()), model: v.string(), projectId: v.optional(v.id("projects")) },
+  handler: async (ctx, args) => {
+    const users = await ctx.db.query("users").collect();
+    if (users.length === 0) {
+      throw new Error("No users found");
+    }
+
+    const sessionId = await ctx.db.insert("chatSessions", {
+      userId: users[0]._id,
+      projectId: args.projectId,
+      title: args.title || "New Chat",
+      model: args.model,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    return { id: sessionId };
+  },
+});
+
+export const getChatSession = query({
+  args: { sessionId: v.id("chatSessions") },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    return session;
+  },
+});
+
+export const getChatMessages = query({
+  args: { sessionId: v.id("chatSessions") },
+  handler: async (ctx, args) => {
+    return await ctx.db.query("chatMessages")
+      .withIndex("by_session", q => q.eq("sessionId", args.sessionId))
+      .order("asc")
+      .collect();
+  },
+});
+
+export const addChatMessage = mutation({
+  args: { 
+    sessionId: v.id("chatSessions"), 
+    role: v.string(), 
+    content: v.string(),
+    metadata: v.optional(v.any())
+  },
+  handler: async (ctx, args) => {
+    const messageId = await ctx.db.insert("chatMessages", {
+      sessionId: args.sessionId,
+      role: args.role,
+      content: args.content,
+      metadata: args.metadata,
+      createdAt: Date.now(),
+    });
+
+    // Update session updated_at
+    await ctx.db.patch(args.sessionId, { updatedAt: Date.now() });
+
+    return { id: messageId };
+  },
+});
+
+export const deleteChatSession = mutation({
+  args: { sessionId: v.id("chatSessions") },
+  handler: async (ctx, args) => {
+    // Delete all messages first
+    const messages = await ctx.db.query("chatMessages")
+      .withIndex("by_session", q => q.eq("sessionId", args.sessionId))
+      .collect();
+    
+    for (const msg of messages) {
+      await ctx.db.delete(msg._id);
+    }
+    
+    // Delete the session
+    await ctx.db.delete(args.sessionId);
+    return { success: true };
+  },
+});
+
+// USAGE TRACKING
+export const trackUsage = mutation({
+  args: { action: v.string(), resource: v.optional(v.string()), quantity: v.number() },
+  handler: async (ctx, args) => {
+    const users = await ctx.db.query("users").collect();
+    if (users.length === 0) return;
+
+    await ctx.db.insert("usage", {
+      userId: users[0]._id,
+      action: args.action,
+      resource: args.resource,
+      quantity: args.quantity,
+      timestamp: Date.now(),
+    });
+  },
+});

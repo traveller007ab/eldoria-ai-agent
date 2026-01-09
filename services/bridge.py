@@ -8,11 +8,29 @@ import socket
 import socket
 import time
 import requests
-from fastapi import FastAPI, HTTPException, Body, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Body, BackgroundTasks, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Any
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+try:
+    import services.db as db
+except ImportError:
+    try:
+        import db as db
+    except ImportError:
+        db = None
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+try:
+    import services.db as db
+except ImportError:
+    try:
+        import db as db
+    except ImportError:
+        db = None
 
 # Optional tkinter for desktop mode (not available on headless servers)
 try:
@@ -79,6 +97,27 @@ except ImportError as e1:
         print(f"[BRIDGE] WARNING: Genesis Architect not available: {e2}")
 
 app = FastAPI(title="Eldoria Neural Bridge")
+security = HTTPBearer()
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database module not loaded")
+    token = credentials.credentials
+    payload = db.decode_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return payload
+security = HTTPBearer()
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    payload = db.decode_token(token) if db else None
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return payload
+
+async def require_auth():
+    return True
 
 if vault_router:
     app.include_router(vault_router)
@@ -107,18 +146,182 @@ class ArchiveRequest(BaseModel):
     content: Any
     tags: Optional[List[str]] = None
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class ProjectCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    type: str = "code"
+
+class ProjectUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    settings: Optional[Any] = None
+    metadata: Optional[Any] = None
+
+class ChatSessionCreateRequest(BaseModel):
+    title: Optional[str] = None
+    model: str = "gemini-pro"
+    project_id: Optional[str] = None
+
+class ChatMessageRequest(BaseModel):
+    session_id: str
+    role: str
+    content: str
+    metadata: Optional[Any] = None
+
 @app.get("/health")
 async def health_check():
+    convex_configured = bool(os.environ.get("CONVEX_URL") and os.environ.get("CONVEX_ADMIN_KEY"))
     return {
-        "status": "ready", 
-        "version": "1.1.0", 
+        "status": "ready",
+        "version": "1.2.0",
         "engine": "Python/FastAPI",
-        "services": ["shell", "vault", "synthesis", "codebase"]
+        "services": ["shell", "vault", "synthesis", "codebase", "auth", "projects", "chat"],
+        "database": "convex" if convex_configured else "demo",
+        "convex_configured": convex_configured
     }
 
 @app.get("/")
 async def root():
-    return {"message": "Eldoria Bridge Online"}
+    return {"message": "Eldoria Bridge Online", "version": "1.2.0"}
+
+@app.post("/auth/register")
+async def register(request: RegisterRequest):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    result = await db.create_user(request.email, request.password, request.name)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.post("/auth/login")
+async def login(request: LoginRequest):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    result = await db.authenticate_user(request.email, request.password)
+    if not result:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return result
+
+@app.get("/auth/me")
+async def get_me(user = Depends(get_current_user)):
+    return {"userId": user.get("sub"), "email": user.get("email")}
+
+@app.get("/projects")
+async def list_projects(user = Depends(get_current_user)):
+    if not db:
+        return {"projects": [], "mode": "demo"}
+    projects = await db.get_user_projects(user.get("sub"))
+    return {"projects": projects}
+
+@app.post("/projects")
+async def create_project(request: ProjectCreateRequest, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    result = await db.create_project(user.get("sub"), request.name, request.description, request.type)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.get("/projects/{project_id}")
+async def get_project(project_id: str, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    project = await db.get_project_by_id(project_id, user.get("sub"))
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"project": project}
+
+@app.patch("/projects/{project_id}")
+async def update_project(project_id: str, request: ProjectUpdateRequest, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    updates = {k: v for k, v in request.model_dump().items() if v is not None}
+    result = await db.update_project(project_id, user.get("sub"), updates)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.delete("/projects/{project_id}")
+async def delete_project_endpoint(project_id: str, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    result = await db.delete_project(project_id, user.get("sub"))
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.get("/chat/sessions")
+async def list_chat_sessions(user = Depends(get_current_user)):
+    if not db:
+        return {"sessions": [], "mode": "demo"}
+    sessions = await db.get_user_chat_sessions(user.get("sub"))
+    return {"sessions": sessions}
+
+@app.post("/chat/sessions")
+async def create_chat_session(request: ChatSessionCreateRequest, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    result = await db.create_chat_session(user.get("sub"), request.project_id, request.title, request.model)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.get("/chat/sessions/{session_id}")
+async def get_chat_session(session_id: str, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    session = await db.get_chat_session_by_id(session_id, user.get("sub"))
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"session": session}
+
+@app.get("/chat/sessions/{session_id}/messages")
+async def get_chat_messages(session_id: str, user = Depends(get_current_user)):
+    if not db:
+        return {"messages": []}
+    
+    messages = await db.get_chat_messages(session_id)
+    return {"messages": messages}
+
+@app.post("/chat/sessions/{session_id}/messages")
+async def add_chat_message(session_id: str, request: ChatMessageRequest, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    if request.session_id != session_id:
+        raise HTTPException(status_code=400, detail="Session ID mismatch")
+    
+    result = await db.add_chat_message(session_id, request.role, request.content, request.metadata)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.delete("/chat/sessions/{session_id}")
+async def delete_chat_session_endpoint(session_id: str, user = Depends(get_current_user)):
+    if not db:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    result = await db.delete_chat_session(session_id, user.get("sub"))
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @app.get("/codebase/index")
