@@ -89,7 +89,24 @@ export const fluidComponents: MechComponentDefinition[] = [
                 source: 'Basic Fluid Mechanics',
                 solutionMethod: 'analytic'
             }
-        ]
+        ],
+        physics: {
+            domain: 'fluid',
+            stateVariables: [
+                { name: 'flowRate', symbol: 'Q', unit: 'm³/s' },
+                { name: 'head', symbol: 'H', unit: 'm' },
+                { name: 'power', symbol: 'P', unit: 'W' }
+            ],
+            equations: [
+                { name: 'PumpHead', expression: 'H = H_shutoff - B * Q^2', variables: ['H', 'H_shutoff', 'B', 'Q'], type: 'constitutive' },
+                { name: 'HydraulicPower', expression: 'P_hyd = rho * g * Q * H', variables: ['P_hyd', 'rho', 'g', 'Q', 'H'], type: 'constitutive' }
+            ],
+            ports: {
+                inlet: { domain: 'fluid', variables: ['pressure', 'flowRate'], direction: 'in' },
+                outlet: { domain: 'fluid', variables: ['pressure', 'flowRate'], direction: 'out' },
+                shaft_in: { domain: 'mechanical', variables: ['speed', 'torque'], direction: 'in' }
+            }
+        }
     },
     {
         id: 'fluid.pipe.std',
@@ -160,7 +177,21 @@ export const fluidComponents: MechComponentDefinition[] = [
                 source: 'Darcy-Weisbach Equation',
                 solutionMethod: 'iterative'
             }
-        ]
+        ],
+        physics: {
+            domain: 'fluid',
+            stateVariables: [
+                { name: 'flowRate', symbol: 'Q', unit: 'm³/s' },
+                { name: 'headLoss', symbol: 'h_f', unit: 'm' }
+            ],
+            equations: [
+                { name: 'DarcyWeisbach', expression: 'h_f = (8 * f * L) / (pi^2 * g * D^5) * Q^2', variables: ['h_f', 'f', 'L', 'g', 'D', 'Q'], type: 'constitutive' }
+            ],
+            ports: {
+                in: { domain: 'fluid', variables: ['pressure', 'flowRate'], direction: 'bidirectional' },
+                out: { domain: 'fluid', variables: ['pressure', 'flowRate'], direction: 'bidirectional' }
+            }
+        }
     },
     {
         id: 'fluid.valve.globe',
@@ -260,8 +291,26 @@ export const fluidComponents: MechComponentDefinition[] = [
         tags: ['compressor', 'gas', 'pressure'],
         references: [],
         ports: [
-            { id: 'inlet', name: 'Suction', type: 'input', domain: 'fluid', required: true, position: { x: 0, y: 0.5, side: 'left' } },
-            { id: 'outlet', name: 'Discharge', type: 'output', domain: 'fluid', required: true, position: { x: 1, y: 0.5, side: 'right' } },
+            {
+                id: 'inlet',
+                name: 'Suction',
+                type: 'input',
+                domain: 'fluid',
+                variables: [{ name: 'Pressure', symbol: 'P_in', unit: 'Pa' }, { name: 'Flow', symbol: 'Q_in', unit: 'm3/s' }],
+                state: 'disconnected',
+                required: true,
+                position: { x: 0, y: 0.5, side: 'left' }
+            },
+            {
+                id: 'outlet',
+                name: 'Discharge',
+                type: 'output',
+                domain: 'fluid',
+                variables: [{ name: 'Pressure', symbol: 'P_out', unit: 'Pa' }, { name: 'Flow', symbol: 'Q_out', unit: 'm3/s' }],
+                state: 'disconnected',
+                required: true,
+                position: { x: 1, y: 0.5, side: 'right' }
+            },
             {
                 id: 'shaft_in',
                 name: 'Drive Shaft',
@@ -269,7 +318,7 @@ export const fluidComponents: MechComponentDefinition[] = [
                 domain: 'mechanical',
                 variables: [{ name: 'Torque', symbol: 'τ', unit: 'N·m' }, { name: 'Speed', symbol: 'ω', unit: 'rad/s' }],
                 state: 'disconnected',
-                required: false, // Optional for easy testing
+                required: false,
                 position: { x: 0.5, y: 0, side: 'top' }
             }
         ],
@@ -279,7 +328,14 @@ export const fluidComponents: MechComponentDefinition[] = [
             { id: 'design_flow', name: 'Design Flow', symbol: 'Q', unit: 'm³/h', dataType: 'number', value: 500, source: 'design' }
         ],
         equations: [
-            { id: 'temp_rise', name: 'Temperature Rise', expression: 'T_out = T_in * (1 + (Rc^((k-1)/k) - 1)/eta)', source: 'Thermodynamics', solutionMethod: 'analytic' }
+            {
+                id: 'temp_rise',
+                name: 'Temperature Rise',
+                expression: 'T_out = T_in * (1 + (Rc^((k-1)/k) - 1)/eta)',
+                latex: 'T_{out} = T_{in} \\left(1 + \\frac{R_c^{\\frac{k-1}{k}} - 1}{\\eta}\\right)',
+                source: 'Thermodynamics',
+                solutionMethod: 'analytic'
+            }
         ]
     },
     {
@@ -292,8 +348,26 @@ export const fluidComponents: MechComponentDefinition[] = [
         tags: ['turbine', 'power', 'steam'],
         references: [],
         ports: [
-            { id: 'inlet', name: 'Inlet', type: 'input', domain: 'fluid', required: true, position: { x: 0, y: 0.5, side: 'left' } },
-            { id: 'outlet', name: 'Exhaust', type: 'output', domain: 'fluid', required: true, position: { x: 1, y: 0.5, side: 'right' } }
+            {
+                id: 'inlet',
+                name: 'Inlet',
+                type: 'input',
+                domain: 'fluid',
+                variables: [{ name: 'Pressure', symbol: 'P_in', unit: 'Pa' }, { name: 'Flow', symbol: 'Q_in', unit: 'm3/s' }],
+                state: 'disconnected',
+                required: true,
+                position: { x: 0, y: 0.5, side: 'left' }
+            },
+            {
+                id: 'outlet',
+                name: 'Exhaust',
+                type: 'output',
+                domain: 'fluid',
+                variables: [{ name: 'Pressure', symbol: 'P_out', unit: 'Pa' }, { name: 'Flow', symbol: 'Q_out', unit: 'm3/s' }],
+                state: 'disconnected',
+                required: true,
+                position: { x: 1, y: 0.5, side: 'right' }
+            }
         ],
         parameters: [
             { id: 'expansion_ratio', name: 'Expansion Ratio', symbol: 'Er', unit: '-', dataType: 'number', value: 20, source: 'design' },

@@ -1,0 +1,359 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ User Management ============
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  avatar        String?
+  
+  // Auth
+  authProvider  String    @default("local") // 'local', 'google', 'github'
+  authId        String?   // External auth provider ID
+  passwordHash  String?   // Only for local auth
+  
+  // Profile
+  bio           String?
+  organization  String?
+  role          String    @default("user") // 'user', 'pro', 'enterprise', 'admin'
+  
+  // Settings
+  preferences   Json?     // User preferences
+  apiQuota      Int       @default(1000) // Monthly API calls
+  storageQuota  BigInt    @default(1073741824) // 1GB in bytes
+  
+  // Relationships
+  projects      Project[]
+  workspaces    WorkspaceMember[]
+  sessions      Session[]
+  apiKeys       ApiKey[]
+  usage         Usage[]
+  chatSessions  ChatSession[]
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  deletedAt     DateTime?
+  
+  @@index([email])
+  @@index([authProvider, authId])
+}
+
+model Session {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token         String   @unique
+  expiresAt     DateTime
+  ipAddress     String?
+  userAgent     String?
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+model ApiKey {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  keyHash       String   @unique
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  
+  createdAt     DateTime @default(now())
+  revokedAt     DateTime?
+  
+  @@index([userId])
+  @@index([keyHash])
+}
+
+// ============ Workspace Management ============
+
+model Workspace {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  description   String?
+  
+  // Settings
+  settings      Json?
+  storageQuota  BigInt   @default(10737418240) // 10GB
+  
+  // Relationships
+  members       WorkspaceMember[]
+  projects      Project[]
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([slug])
+}
+
+model WorkspaceMember {
+  id            String   @id @default(uuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role          String   @default("member") // 'owner', 'admin', 'member', 'viewer'
+  
+  joinedAt      DateTime @default(now())
+  
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+// ============ Project Management ============
+
+model Project {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  type          String   @default("code") // 'code', 'research', 'engineering', 'mixed'
+  
+  // Ownership
+  ownerId       String
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  workspaceId   String?
+  workspace     Workspace? @relation(fields: [workspaceId], references: [id])
+  
+  // Content
+  files         Json?    // File structure
+  settings      Json?
+  metadata      Json?
+  
+  // Relationships
+  blueprints    Blueprint[]
+  simulations   Simulation[]
+  chatSessions  ChatSession[]
+  
+  // Status
+  status        String   @default("active") // 'active', 'archived', 'deleted'
+  visibility    String   @default("private") // 'private', 'workspace', 'public'
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  archivedAt    DateTime?
+  
+  @@index([ownerId])
+  @@index([workspaceId])
+  @@index([status])
+}
+
+// ============ AI & Chat ============
+
+model ChatSession {
+  id            String   @id @default(uuid())
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title         String?
+  model         String   @default("gemini-pro") // 'gemini-pro', 'gemini-ultra', 'groq-llama'
+  systemPrompt  String?
+  
+  messages      ChatMessage[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([projectId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id            String   @id @default(uuid())
+  sessionId     String
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  role          String   // 'user', 'assistant', 'system', 'tool'
+  content       String   @db.Text
+  metadata      Json?    // Attachments, tool calls, etc.
+  
+  // Token tracking
+  tokensInput   Int?
+  tokensOutput  Int?
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+// ============ Engineering (SAF Lab) ============
+
+model Blueprint {
+  id            String   @id @default(uuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  name          String
+  description   String?
+  domain        String   @default("mechanical") // 'mechanical', 'electrical', 'fluid', etc.
+  
+  // Blueprint data
+  components    Json     // Component definitions
+  connections   Json     // Connection data
+  parameters    Json     // System parameters
+  
+  // Template
+  isTemplate    Boolean  @default(false)
+  templateCategory String?
+  
+  // Version control
+  version       Int      @default(1)
+  parentId      String?
+  
+  // Relationships
+  simulations   Simulation[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([projectId])
+  @@index([isTemplate])
+}
+
+model Simulation {
+  id            String   @id @default(uuid())
+  blueprintId   String
+  blueprint     Blueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  name          String?
+  type          String   @default("steady-state") // 'steady-state', 'transient', 'optimization'
+  
+  // Simulation config
+  parameters    Json
+  
+  // Results
+  status        String   @default("pending") // 'pending', 'running', 'completed', 'failed'
+  results       Json?
+  error         String?  @db.Text
+  
+  // Performance
+  duration      Int?     // milliseconds
+  iterations    Int?
+  
+  // Storage
+  resultsUrl    String?  // S3 URL for large results
+  
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+  
+  @@index([blueprintId])
+  @@index([projectId])
+  @@index([status])
+}
+
+// ============ Research ============
+
+model ResearchQuery {
+  id            String   @id @default(uuid())
+  userId        String
+  
+  query         String   @db.Text
+  domain        String?  // 'arxiv', 'semantic-scholar', 'pubmed', 'google-scholar'
+  
+  results       Json?
+  resultCount   Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Citation {
+  id            String   @id @default(uuid())
+  userId        String
+  
+  // Citation data
+  title         String   @db.Text
+  authors       String[]
+  year          Int?
+  journal       String?
+  doi           String?
+  url           String?
+  
+  // Formatted citation
+  apa           String?  @db.Text
+  bibtex        String?  @db.Text
+  
+  tags          String[]
+  notes         String?  @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([doi])
+}
+
+// ============ Analytics & Monitoring ============
+
+model Usage {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Metrics
+  action        String   // 'ai_request', 'simulation', 'export', etc.
+  resource      String?  // Resource consumed
+  quantity      Int      @default(1)
+  
+  // Cost tracking (for billing)
+  cost          Decimal? @db.Decimal(10, 4)
+  
+  metadata      Json?
+  
+  timestamp     DateTime @default(now())
+  
+  @@index([userId])
+  @@index([timestamp])
+  @@index([action])
+}
+
+model ErrorLog {
+  id            String   @id @default(uuid())
+  userId        String?
+  
+  // Error details
+  errorType     String
+  message       String   @db.Text
+  stack         String?  @db.Text
+  
+  // Context
+  endpoint      String?
+  method        String?
+  statusCode    Int?
+  
+  metadata      Json?
+  
+  timestamp     DateTime @default(now())
+  resolved      Boolean  @default(false)
+  
+  @@index([userId])
+  @@index([timestamp])
+  @@index([errorType])
+}

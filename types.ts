@@ -285,6 +285,7 @@ export interface MechComponentDefinition {
   ports: MechPortDefinition[];
   parameters: MechParameterDefinition[];
   equations: MechEquationDefinition[];
+  physics?: import('./components/mech-saf-2.0/types/PhysicsTypes').PhysicsModelDef;
 }
 
 export interface MechComponentInstance {
@@ -350,6 +351,7 @@ export interface MechSimulationResult {
   diagnostics: MechSimulationDiagnostics;
   constraintViolations: any[];
   issues?: DiagnosticIssue[];
+  dynamicMetrics?: Record<string, any>;
 }
 
 export interface MechSimulationMetrics {

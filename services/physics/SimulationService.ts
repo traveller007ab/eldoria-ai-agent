@@ -2,6 +2,52 @@ import { MechBlueprint, MechSimulationResult, MechSolverConfiguration } from '..
 import { ComponentRegistry } from '../ComponentRegistry';
 import { MaterialRegistry } from './MaterialRegistry';
 import { DiagnosticService } from './DiagnosticService';
+import { DynamicMetricsGenerator } from './DynamicMetricsGenerator';
+import { getPhysicsForComponent, getComponentType } from './ComponentPhysics';
+
+/**
+ * Calculate motor efficiency based on size, speed, and load
+ * Based on IEEE 112 method and typical motor efficiency curves
+ */
+function calculateMotorEfficiency(
+    ratedPower: number,      // kW
+    ratedSpeed: number,      // RPM
+    loadFactor: number = 1.0 // 0-1, fraction of rated load
+): number {
+    // Base efficiency at full load based on motor size
+    // Small motors (< 5 kW): 80-85%
+    // Medium motors (5-50 kW): 85-92%
+    // Large motors (> 50 kW): 92-96%
+    let baseEfficiency: number;
+    if (ratedPower < 5) {
+        baseEfficiency = 0.80 + 0.05 * Math.min(1, ratedPower / 5);
+    } else if (ratedPower < 50) {
+        baseEfficiency = 0.85 + 0.07 * Math.min(1, (ratedPower - 5) / 45);
+    } else {
+        baseEfficiency = 0.92 + 0.04 * Math.min(1, (ratedPower - 50) / 950);
+    }
+
+    // Speed effect: higher speed motors are slightly more efficient
+    const speedFactor = 1 + 0.0001 * (ratedSpeed - 1450);
+
+    // Load factor effect: efficiency drops at partial load
+    // Based on typical motor efficiency curves
+    let loadFactorEffect = 1.0;
+    if (loadFactor < 0.5) {
+        // Significant efficiency drop at low loads
+        loadFactorEffect = 0.7 + 0.6 * (loadFactor / 0.5);
+    } else if (loadFactor < 0.75) {
+        loadFactorEffect = 0.95 + 0.05 * ((loadFactor - 0.5) / 0.25);
+    } else {
+        loadFactorEffect = 1.0 + 0.02 * Math.min(1, (loadFactor - 0.75) / 0.25);
+    }
+
+    // Calculate final efficiency
+    const efficiency = baseEfficiency * speedFactor * loadFactorEffect;
+
+    // Clamp to realistic range
+    return Math.max(0.75, Math.min(0.97, efficiency));
+}
 
 export class SimulationService {
 
@@ -29,74 +75,109 @@ export class SimulationService {
         // 2. Fluid Solver: Uses (N) to calculate Flows (Q) and Heads (H). returns Hydraulic Torques.
         // 3. Thermal Solver: Uses (Q) and Heat Loads to calculate Temperatures (T).
 
-        // --- Stage 1: Mechanical Kinematics ---
-        const { MechanicalNetworkSolver } = await import('./solvers/MechanicalNetworkSolver');
-        const mechSolver = new MechanicalNetworkSolver();
-        const mechResult = await mechSolver.solve(blueprint, config);
-        Object.assign(variables, mechResult.variables);
+        try {
+            // --- Stage 1: Mechanical Kinematics ---
+            const { MechanicalNetworkSolver } = await import('./solvers/MechanicalNetworkSolver');
+            const mechSolver = new MechanicalNetworkSolver();
+            const mechResult = await mechSolver.solve(blueprint, config, variables);
+            Object.assign(variables, mechResult.variables);
 
-        // --- Stage 2: Fluid Dynamics ---
-        // Inject derived speeds into global variables so Fluid Solver can pick them up
-        // Note: FlowNetworkSolver needs to look for "CompName_speed" in variables if connected to shaft
+            // --- Stage 2: Fluid Dynamics ---
+            const { FlowNetworkSolver } = await import('./solvers/FlowNetworkSolver');
+            const fluidSolver = new FlowNetworkSolver();
+            // Inject mech context (e.g. pump speed) into fluid solver
+            const fluidResult = await fluidSolver.solve(blueprint, config, variables);
+            Object.assign(variables, fluidResult.variables);
 
-        const { FlowNetworkSolver } = await import('./solvers/FlowNetworkSolver');
-        const fluidSolver = new FlowNetworkSolver();
+            // --- Stage 3: Thermal Analysis ---
+            const { ThermalNetworkSolver } = await import('./solvers/ThermalNetworkSolver');
+            const thermalSolver = new ThermalNetworkSolver();
+            // Pass merged variables (mech + fluid) as context for thermal calculations
+            const thermalResult = await thermalSolver.solve(blueprint, config, variables);
+            Object.assign(variables, thermalResult.variables);
 
-        // Ensure fluid solver has access to mechanical variables if needed (via blueprint mutation or context)
-        // For now, we rely on variable merging at the end, assuming Solvers are independent 1-pass for V2.0
-        // Real V3.0 would pass context.
+            // Consolidate Metrics
+            const totalPowerInput = mechResult.metrics?.totalPowerInput || fluidResult.metrics?.totalPowerInput || 0;
+            const totalPowerOutput = fluidResult.metrics?.totalPowerOutput || 0;
+            const overallEfficiency = totalPowerInput > 0 ? (totalPowerOutput / totalPowerInput) * 100 : 0;
+            const totalHeatInput = thermalResult.metrics?.totalHeatInput || 0;
 
-        const fluidResult = await fluidSolver.solve(blueprint, config);
-        Object.assign(variables, fluidResult.variables);
+            const resultId = crypto.randomUUID();
+            const resultMetrics = {
+                totalPowerInput,
+                totalPowerOutput,
+                overallEfficiency,
+                totalFlowRate: fluidResult.metrics?.totalFlowRate || 0,
+                maxPressure: fluidResult.metrics?.maxPressure || 0,
+                pressureDrop: fluidResult.metrics?.pressureDrop || 0,
+                totalHeatInput,
+                totalHeatOutput: thermalResult.metrics?.totalHeatOutput || 0,
+                componentMetrics: {
+                    ...mechResult.metrics?.componentMetrics,
+                    ...fluidResult.metrics?.componentMetrics,
+                    ...thermalResult.metrics?.componentMetrics
+                }
+            };
 
-        // --- Stage 3: Thermal Analysis ---
-        const { ThermalNetworkSolver } = await import('./solvers/ThermalNetworkSolver');
-        const thermalSolver = new ThermalNetworkSolver();
-        const thermalResult = await thermalSolver.solve(blueprint, config);
-        Object.assign(variables, thermalResult.variables);
+            const resultDiagnostics = fluidResult.diagnostics || mechResult.diagnostics;
 
-
-        // Consolidate Metrics
-        const totalPowerInput = (mechResult.metrics?.totalPowerInput || 0) + (fluidResult.metrics?.totalPowerInput || 0);
-        const totalHeatInput = (thermalResult.metrics?.totalHeatInput || 0);
-
-        const resultId = crypto.randomUUID();
-        const resultMetrics = {
-            totalPowerInput,
-            totalPowerOutput: mechResult.metrics?.totalPowerOutput || 0,
-            overallEfficiency: (mechResult.metrics?.overallEfficiency || 0),
-            totalFlowRate: fluidResult.metrics?.totalFlowRate || 0,
-            maxPressure: fluidResult.metrics?.maxPressure || 0,
-            pressureDrop: fluidResult.metrics?.pressureDrop || 0,
-            totalHeatInput,
-            totalHeatOutput: thermalResult.metrics?.totalHeatOutput || 0,
-            componentMetrics: {
-                ...mechResult.metrics?.componentMetrics,
-                ...fluidResult.metrics?.componentMetrics,
-                ...thermalResult.metrics?.componentMetrics
+            // Determine Overall Status
+            let status: 'completed' | 'failed' = 'completed';
+            if (mechResult.status === 'failed' || fluidResult.status === 'failed' || thermalResult.status === 'failed') {
+                status = 'failed';
             }
-        };
 
-        const resultDiagnostics = fluidResult.diagnostics || mechResult.diagnostics; // Prioritize fluid diagnostics for now
+            const finalResult: MechSimulationResult = {
+                id: resultId,
+                blueprintId: blueprint.id,
+                status: status,
+                completedAt: new Date(),
+                duration: Date.now() - startTime,
+                configuration: config,
+                variables,
+                metrics: resultMetrics,
+                diagnostics: resultDiagnostics,
+                constraintViolations: [],
+                issues: []
+            };
 
-        const finalResult: MechSimulationResult = {
-            id: resultId,
-            blueprintId: blueprint.id,
-            status: 'completed',
-            completedAt: new Date(),
-            duration: Date.now() - startTime,
-            configuration: config,
-            variables,
-            metrics: resultMetrics,
-            diagnostics: resultDiagnostics,
-            constraintViolations: [],
-            issues: []
-        };
+            // Generate dynamic metrics based on model type
+            finalResult.dynamicMetrics = DynamicMetricsGenerator.generate(blueprint, finalResult);
 
-        // Run Diagnostics on the aggregated result
-        finalResult.issues = DiagnosticService.analyze(blueprint, finalResult);
+            // Run Diagnostics on the aggregated result
+            finalResult.issues = DiagnosticService.analyze(blueprint, finalResult);
 
-        return finalResult;
+            return finalResult;
+        } catch (error) {
+            console.error('[SimulationService] Critical Failure:', error);
+            // Return a valid "Failed" result so UI doesn't hang
+            return {
+                id: crypto.randomUUID(),
+                blueprintId: blueprint.id,
+                status: 'failed',
+                completedAt: new Date(),
+                duration: Date.now() - startTime,
+                configuration: config,
+                variables: {},
+                metrics: { totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0, maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {} },
+                diagnostics: {
+                    convergence: { iterations: 0, residual: 0, converged: false },
+                    massBalance: { status: 'error', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
+                    energyBalance: { status: 'ok', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 }
+                },
+                constraintViolations: [],
+                dynamicMetrics: { summary: { modelCategory: 'general' } },
+                issues: [{
+                    id: 'crash-report',
+                    componentId: 'system',
+                    severity: 'critical',
+                    message: `Simulation Crashed: ${error instanceof Error ? error.message : String(error)}`,
+                    value: 0,
+                    threshold: 0,
+                    ruleId: 'SYSTEM_CRASH'
+                }]
+            };
+        }
     }
 
     // Keep legacy logic for Mechanical/Control pure simulations until we build MechanicalSolver
@@ -112,24 +193,34 @@ export class SimulationService {
             const params = comp.parameterValues;
             const prefix = comp.name.replace(/\s+/g, '_');
 
-            if (def.domain === 'mechanical') {
-                if (def.id.includes('gear')) {
+            // Use physics interface instead of hardcoded ID checks
+            const componentType = getComponentType(comp.componentDefinitionId, def.id);
+            
+            if (def.domain === 'mechanical' || componentType === 'gear') {
+                if (componentType === 'gear') {
                     const z1 = Number(params.z1) || 20;
                     const z2 = Number(params.z2) || 60;
                     variables[`${prefix}_ratio`] = z2 / z1;
                 }
-                if (def.id.includes('motor')) {
-                    const P = Number(params.rated_power) || 15;
-                    const n = Number(params.rated_speed) || 1450;
-                    const T = (9550 * P) / n;
+                if (componentType === 'motor') {
+                    const P_rated = Number(params.rated_power) || 15;
+                    const n_rated = Number(params.rated_speed) || 1450;
+                    const loadFactor = Number(params.load_factor) || 1.0;
+                    const T = (9550 * P_rated) / n_rated;
                     variables[`${prefix}_torque`] = T;
-                    totalPowerInput += P; // Approx
-                    totalPowerOutput += P * 0.9;
+                    variables[`${prefix}_efficiency`] = calculateMotorEfficiency(P_rated, n_rated, loadFactor) * 100;
+                    
+                    const efficiency = calculateMotorEfficiency(P_rated, n_rated, loadFactor);
+                    totalPowerInput += P_rated;
+                    totalPowerOutput += P_rated * efficiency;
                 }
             }
         }
 
-        return {
+        // Calculate overall efficiency from actual input/output
+        const overallEfficiency = totalPowerInput > 0 ? (totalPowerOutput / totalPowerInput) * 100 : 0;
+
+        const result: MechSimulationResult = {
             id: crypto.randomUUID(),
             blueprintId: blueprint.id,
             status: 'completed',
@@ -138,16 +229,52 @@ export class SimulationService {
             configuration: config,
             variables,
             metrics: {
-                totalPowerInput, totalPowerOutput, overallEfficiency: 90, totalFlowRate: 0,
+                totalPowerInput, totalPowerOutput, overallEfficiency, totalFlowRate: 0,
                 maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {}
             },
             diagnostics: {
                 convergence: { iterations: 1, residual: 0, converged: true },
                 massBalance: { status: 'ok', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
-                energyBalance: { status: 'ok', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 }
+                energyBalance: { 
+                    status: 'ok', 
+                    input: totalPowerInput, 
+                    output: totalPowerOutput, 
+                    imbalance: totalPowerInput - totalPowerOutput,
+                    imbalancePercent: totalPowerInput > 0 ? ((totalPowerInput - totalPowerOutput) / totalPowerInput) * 100 : 0
+                }
             },
-            constraintViolations: []
+            constraintViolations: [],
+            dynamicMetrics: DynamicMetricsGenerator.generate(blueprint, {
+                id: '',
+                blueprintId: blueprint.id,
+                status: 'completed',
+                completedAt: new Date(),
+                duration: 10,
+                configuration: config,
+                variables,
+                metrics: {
+                    totalPowerInput, totalPowerOutput, overallEfficiency, totalFlowRate: 0,
+                    maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {}
+                },
+                diagnostics: {
+                    convergence: { iterations: 1, residual: 0, converged: true },
+                    massBalance: { status: 'ok', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
+                    energyBalance: { 
+                        status: 'ok', 
+                        input: totalPowerInput, 
+                        output: totalPowerOutput, 
+                        imbalance: totalPowerInput - totalPowerOutput,
+                        imbalancePercent: totalPowerInput > 0 ? ((totalPowerInput - totalPowerOutput) / totalPowerInput) * 100 : 0
+                    }
+                },
+                constraintViolations: []
+            }),
+            issues: []
         };
 
+        // Run Intelligent Diagnostics
+        result.issues = DiagnosticService.analyze(blueprint, result);
+
+        return result;
     }
 }

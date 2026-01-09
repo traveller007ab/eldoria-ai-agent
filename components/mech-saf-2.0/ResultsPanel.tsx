@@ -1,13 +1,43 @@
-import React from 'react';
+import React, { Dispatch, SetStateAction } from 'react';
 import { useMechStore } from '../../stores/useMechStore';
 import { TimePlot } from './TimePlot';
-import { CheckCircle2, AlertTriangle, Activity, Gauge, Droplets, Flame, Zap, Clock, LineChart, Printer } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Activity, Gauge, Droplets, Flame, Zap, Clock, LineChart, Printer, Download, Settings } from 'lucide-react';
 import { MechDynamicSimulationResult } from '../../types';
 import { ReportPreviewModal } from './ReportPreviewModal';
+import { exportToCSV, exportToJSON, exportDynamicMetricsJSON } from '../../utils/ExportUtils';
+import { ModelAnalyzer, ModelCategory } from '../../services/physics/ModelAnalyzer';
+
+const MODEL_CATEGORIES: { value: ModelCategory; label: string }[] = [
+    { value: 'engine_system', label: 'Engine System' },
+    { value: 'pump_system', label: 'Pump System' },
+    { value: 'hydraulic_circuit', label: 'Hydraulic Circuit' },
+    { value: 'vehicle_dynamics', label: 'Vehicle Dynamics' },
+    { value: 'power_plant', label: 'Power Plant' },
+    { value: 'hvac_system', label: 'HVAC System' },
+    { value: 'thermal_network', label: 'Thermal Network' },
+    { value: 'process_system', label: 'Process System' },
+    { value: 'general', label: 'General' }
+];
 
 export const ResultsPanel: React.FC = () => {
     const { lastSimulationResult, isSimulating, currentBlueprint } = useMechStore();
     const [isReportOpen, setIsReportOpen] = React.useState(false);
+    const [exportFormat, setExportFormat] = React.useState<'csv' | 'json' | 'dynamic' | null>(null);
+    const [overrideCategory, setOverrideCategory] = React.useState<ModelCategory | null>(null);
+    const [showCategorySelector, setShowCategorySelector] = React.useState(false);
+
+    const handleExport = (format: 'csv' | 'json' | 'dynamic') => {
+        if (!lastSimulationResult || !currentBlueprint) return;
+
+        if (format === 'csv') {
+            exportToCSV(lastSimulationResult, currentBlueprint);
+        } else if (format === 'json') {
+            exportToJSON(lastSimulationResult, currentBlueprint);
+        } else if (format === 'dynamic') {
+            exportDynamicMetricsJSON(lastSimulationResult, currentBlueprint);
+        }
+        setExportFormat(null);
+    };
 
     if (isSimulating) {
         return (
@@ -52,14 +82,55 @@ export const ResultsPanel: React.FC = () => {
                     </div>
                 </div>
 
-                <button
-                    onClick={() => setIsReportOpen(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-medium text-slate-300 hover:text-white transition-colors"
-                    title="Generate PDF Report"
-                >
-                    <Printer className="w-3.5 h-3.5" />
-                    Report
-                </button>
+                <div className="flex items-center gap-2 mt-3">
+                    <button
+                        onClick={() => setIsReportOpen(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-medium text-slate-300 hover:text-white transition-colors"
+                        title="Generate PDF Report"
+                    >
+                        <Printer className="w-3.5 h-3.5" />
+                        Report
+                    </button>
+
+                    <div className="relative">
+                        <button
+                            onClick={() => setExportFormat(exportFormat ? null : 'csv')}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs font-medium text-slate-300 hover:text-white transition-colors"
+                            title="Export Results"
+                        >
+                            <Download className="w-3.5 h-3.5" />
+                            Export
+                        </button>
+
+                        {exportFormat && (
+                            <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-10 overflow-hidden min-w-[160px]">
+                                <button
+                                    onClick={() => handleExport('csv')}
+                                    className="flex items-center gap-2 px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 w-full text-left"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Export as CSV
+                                </button>
+                                <button
+                                    onClick={() => handleExport('json')}
+                                    className="flex items-center gap-2 px-4 py-2 text-xs text-slate-300 hover:bg-slate-700 w-full text-left"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Export as JSON
+                                </button>
+                                {lastSimulationResult.dynamicMetrics && (
+                                    <button
+                                        onClick={() => handleExport('dynamic')}
+                                        className="flex items-center gap-2 px-4 py-2 text-xs text-cyan-400 hover:bg-slate-700 w-full text-left border-t border-slate-700"
+                                    >
+                                        <Activity className="w-3.5 h-3.5" />
+                                        Export Dynamic Metrics
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Diagnostic Issues */}
@@ -132,6 +203,15 @@ export const ResultsPanel: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Dynamic Metrics Section */}
+            {lastSimulationResult.dynamicMetrics && (
+                <DynamicMetricsSection
+                    metrics={lastSimulationResult.dynamicMetrics}
+                    overrideCategory={overrideCategory}
+                    onOverrideChange={setOverrideCategory}
+                />
+            )}
 
             {/* Balance Diagnostics */}
             <div className="p-4 border-b border-slate-700">
@@ -230,6 +310,147 @@ const BalanceBar: React.FC<{ label: string; status: 'ok' | 'warning' | 'error'; 
             <span className="text-xs text-slate-500">
                 {status === 'ok' ? 'OK' : `${Math.abs(imbalance).toFixed(1)}% imbalance`}
             </span>
+        </div>
+    );
+};
+
+interface DynamicMetricsSectionProps {
+    metrics: Record<string, any>;
+    overrideCategory: ModelCategory | null;
+    onOverrideChange: (category: ModelCategory | null) => void;
+}
+
+const DynamicMetricsSection: React.FC<DynamicMetricsSectionProps> = ({ metrics, overrideCategory, onOverrideChange }) => {
+    const { summary, engine, pump, thermal, hydraulic, vehicle, process } = metrics;
+
+    if (!summary?.modelCategory || summary.modelCategory === 'general') {
+        return null;
+    }
+
+    const displayCategory = overrideCategory || summary.modelCategory as ModelCategory;
+
+    return (
+        <div className="p-4 border-b border-slate-700">
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-wider flex items-center gap-2">
+                    <Activity className="w-3 h-3" />
+                    {displayCategory.replace(/_/g, ' ')} Metrics
+                </h3>
+                <button
+                    onClick={() => onOverrideChange(overrideCategory ? null : displayCategory)}
+                    className="flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-colors"
+                    title="Change model category"
+                >
+                    <Settings className="w-3 h-3" />
+                    {overrideCategory ? 'Auto-detected' : 'Override'}
+                </button>
+            </div>
+
+            {overrideCategory && overrideCategory !== summary.modelCategory && (
+                <div className="mb-3 p-2 bg-cyan-900/20 border border-cyan-700/50 rounded">
+                    <div className="text-xs text-cyan-400 mb-2">
+                        Override: {overrideCategory.replace(/_/g, ' ')}
+                        <span className="text-slate-500 ml-2">(Original: {summary.modelCategory.replace(/_/g, ' ')})</span>
+                    </div>
+                    <select
+                        value={overrideCategory}
+                        onChange={(e) => onOverrideChange(e.target.value as ModelCategory)}
+                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                    >
+                        {MODEL_CATEGORIES.map(cat => (
+                            <option key={cat.value} value={cat.value}>{cat.label}</option>
+                        ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                        Re-run simulation to see metrics for the new category
+                    </p>
+                </div>
+            )}
+
+            {/* Engine Metrics */}
+            {engine && (
+                <div className="space-y-2 mb-4">
+                    {engine._warning && (
+                        <div className="bg-yellow-900/20 border border-yellow-700/50 rounded p-2 mb-2">
+                            <p className="text-xs text-yellow-400">{engine._warning}</p>
+                        </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                        <MetricCard label="Torque" value={engine.torque?.toFixed(1) || '—'} unit="Nm" icon={<Zap className="w-4 h-4 text-yellow-400" />} />
+                        <MetricCard label="Power" value={engine.brakePower?.toFixed(1) || '—'} unit="kW" icon={<Zap className="w-4 h-4 text-cyan-400" />} />
+                        <MetricCard label="Horsepower" value={engine.horsepower?.toFixed(1) || '—'} unit="HP" icon={<Zap className="w-4 h-4 text-emerald-400" />} />
+                        <MetricCard label="RPM" value={engine.rpm?.toFixed(0) || '—'} unit="" icon={<Activity className="w-4 h-4 text-purple-400" />} />
+                        <MetricCard label="BMEP" value={engine.bmep?.toFixed(1) || '—'} unit="bar" icon={<Gauge className="w-4 h-4 text-blue-400" />} />
+                        <MetricCard label="BSFC" value={engine.bsfc?.toFixed(1) || '—'} unit="g/kWh" icon={<Activity className="w-4 h-4 text-orange-400" />} />
+                        <MetricCard label="Thermal Eff." value={engine.thermalEfficiency?.toFixed(1) || '—'} unit="%" icon={<Flame className="w-4 h-4 text-red-400" />} />
+                        <MetricCard label="AFR" value={engine.airFuelRatio?.toFixed(1) || '—'} unit="" icon={<Activity className="w-4 h-4 text-cyan-400" />} />
+                    </div>
+                </div>
+            )}
+
+            {/* Pump Metrics */}
+            {pump && (
+                <div className="space-y-2 mb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        <MetricCard label="Pump Head" value={pump.head?.toFixed(1) || '0'} unit="m" icon={<Gauge className="w-4 h-4 text-blue-400" />} />
+                        <MetricCard label="Efficiency" value={pump.efficiency?.toFixed(1) || '0'} unit="%" icon={<Activity className="w-4 h-4 text-emerald-400" />} />
+                        <MetricCard label="NPSHa" value={pump.npsha?.toFixed(2) || '0'} unit="m" icon={<Gauge className="w-4 h-4 text-yellow-400" />} />
+                        <MetricCard label="NPSHr" value={pump.npshr?.toFixed(2) || '0'} unit="m" icon={<Gauge className="w-4 h-4 text-orange-400" />} />
+                        <MetricCard label="Suction Spd" value={pump.suctionSpecificSpeed?.toFixed(0) || '0'} unit="" icon={<Activity className="w-4 h-4 text-purple-400" />} />
+                        <MetricCard label="Flow Coef." value={pump.flowCoefficient?.toFixed(3) || '0'} unit="" icon={<Activity className="w-4 h-4 text-cyan-400" />} />
+                    </div>
+                </div>
+            )}
+
+            {/* Thermal Metrics */}
+            {thermal && (
+                <div className="space-y-2 mb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        <MetricCard label="COP" value={thermal.cop?.toFixed(2) || '0'} unit="" icon={<Activity className="w-4 h-4 text-emerald-400" />} />
+                        <MetricCard label="LMTD" value={thermal.lmtd?.toFixed(1) || '0'} unit="°C" icon={<Flame className="w-4 h-4 text-orange-400" />} />
+                        <MetricCard label="UA Value" value={thermal.uaValue?.toFixed(1) || '0'} unit="kW/K" icon={<Gauge className="w-4 h-4 text-blue-400" />} />
+                        <MetricCard label="Effectiveness" value={(thermal.effectiveness * 100)?.toFixed(1) || '0'} unit="%" icon={<Activity className="w-4 h-4 text-cyan-400" />} />
+                    </div>
+                </div>
+            )}
+
+            {/* Hydraulic Metrics */}
+            {hydraulic && (
+                <div className="space-y-2 mb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        <MetricCard label="Max Velocity" value={hydraulic.pipeVelocity?.toFixed(2) || '0'} unit="m/s" icon={<Activity className="w-4 h-4 text-blue-400" />} />
+                        <MetricCard label="Reynolds No." value={hydraulic.reynoldsNumber?.toFixed(0) || '0'} unit="" icon={<Activity className="w-4 h-4 text-purple-400" />} />
+                        <MetricCard label="Friction Factor" value={hydraulic.frictionFactor?.toFixed(4) || '0'} unit="" icon={<Gauge className="w-4 h-4 text-cyan-400" />} />
+                        <MetricCard label="Cavitation Mrg" value={hydraulic.cavitationMargin?.toFixed(2) || '0'} unit="m" icon={<AlertTriangle className="w-4 h-4 text-yellow-400" />} />
+                    </div>
+                </div>
+            )}
+
+            {/* Vehicle Metrics */}
+            {vehicle && (
+                <div className="space-y-2 mb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        <MetricCard label="Top Speed" value={vehicle.topSpeed?.toFixed(1) || '0'} unit="km/h" icon={<Activity className="w-4 h-4 text-emerald-400" />} />
+                        <MetricCard label="0-100 km/h" value={vehicle.accelerationTime?.toFixed(1) || '0'} unit="s" icon={<Activity className="w-4 h-4 text-cyan-400" />} />
+                        <MetricCard label="Wheel HP" value={vehicle.wheelHorsepower?.toFixed(1) || '0'} unit="HP" icon={<Zap className="w-4 h-4 text-yellow-400" />} />
+                        <MetricCard label="P/W Ratio" value={vehicle.powerToWeightRatio?.toFixed(3) || '0'} unit="kW/kg" icon={<Gauge className="w-4 h-4 text-blue-400" />} />
+                        <MetricCard label="Torque Wheels" value={vehicle.torqueAtWheels?.toFixed(1) || '0'} unit="Nm" icon={<Zap className="w-4 h-4 text-orange-400" />} />
+                        <MetricCard label="Range" value={vehicle.range?.toFixed(0) || '0'} unit="km" icon={<Activity className="w-4 h-4 text-purple-400" />} />
+                    </div>
+                </div>
+            )}
+
+            {/* Process Metrics */}
+            {process && (
+                <div className="space-y-2 mb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        <MetricCard label="Throughput" value={process.throughput?.toFixed(1) || '0'} unit="m³/h" icon={<Droplets className="w-4 h-4 text-blue-400" />} />
+                        <MetricCard label="Residence Time" value={process.residenceTime?.toFixed(1) || '0'} unit="s" icon={<Clock className="w-4 h-4 text-purple-400" />} />
+                        <MetricCard label="Yield" value={(process.yield * 100)?.toFixed(1) || '0'} unit="%" icon={<Activity className="w-4 h-4 text-emerald-400" />} />
+                        <MetricCard label="Conversion" value={(process.conversion * 100)?.toFixed(1) || '0'} unit="%" icon={<Activity className="w-4 h-4 text-cyan-400" />} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

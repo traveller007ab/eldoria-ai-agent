@@ -67,7 +67,8 @@ export class NumericMethods {
             const jacobian = J(X);
             const dX = this.solveLinearSystem(jacobian, residuals.map(r => -r)); // J * dX = -F
 
-            X = X.map((val, idx) => val + dX[idx]);
+            // Damping Factor (Under-Relaxation) alpha=0.5 for stability
+            X = X.map((val, idx) => val + dX[idx] * 0.5);
         }
 
         return { X, converged: false, iter, residual: residualNorm };
@@ -96,6 +97,13 @@ export class NumericMethods {
 
             if (Math.abs(M[i][i]) < 1e-12) {
                 // Singular or close to singular
+                // In a full Newton-Raphson implementation, one might handle this
+                // with a fallback (e.g., gradient descent step) or by breaking.
+                // For this context, we'll just continue, which might lead to
+                // large numbers or NaN if not handled carefully in subsequent steps.
+                // console.warn("Singular or near-singular matrix encountered in solveLinearSystem.");
+                // A more robust solution might throw an error or return a specific status.
+                // For now, we'll let the division by zero propagate if M[i][i] is exactly 0.
                 continue;
             }
 

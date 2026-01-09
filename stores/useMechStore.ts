@@ -35,6 +35,7 @@ interface MechLabState {
     isPropertiesPanelOpen: boolean;
     activeDomain: MechanicalDomain;
     selectedComponentId: string | null;
+    selectedComponentIds: string[];
     selectedConnectionId: string | null;
     clipboard: MechComponentInstance | null;
 
@@ -42,10 +43,12 @@ interface MechLabState {
     setBlueprint: (blueprint: MechBlueprint) => void;
     addComponent: (component: MechComponentInstance) => void;
     removeComponent: (id: string) => void;
+    removeComponents: (ids: string[]) => void;
     updateComponentPosition: (id: string, position: { x: number; y: number }) => void;
     updateComponentParameter: (componentId: string, paramId: string, value: number | string) => void;
     updateComponentName: (componentId: string, name: string) => void;
     duplicateComponent: (id: string) => void;
+    duplicateComponents: (ids: string[]) => void;
     addConnection: (connection: MechConnection) => void;
     removeConnection: (id: string) => void;
     setFluidId: (id: string) => void;
@@ -59,6 +62,7 @@ interface MechLabState {
 
     // Clipboard
     copyComponent: (id: string) => void;
+    copyComponents: (ids: string[]) => void;
     pasteComponent: (position: { x: number; y: number }) => void;
 
     // Simulation
@@ -73,6 +77,10 @@ interface MechLabState {
 
     // Selection
     selectComponent: (id: string | null) => void;
+    selectComponents: (ids: string[]) => void;
+    addToSelection: (id: string) => void;
+    removeFromSelection: (id: string) => void;
+    clearSelection: () => void;
     selectConnection: (id: string | null) => void;
     togglePropertiesPanel: () => void;
     setActiveDomain: (domain: MechanicalDomain) => void;
@@ -119,6 +127,7 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     isPropertiesPanelOpen: true,
     activeDomain: 'fluid',
     selectedComponentId: null,
+    selectedComponentIds: [],
     selectedConnectionId: null,
     clipboard: null,
 
@@ -222,7 +231,29 @@ export const useMechStore = create<MechLabState>((set, get) => ({
                 ),
                 updatedAt: new Date()
             },
-            selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId
+            selectedComponentId: state.selectedComponentId === id ? null : state.selectedComponentId,
+            selectedComponentIds: state.selectedComponentIds.filter(sid => sid !== id)
+        };
+    }),
+
+    removeComponents: (ids) => set((state) => {
+        if (!state.currentBlueprint || ids.length === 0) return state;
+
+        const comps = state.currentBlueprint.components.filter(c => ids.includes(c.id));
+        get().pushToHistory(`Delete ${comps.length} components`);
+
+        const idSet = new Set(ids);
+        return {
+            currentBlueprint: {
+                ...state.currentBlueprint,
+                components: state.currentBlueprint.components.filter(c => !idSet.has(c.id)),
+                connections: state.currentBlueprint.connections.filter(
+                    c => !idSet.has(c.sourceComponentId) && !idSet.has(c.targetComponentId)
+                ),
+                updatedAt: new Date()
+            },
+            selectedComponentId: idSet.has(state.selectedComponentId || '') ? null : state.selectedComponentId,
+            selectedComponentIds: state.selectedComponentIds.filter(sid => !idSet.has(sid))
         };
     }),
 
@@ -289,13 +320,54 @@ export const useMechStore = create<MechLabState>((set, get) => ({
                 components: [...state.currentBlueprint.components, duplicate],
                 updatedAt: new Date()
             },
-            selectedComponentId: duplicate.id
+            selectedComponentId: duplicate.id,
+            selectedComponentIds: [duplicate.id]
+        };
+    }),
+
+    duplicateComponents: (ids) => set((state) => {
+        if (!state.currentBlueprint) return state;
+
+        const originals = state.currentBlueprint.components.filter(c => ids.includes(c.id));
+        if (originals.length === 0) return state;
+
+        get().pushToHistory(`Duplicate ${originals.length} components`);
+
+        const duplicates = originals.map((original, index) => ({
+            ...original,
+            id: crypto.randomUUID(),
+            name: `${original.name} (Copy)`,
+            position: {
+                x: original.position.x + 50 + (index * 30),
+                y: original.position.y + 50 + (index * 30)
+            },
+            isSelected: false
+        }));
+
+        const newSelectedIds = duplicates.map(d => d.id);
+
+        return {
+            currentBlueprint: {
+                ...state.currentBlueprint,
+                components: [...state.currentBlueprint.components, ...duplicates],
+                updatedAt: new Date()
+            },
+            selectedComponentId: duplicates[0]?.id || null,
+            selectedComponentIds: newSelectedIds
         };
     }),
 
     copyComponent: (id) => set((state) => {
         const comp = state.currentBlueprint?.components.find(c => c.id === id);
         return { clipboard: comp ? { ...comp } : null };
+    }),
+
+    copyComponents: (ids) => set((state) => {
+        const comps = state.currentBlueprint?.components.filter(c => ids.includes(c.id));
+        if (comps && comps.length > 0) {
+            return { clipboard: comps[0] };
+        }
+        return {};
     }),
 
     pasteComponent: (position) => set((state) => {
@@ -317,7 +389,8 @@ export const useMechStore = create<MechLabState>((set, get) => ({
                 components: [...state.currentBlueprint.components, pasted],
                 updatedAt: new Date()
             },
-            selectedComponentId: pasted.id
+            selectedComponentId: pasted.id,
+            selectedComponentIds: [pasted.id]
         };
     }),
 
@@ -369,8 +442,26 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),
     setIsPlaying: (playing) => set({ isPlaying: playing }),
 
-    selectComponent: (id) => set({ selectedComponentId: id, selectedConnectionId: null, isPropertiesPanelOpen: !!id }),
-    selectConnection: (id) => set({ selectedConnectionId: id, selectedComponentId: null }),
+    selectComponent: (id) => set({ selectedComponentId: id, selectedConnectionId: null, isPropertiesPanelOpen: !!id, selectedComponentIds: id ? [id] : [] }),
+    selectComponents: (ids) => set({ selectedComponentIds: ids, selectedComponentId: ids.length === 1 ? ids[0] : null, selectedConnectionId: null, isPropertiesPanelOpen: ids.length === 1 }),
+    addToSelection: (id) => set((state) => {
+        if (state.selectedComponentIds.includes(id)) return state;
+        return {
+            selectedComponentIds: [...state.selectedComponentIds, id],
+            selectedComponentId: id,
+            isPropertiesPanelOpen: true
+        };
+    }),
+    removeFromSelection: (id) => set((state) => {
+        const newIds = state.selectedComponentIds.filter(sid => sid !== id);
+        return {
+            selectedComponentIds: newIds,
+            selectedComponentId: newIds.length === 1 ? newIds[0] : null,
+            isPropertiesPanelOpen: newIds.length === 1
+        };
+    }),
+    clearSelection: () => set({ selectedComponentIds: [], selectedComponentId: null, selectedConnectionId: null, isPropertiesPanelOpen: false }),
+    selectConnection: (id) => set({ selectedConnectionId: id, selectedComponentId: null, selectedComponentIds: [], isPropertiesPanelOpen: false }),
     togglePropertiesPanel: () => set((state) => ({ isPropertiesPanelOpen: !state.isPropertiesPanelOpen })),
     setActiveDomain: (domain) => set({ activeDomain: domain }),
 
@@ -387,23 +478,29 @@ export const useMechStore = create<MechLabState>((set, get) => ({
                 updatedAt: new Date()
             },
             selectedComponentId: null,
+            selectedComponentIds: [],
             selectedConnectionId: null,
             lastSimulationResult: null
         };
     }),
 
     getNodes: () => {
-        const blueprint = get().currentBlueprint;
-        if (!blueprint) return [];
-        return blueprint.components.map(c => ({
-            id: c.id,
-            position: c.position,
-            data: {
-                label: c.name,
-                component: c
-            },
-            type: 'mechNode'
-        }));
+        const { currentBlueprint, lastSimulationResult } = get();
+        if (!currentBlueprint) return [];
+        return currentBlueprint.components.map(c => {
+            const issue = lastSimulationResult?.issues?.find(i => i.componentId === c.id);
+            return {
+                id: c.id,
+                position: c.position,
+                data: {
+                    label: c.name,
+                    component: c,
+                    issueSeverity: issue?.severity,
+                    issueMessage: issue?.message
+                },
+                type: 'mechNode'
+            };
+        });
     },
 
     getEdges: () => {

@@ -1,0 +1,39 @@
+{
+    "id": "saf-initial-state",
+    "name": "SAF Initial State Generator",
+    "version": "1.0.0",
+    "category": "engineering",
+    "tags": [
+        "simulation",
+        "initialization",
+        "vector",
+        "start"
+    ],
+    "description": "Layer 3: Generate the initial state vector for the dynamic solver to ensure convergence.",
+    "variables": [
+        {
+            "name": "physics_model",
+            "type": "string",
+            "required": true,
+            "label": "Physics Model JSON",
+            "placeholder": "Output from saf_physics_model"
+        },
+        {
+            "name": "steady_state",
+            "type": "boolean",
+            "required": true,
+            "label": "Assume Steady State?",
+            "default": true
+        }
+    ],
+    "prompt_template": "Given the Physics Model:\n{{physics_model}}\n\nGenerate the Initial State Vector for simulation t=0.\n\nRequirements:\n1. Provide numeric values for EVERY state variable defined in the physics model.\n2. Ensure values represent a simplified 'Steady State' (e.g., if Pump Speed = 1450, Flow = Design Flow).\n3. If constraint violations are unavoidable, minimize them.\n\nOutput strict JSON matching the SimulationService 'variables' record.",
+    "output_schema": {
+        "initialState": {
+            "time": "0.0",
+            "variables": {
+                "componentId_variableName": "number (value)"
+            },
+            "notes": "string"
+        }
+    }
+}

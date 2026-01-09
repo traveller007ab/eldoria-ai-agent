@@ -8,6 +8,10 @@ import safDeconstruct from './saf_deconstruct.json';
 import competitiveAnalysis from './competitive_analysis.json';
 import thesisChapter from './thesis_chapter.json';
 import codeAudit from './code_audit.json';
+import safTopology from './saf_topology.json';
+import safPhysicsModel from './saf_physics_model.json';
+import safInitialState from './saf_initial_state.json';
+import safScenarioInjector from './saf_scenario_injector.json';
 
 export interface PromptVariable {
     name: string;
@@ -35,6 +39,10 @@ export const promptSchemas: PromptSchema[] = [
     competitiveAnalysis as PromptSchema,
     thesisChapter as PromptSchema,
     codeAudit as PromptSchema,
+    safTopology as PromptSchema,
+    safPhysicsModel as PromptSchema,
+    safInitialState as PromptSchema,
+    safScenarioInjector as PromptSchema,
     // Add more schemas here...
 ];
 

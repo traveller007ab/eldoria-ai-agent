@@ -8,11 +8,14 @@ export interface FluidProperties {
     gamma?: number; // Ratio of specific heats (Cp/Cv) for gases
     type: 'liquid' | 'gas';
     tags?: string[]; // Semantic tags: 'combustible', 'coolant', 'lubricant'
+    isCustom?: boolean; // Flag for user-defined fluids
 }
 
 export class MaterialRegistry {
     private static instance: MaterialRegistry;
     private fluids: Map<string, FluidProperties> = new Map();
+    private customFluids: Map<string, FluidProperties> = new Map();
+    private readonly CUSTOM_PREFIX = 'custom_';
 
     private constructor() {
         this.registerDefaults();
@@ -23,6 +26,63 @@ export class MaterialRegistry {
             MaterialRegistry.instance = new MaterialRegistry();
         }
         return MaterialRegistry.instance;
+    }
+
+    getAllFluids(): FluidProperties[] {
+        return Array.from(this.fluids.values()).concat(Array.from(this.customFluids.values()));
+    }
+
+    getBuiltInFluids(): FluidProperties[] {
+        return Array.from(this.fluids.values());
+    }
+
+    getCustomFluids(): FluidProperties[] {
+        return Array.from(this.customFluids.values());
+    }
+
+    getFluid(id: string): FluidProperties {
+        if (id.startsWith(this.CUSTOM_PREFIX)) {
+            return this.customFluids.get(id) || this.fluids.get('water')!;
+        }
+        return this.fluids.get(id) || this.fluids.get('water')!;
+    }
+
+    isCustomFluid(id: string): boolean {
+        return id.startsWith(this.CUSTOM_PREFIX) && this.customFluids.has(id);
+    }
+
+    registerCustomFluid(fluid: Omit<FluidProperties, 'id' | 'isCustom'>): string {
+        const id = `${this.CUSTOM_PREFIX}${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const customFluid: FluidProperties = {
+            ...fluid,
+            id,
+            isCustom: true
+        };
+        this.customFluids.set(id, customFluid);
+        return id;
+    }
+
+    updateCustomFluid(id: string, updates: Partial<Omit<FluidProperties, 'id' | 'isCustom'>>): boolean {
+        if (!this.isCustomFluid(id)) {
+            return false;
+        }
+        const existing = this.customFluids.get(id);
+        if (existing) {
+            this.customFluids.set(id, { ...existing, ...updates });
+            return true;
+        }
+        return false;
+    }
+
+    removeCustomFluid(id: string): boolean {
+        if (!this.isCustomFluid(id)) {
+            return false;
+        }
+        return this.customFluids.delete(id);
+    }
+
+    clearCustomFluids(): void {
+        this.customFluids.clear();
     }
 
     private registerDefaults() {
@@ -153,13 +213,5 @@ export class MaterialRegistry {
 
     register(fluid: FluidProperties) {
         this.fluids.set(fluid.id, fluid);
-    }
-
-    getFluid(id: string): FluidProperties | undefined {
-        return this.fluids.get(id);
-    }
-
-    getAllFluids(): FluidProperties[] {
-        return Array.from(this.fluids.values());
     }
 }

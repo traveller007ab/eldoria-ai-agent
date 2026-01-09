@@ -171,4 +171,79 @@ export class ParametricEngineModel {
         }
         return 1.0;
     }
+
+    /**
+     * Calculates the full Torque/Power curve across the RPM range.
+     * Used for Dyno visualization.
+     * @param minRpm Starting RPM (default 1000)
+     * @param maxRpm Ending RPM (default 8000)
+     * @param step RPM increment (default 250)
+     * @param throttle Throttle position 0-1 (default 1.0 = WOT)
+     * @returns Array of CurvePoint objects
+     */
+    public calculateCurve(
+        minRpm: number = 1000,
+        maxRpm: number = 8000,
+        step: number = 250,
+        throttle: number = 1.0
+    ): CurvePoint[] {
+        const curve: CurvePoint[] = [];
+        const intakeTemp = 298; // 25°C ambient
+
+        for (let rpm = minRpm; rpm <= maxRpm; rpm += step) {
+            const point: OperationPoint = {
+                rpm,
+                throttle_position: throttle,
+                intake_temperature_k: intakeTemp
+            };
+
+            const output = this.calculate(point);
+
+            curve.push({
+                rpm,
+                torque_nm: output.torque_nm,
+                power_kw: output.power_kw,
+                bsfc: output.bsfc_g_kwh,
+                efficiency: output.thermal_efficiency,
+                knock_index: output.knock_margin < 1.0 ? (2.0 - output.knock_margin) : 0, // Convert margin to index
+                map_kpa: output.intake_manifold_pressure_kpa
+            });
+        }
+
+        return curve;
+    }
+
+    /**
+     * Finds peak values in the curve.
+     */
+    public analyzeCurve(curve: CurvePoint[]): CurveAnalysis {
+        let peakTorque = { rpm: 0, value: 0 };
+        let peakPower = { rpm: 0, value: 0 };
+
+        for (const pt of curve) {
+            if (pt.torque_nm > peakTorque.value) {
+                peakTorque = { rpm: pt.rpm, value: pt.torque_nm };
+            }
+            if (pt.power_kw > peakPower.value) {
+                peakPower = { rpm: pt.rpm, value: pt.power_kw };
+            }
+        }
+
+        return { peakTorque, peakPower };
+    }
+}
+
+export interface CurvePoint {
+    rpm: number;
+    torque_nm: number;
+    power_kw: number;
+    bsfc: number;
+    efficiency: number;
+    knock_index: number;
+    map_kpa: number;
+}
+
+export interface CurveAnalysis {
+    peakTorque: { rpm: number; value: number };
+    peakPower: { rpm: number; value: number };
 }

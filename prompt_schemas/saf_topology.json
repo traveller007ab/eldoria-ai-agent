@@ -1,0 +1,73 @@
+{
+    "id": "saf-topology",
+    "name": "SAF System Topology Generator",
+    "version": "1.0.0",
+    "category": "engineering",
+    "tags": [
+        "topology",
+        "connections",
+        "ports",
+        "layout"
+    ],
+    "description": "Generate a valid system topology with components and physics-aware connections. Layer 1 of the Physics-Grade SAF system.",
+    "variables": [
+        {
+            "name": "system_description",
+            "type": "string",
+            "required": true,
+            "label": "System Description",
+            "placeholder": "e.g. Closed loop cooling system with centrifugal pump and heat exchanger"
+        },
+        {
+            "name": "domain",
+            "type": "enum",
+            "options": [
+                "mechanical",
+                "fluid",
+                "thermal",
+                "mixed"
+            ],
+            "required": true,
+            "label": "Physics Domain",
+            "default": "fluid"
+        }
+    ],
+    "prompt_template": "Generate a complete system topology for a '{{system_description}}' in the '{{domain}}' domain.\n\nRequirements:\n1. Select components from the SAF Catalog (Fluid, Mechanical, Thermal).\n2. Define ALL connections between components using specific Ports (e.g., 'outlet' -> 'inlet', 'shaft_out' -> 'shaft_in').\n3. Ensure domain compatibility (Fluid connects to Fluid, Mechanical to Mechanical).\n4. Include spatial layout suggestions (x, y coordinates).\n\nOutput strict JSON resembling the MechBlueprint structure.",
+    "output_schema": {
+        "topology": {
+            "components": [
+                {
+                    "id": "string (unique)",
+                    "type": "string (catalog_id)",
+                    "name": "string",
+                    "position": {
+                        "x": "number",
+                        "y": "number"
+                    },
+                    "ports": [
+                        {
+                            "id": "string",
+                            "domain": "fluid|mechanical|thermal|electrical"
+                        }
+                    ]
+                }
+            ],
+            "connections": [
+                {
+                    "id": "string",
+                    "from": "componentId",
+                    "fromPort": "portId",
+                    "to": "componentId",
+                    "toPort": "portId",
+                    "domain": "fluid|mechanical|thermal|electrical"
+                }
+            ]
+        },
+        "validation_precheck": {
+            "open_ports": [
+                "string (portId)"
+            ],
+            "loops_detected": "boolean"
+        }
+    }
+}

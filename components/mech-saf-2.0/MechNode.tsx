@@ -2,11 +2,13 @@ import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { MechComponentInstance, MechPortDefinition } from '../../types';
 import { ComponentRegistry } from '../../services/ComponentRegistry';
-import { Droplets, Flame, Cog, Cpu, Zap } from 'lucide-react';
+import { Droplets, Flame, Cog, Cpu, Zap, AlertTriangle, AlertCircle } from 'lucide-react';
 
 interface MechNodeData {
     label: string;
     component: MechComponentInstance;
+    issueSeverity?: 'warning' | 'critical';
+    issueMessage?: string;
 }
 
 const getIconForDomain = (domain: string) => {
@@ -71,6 +73,16 @@ export const MechNode: React.FC<NodeProps<MechNodeData>> = memo(({ data, selecte
                     {getIconForDomain(componentDef.domain)}
                 </div>
                 <span className="text-sm font-medium text-white truncate">{component.name}</span>
+
+                {/* Diagnostics Badge */}
+                {data.issueSeverity && (
+                    <div className={`
+                        absolute -top-2 -right-2 p-1 rounded-full shadow-lg border bg-[#0f1014]
+                        ${data.issueSeverity === 'critical' ? 'border-red-500 text-red-500 animate-pulse' : 'border-yellow-500 text-yellow-500'}
+                    `} title={data.issueMessage}>
+                        {data.issueSeverity === 'critical' ? <AlertCircle className="w-4 h-4 fill-red-500/20" /> : <AlertTriangle className="w-4 h-4 fill-yellow-500/20" />}
+                    </div>
+                )}
             </div>
 
             {/* Subcategory */}

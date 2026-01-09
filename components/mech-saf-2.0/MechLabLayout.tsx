@@ -8,6 +8,7 @@ import { ComponentPalette } from './ComponentPalette';
 import { PropertiesPanel } from './PropertiesPanel';
 import { ResultsPanel } from './ResultsPanel';
 import { AnalysisPanel } from './AnalysisPanel';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
 import { Canvas } from './Canvas';
 import { SimulationService } from '../../services/physics/SimulationService';
 import { ProjectService } from '../../services/ProjectService';
@@ -16,8 +17,13 @@ import { HelpModal } from './HelpModal';
 import { TimelineControls } from './TimelineControls';
 import { DynamicSimulationService } from '../../services/physics/DynamicSimulationService';
 import { EnhancedGearBackground } from './EnhancedGearBackground';
+import { TopMenu } from './TopMenu';
+import { ScenarioSelectModal } from './ScenarioSelectModal';
+import { ScenarioHUD } from './ScenarioHUD';
+import { scenarioService } from '../../services/scenarios/ScenarioService';
+import { ExportService } from '../../services/export/ExportService';
 
-type RightPanelTab = 'properties' | 'results' | 'analysis';
+type RightPanelTab = 'properties' | 'results' | 'analysis' | 'diagnostics';
 
 export const MechLabLayout: React.FC = () => {
     const {
@@ -43,6 +49,7 @@ export const MechLabLayout: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [showSavedToast, setShowSavedToast] = useState(false);
     const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+    const [isMissionsModalOpen, setIsMissionsModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Keyboard shortcuts
@@ -195,6 +202,35 @@ export const MechLabLayout: React.FC = () => {
         }
     }, [selectedComponentId]);
 
+    // Watch for simulation results to update scenario progress
+    useEffect(() => {
+        if (lastSimulationResult && lastSimulationResult.status === 'completed') {
+            scenarioService.updateProgress(lastSimulationResult);
+        }
+    }, [lastSimulationResult]);
+
+    // Handle initial template load or empty state
+    const handleLoadTemplate = (templateId: string) => {
+        const { TEMPLATE_REGISTRY } = require('../../data/template-library');
+        const template = TEMPLATE_REGISTRY.find((t: any) => t.id === templateId);
+
+        if (template) {
+            // Confirm if current work is unsaved? For now just load.
+            setIsSimulating(false);
+            setBlueprint({
+                ...template.blueprint,
+                id: crypto.randomUUID(), // New instance
+                updated_at: new Date().toISOString()
+            });
+            setLastSimulationResult(null);
+        }
+    };
+
+    const handleExport = () => {
+        if (!currentBlueprint) return;
+        ExportService.downloadBlueprint(currentBlueprint);
+    };
+
     return (
         <div className="flex flex-col h-screen w-full bg-slate-900 text-white overflow-hidden">
             <input
@@ -206,6 +242,8 @@ export const MechLabLayout: React.FC = () => {
             />
 
             <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
+            <ScenarioSelectModal isOpen={isMissionsModalOpen} onClose={() => setIsMissionsModalOpen(false)} />
+            <ScenarioHUD />
 
             {showSavedToast && (
                 <div className="fixed top-20 right-4 z-50 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
@@ -215,33 +253,17 @@ export const MechLabLayout: React.FC = () => {
             )}
 
             {/* Header */}
-            <header className="h-14 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 shrink-0 z-20">
-                <div className="flex items-center gap-4">
-                    <div className="font-bold text-lg tracking-tight bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                        Mech SAF Lab v2.0
-                    </div>
-                    <div className="h-6 w-px bg-slate-700 mx-2" />
+            <header className="h-10 bg-[#0f1014] border-b border-slate-700 flex items-center justify-between px-0 shrink-0 z-50">
+                <div className="flex-1">
+                    <TopMenu
+                        onLoadTemplate={handleLoadTemplate}
+                        onSaveProject={handleSaveProject}
+                        onOpenMissions={() => setIsMissionsModalOpen(true)}
+                        onExport={handleExport}
+                    />
+                </div>
 
-                    {/* Quick Actions */}
-                    <div className="flex items-center gap-1">
-                        <button
-                            onClick={() => undo()}
-                            disabled={!canUndo()}
-                            className="p-1.5 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed rounded hover:bg-slate-700 transition-colors"
-                            title="Undo (Ctrl+Z)"
-                        >
-                            <Undo2 className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => redo()}
-                            disabled={!canRedo()}
-                            className="p-1.5 text-slate-400 hover:text-white disabled:text-slate-600 disabled:cursor-not-allowed rounded hover:bg-slate-700 transition-colors"
-                            title="Redo (Ctrl+Y)"
-                        >
-                            <Redo2 className="w-4 h-4" />
-                        </button>
-                    </div>
-
+                <div className="flex items-center gap-4 px-4 border-l border-slate-800">
                     <button
                         onClick={handleRunSimulation}
                         disabled={isSimulating || !currentBlueprint?.components.length}
@@ -277,11 +299,11 @@ export const MechLabLayout: React.FC = () => {
 
                     <div className="h-6 w-px bg-slate-700" />
 
-                    <nav className="flex gap-1 text-sm text-slate-400">
+                    {/* <nav className="flex gap-1 text-sm text-slate-400">
                         <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">File</button>
                         <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">Edit</button>
                         <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">View</button>
-                    </nav>
+                    </nav> */}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -293,14 +315,14 @@ export const MechLabLayout: React.FC = () => {
                         <Upload className="w-4 h-4" />
                     </button>
 
-                    <button
+                    {/* <button
                         onClick={handleSaveProject}
                         disabled={!currentBlueprint?.components.length || isSaving}
                         className="flex items-center gap-1.5 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-slate-700"
                         title="Save Project (Ctrl+S)"
                     >
                         {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    </button>
+                    </button> */}
 
                     <div className="relative">
                         <button
@@ -407,6 +429,16 @@ export const MechLabLayout: React.FC = () => {
                                     <BarChart3 className="w-3.5 h-3.5" />
                                     Analysis
                                 </button>
+                                <button
+                                    onClick={() => setRightPanelTab('diagnostics')}
+                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${rightPanelTab === 'diagnostics'
+                                        ? 'text-white border-b-2 border-orange-500 bg-slate-800'
+                                        : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                                        }`}
+                                >
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    Issues
+                                </button>
                             </div>
 
                             {/* Panel Content */}
@@ -414,6 +446,7 @@ export const MechLabLayout: React.FC = () => {
                                 {rightPanelTab === 'properties' && <PropertiesPanel />}
                                 {rightPanelTab === 'results' && <ResultsPanel />}
                                 {rightPanelTab === 'analysis' && <AnalysisPanel />}
+                                {rightPanelTab === 'diagnostics' && <DiagnosticsPanel />}
                             </div>
                         </div>
                     )

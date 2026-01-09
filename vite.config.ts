@@ -4,10 +4,12 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  // Support multiple env var names for flexibility
   const apiKey = env.VITE_API_KEY || env.GEMINI_API_KEY || env.API_KEY;
   return {
-    base: './', // CRITICAL: Ensure relative paths for Electron file:// protocol
+    base: './',
+    worker: {
+      format: 'es'
+    },
     plugins: [
       VitePWA({
         registerType: 'autoUpdate',

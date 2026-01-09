@@ -1,0 +1,63 @@
+{
+    "id": "saf-physics-model",
+    "name": "SAF Physics Model Generator",
+    "version": "1.0.0",
+    "category": "engineering",
+    "tags": [
+        "physics",
+        "math",
+        "equations",
+        "solver"
+    ],
+    "description": "Layer 2: Generate the mathematical kernel (constitutive equations and state variables) for a given system topology.",
+    "variables": [
+        {
+            "name": "topology_summary",
+            "type": "string",
+            "required": true,
+            "label": "Topology Summary",
+            "placeholder": "JSON string of component IDs and connections"
+        },
+        {
+            "name": "domain",
+            "type": "enum",
+            "options": [
+                "mechanical",
+                "fluid",
+                "thermal",
+                "mixed"
+            ],
+            "required": true,
+            "label": "Physics Domain"
+        }
+    ],
+    "prompt_template": "Given the following system topology:\n{{topology_summary}}\n\nGenerate the Physics Model for the '{{domain}}' domain.\n\nRequirements:\n1. For EACH component, define State Variables (e.g., Pull from ComponentCatalog).\n2. Write Constitutive Equations for each component (e.g., P = tau * omega).\n3. Write Conservation Equations for each connection node (e.g., Sigma Flow_in = Sigma Flow_out).\n4. Format equations for MathJS parsing.\n\nOutput strict JSON matching the PhysicsModelDef interface.",
+    "output_schema": {
+        "physicsModel": {
+            "stateVariables": {
+                "variables": [
+                    {
+                        "name": "string",
+                        "symbol": "string",
+                        "unit": "string",
+                        "componentId": "string"
+                    }
+                ],
+                "count": "number"
+            },
+            "equations": [
+                {
+                    "name": "string",
+                    "expression": "string (MathJS)",
+                    "type": "constitutive|conservation|boundary",
+                    "variables": [
+                        "string"
+                    ]
+                }
+            ],
+            "jacobian": {
+                "sparsity_hint": "matrix_string (optional)"
+            }
+        }
+    }
+}

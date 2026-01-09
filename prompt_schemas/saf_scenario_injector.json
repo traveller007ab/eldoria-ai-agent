@@ -1,0 +1,47 @@
+{
+    "id": "saf-scenario-injector",
+    "name": "SAF Scenario Injector",
+    "version": "1.0.0",
+    "category": "engineering",
+    "tags": [
+        "simulation",
+        "dynamic",
+        "events",
+        "scenario"
+    ],
+    "description": "Layer 4: Generate time-based scenarios for dynamic simulation (failures, setpoint changes).",
+    "variables": [
+        {
+            "name": "topology_summary",
+            "type": "string",
+            "required": true,
+            "label": "System Topology",
+            "placeholder": "Refers to existing system components"
+        },
+        {
+            "name": "scenario_description",
+            "type": "string",
+            "required": true,
+            "label": "Scenario Description",
+            "placeholder": "e.g., Pump failure at 30s, Valve opens to 50% at 10s"
+        }
+    ],
+    "prompt_template": "Create a Dynamic Scenario for the system: '{{topology_summary}}'.\n\nScenario: {{scenario_description}}\n\nRequirements:\n1. Define discrete events with specific timestamps.\n2. Target existing component parameters (e.g., valve opening, pump speed).\n3. Use 'step' or 'ramp' functions for transitions.\n\nOutput JSON matching the ScenarioDefinition interface.",
+    "output_schema": {
+        "scenario": {
+            "id": "string",
+            "name": "string",
+            "duration": "number",
+            "events": [
+                {
+                    "time": "number (seconds)",
+                    "type": "step|ramp",
+                    "targetComponent": "string",
+                    "targetParameter": "string",
+                    "value": "number",
+                    "duration": "number (optional for ramp)"
+                }
+            ]
+        }
+    }
+}

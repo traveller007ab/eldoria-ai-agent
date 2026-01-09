@@ -6,17 +6,12 @@ import {
     MechSimulationMetrics
 } from '../../../types';
 import { ComponentRegistry } from '../../ComponentRegistry';
+import { getPhysicsForComponent, getComponentType, isEnergySource } from '../ComponentPhysics';
+import { RealEngineModel, EngineParameters, EngineState } from '../RealEngineModel';
 
 export class MechanicalNetworkSolver implements ISolver {
 
-    async solve(blueprint: MechBlueprint, config: MechSolverConfiguration): Promise<MechSimulationResult> {
-        // Mechanical Solver Strategy:
-        // 1. Identify Drivers (Sources of RPM): Motors, Engines.
-        // 2. Identify Driven Loads (Sinks of Torque): Pumps, Compressors, Generators, Propellers.
-        // 3. Propagate Speed (RPM) forward from Driver -> Load via connection chains (Gears adjust speed).
-        // 4. Propagate Torque Load backward from Load -> Driver.
-        // 5. Check Equilibrium: Torque_Driver >= Torque_Load. If not, RPM sags (simple governor logic).
-
+    async solve(blueprint: MechBlueprint, config: MechSolverConfiguration, context: Record<string, number> = {}): Promise<MechSimulationResult> {
         const registry = ComponentRegistry.getInstance();
         const variables: Record<string, number> = {};
         const metrics: MechSimulationMetrics = {
@@ -31,82 +26,131 @@ export class MechanicalNetworkSolver implements ISolver {
             componentMetrics: {}
         };
 
+        // Use physics interface instead of hardcoded ID checks
+        const getComponentTypeSafe = (id: string, defId: string) => {
+            try {
+                return getComponentType(id, defId);
+            } catch {
+                const lowerId = id.toLowerCase();
+                if (lowerId.includes('motor')) return 'motor';
+                if (lowerId.includes('engine')) return 'engine';
+                if (lowerId.includes('gear')) return 'gear';
+                return 'unknown';
+            }
+        };
+
         // --- Step 1: Find Drivers ---
         const drivers = blueprint.components.filter(c => {
             const def = registry.getComponent(c.componentDefinitionId);
-            return def && (def.subcategory === 'powerSource' || def.subcategory === 'powerTransmission');
-            // Simplification: Look for 'motor' or 'engine' in ID
-        }).filter(c => c.componentDefinitionId.includes('motor') || c.componentDefinitionId.includes('engine'));
+            if (!def) return false;
+            const compType = getComponentTypeSafe(c.componentDefinitionId, def.id);
+            return compType === 'motor' || compType === 'engine';
+        });
 
         for (const driver of drivers) {
-            const prefix = driver.name.replace(/\s+/g, '_');
+            const prefix = driver.id;
             const params = driver.parameterValues;
             const def = registry.getComponent(driver.componentDefinitionId);
-
             if (!def) continue;
 
-            // Determine Driver Speed (Throttle / Rated)
             let N_driver = 0;
             let Torque_max = 0;
+            const compType = getComponentTypeSafe(driver.componentDefinitionId, def.id);
 
-            if (def.id === 'mechanical.engine.parametric') {
-                // High-Fidelity Physics Model
+            if (compType === 'engine' || def.id.includes('engine')) {
+                // Engine logic using RealEngineModel
                 try {
-                    const { ParametricEngineModel } = await import('../../physics/engines/ParametricEngineModel');
-                    // Map params to interfaces
-                    const geometry = {
-                        bore_mm: Number(params.bore_mm) || 86,
-                        stroke_mm: Number(params.stroke_mm) || 86,
+                    const fuelTypeStr = String(params.fuel_type || 'gasoline');
+                    const aspirationStr = String(params.aspiration || 'na');
+                    const valveTimingStr = String(params.valve_timing || 'dohc');
+
+                    const engineParams: EngineParameters = {
+                        displacement: Number(params.displacement) || 2.0,
                         cylinders: Number(params.cylinders) || 4,
-                        compression_ratio: Number(params.compression_ratio) || 10.0
+                        bore: Number(params.bore) || 86,
+                        stroke: Number(params.stroke) || 86,
+                        compressionRatio: Number(params.compression_ratio) || 10.0,
+                        maxPower: Number(params.max_power) || 100,
+                        maxPowerRPM: Number(params.max_power_rpm) || 6000,
+                        maxTorque: Number(params.max_torque) || 200,
+                        maxTorqueRPM: Number(params.max_torque_rpm) || 4000,
+                        idleRPM: Number(params.idle_rpm) || 800,
+                        redlineRPM: Number(params.redline_rpm) || 7000,
+                        fuelType: (fuelTypeStr as 'gasoline' | 'diesel' | 'ethanol' | 'natural_gas') || 'gasoline',
+                        aspiration: (aspirationStr as 'na' | 'turbo' | 'supercharged') || 'na',
+                        valveTiming: (valveTimingStr as 'ohv' | 'ohc' | 'dohc') || 'dohc',
+                        firingOrder: String(params.firing_order || '1-3-4-2')
                     };
-                    const fuel = {
-                        type: 'custom',
-                        octane_rkm: Number(params.fuel_octane) || 93,
-                        stoichiometric_afr: Number(params.fuel_stoich) || 14.7,
-                        energy_density_mj_kg: 44.0, // Default to Gasoline
-                        knock_resistance: (Number(params.fuel_octane) || 93) / 100
-                    };
-                    const intake = {
-                        aspiration: String(params.aspiration) as any || 'na',
-                        volumetric_efficiency_curve: [], // Use default
-                        boost_pressure_bar: Number(params.boost_pressure_bar) || 0
+
+                    const engineState: EngineState = {
+                        rpm: Number(params.rpm) || 3000,
+                        throttlePosition: (Number(params.throttle) || 50) / 100,
+                        manifoldPressure: Number(params.manifold_pressure) || 100,
+                        intakeTemp: Number(params.intake_temp) || 300,
+                        airFuelRatio: Number(params.afr) || 14.7,
+                        sparkAdvance: Number(params.spark_advance) || 35,
+                        coolantTemp: Number(params.coolant_temp) || 360
                     };
 
-                    const model = new ParametricEngineModel(geometry as any, fuel as any, intake as any);
+                    const outputs = RealEngineModel.analyzeEngine(engineParams, engineState);
 
-                    // Target RPM
-                    const N_idle = Number(params.idle_speed) || 800;
-                    const N_red = Number(params.max_speed) || 7000;
-                    const TPS = Number(params.throttle) || 50;
-                    N_driver = N_idle + (TPS / 100) * (N_red - N_idle);
+                    N_driver = engineState.rpm;
+                    Torque_max = outputs.torque;
 
-                    // Calculate Output
-                    const outputs = model.calculate({
-                        rpm: N_driver,
-                        throttle_position: TPS / 100,
-                        intake_temperature_k: 300 // Ambient
-                    });
-
-                    Torque_max = outputs.torque_nm;
-
+                    const prefix = driver.name.replace(/\s+/g, '_');
+                    variables[`${prefix}_torque`] = outputs.torque;
+                    variables[`${prefix}_torque_nm`] = outputs.torque;
+                    variables[`${prefix}_power_kw`] = outputs.brakePower;
+                    variables[`${prefix}_horsepower`] = outputs.horsepower;
+                    variables[`${prefix}_bsfc`] = outputs.bsfc;
+                    variables[`${prefix}_volumetric_efficiency`] = outputs.volumetricEfficiency;
+                    variables[`${prefix}_thermal_efficiency`] = outputs.thermalEfficiency;
+                    variables[`${prefix}_bmep`] = outputs.bmep;
+                    variables[`${prefix}_rpm`] = N_driver;
+                    variables[`${prefix}_fuel_flow`] = outputs.fuelFlow;
+                    variables[`${prefix}_air_flow`] = outputs.airFlow;
+                    variables[`${prefix}_heat_rejection`] = outputs.heatRejection;
+                    variables[`${prefix}_exhaust_temp`] = outputs.exhaustTemp;
                 } catch (e) {
-                    console.error('Failed to load Parametric Engine Model', e);
-                    // Fallback
-                    N_driver = 1000;
-                    Torque_max = 100;
+                    console.warn(`[MechanicalNetworkSolver] RealEngineModel failed, using physics-based fallback: ${e}`);
+                    // Calculate fallback from component parameters instead of hardcoded values
+                    // Use rated power and speed from parameters if available
+                    const ratedPower = Number(params.max_power) || Number(params.rated_power) || 100; // kW
+                    const ratedSpeed = Number(params.max_speed) || Number(params.rated_speed) || 
+                                      Number(params.max_rpm) || 3000; // RPM
+                    const throttle = (Number(params.throttle) || 50) / 100;
+                    const idleRPM = Number(params.idle_rpm) || 800;
+                    
+                    // Calculate realistic operating point based on throttle
+                    N_driver = idleRPM + throttle * (ratedSpeed - idleRPM);
+                    N_driver = Math.min(N_driver, ratedSpeed);
+                    
+                    // Torque curve approximation: peak at 60-80% of rated speed
+                    const torqueRatio = N_driver / ratedSpeed;
+                    let torqueMultiplier = 1.0;
+                    if (torqueRatio < 0.6) {
+                        torqueMultiplier = 0.6 + 0.4 * (torqueRatio / 0.6);
+                    } else if (torqueRatio < 1.0) {
+                        torqueMultiplier = 1.0;
+                    } else {
+                        torqueMultiplier = 1.0 - 0.5 * (torqueRatio - 1.0);
+                    }
+                    
+                    // Peak torque ≈ 9550 * P_rated / N_at_peak_torque (typically ~60% of rated speed)
+                    const speedAtPeakTorque = ratedSpeed * 0.6;
+                    const peakTorque = (ratedPower * 9550) / speedAtPeakTorque;
+                    Torque_max = peakTorque * torqueMultiplier * throttle;
+                    
+                    // Store fallback calculations
+                    const prefix = driver.name.replace(/\s+/g, '_');
+                    variables[`${prefix}_torque`] = Torque_max;
+                    variables[`${prefix}_torque_nm`] = Torque_max;
+                    variables[`${prefix}_power_kw`] = (Torque_max * N_driver) / 9550;
+                    variables[`${prefix}_rpm`] = N_driver;
+                    variables[`${prefix}_fallback`] = 1; // Mark as fallback calculation
                 }
-            } else if (def.id.includes('engine')) {
-                const TPS = Number(params.throttle) || 50;
-                const N_idle = Number(params.idle_speed) || 800;
-                const N_red = Number(params.max_speed) || 6000;
-                const P_max = Number(params.max_power) || 100;
-
-                // Simple Linear Map
-                N_driver = N_idle + (TPS / 100) * (N_red - N_idle);
-                Torque_max = (9550 * P_max) / N_red;
             } else {
-                // Electric Motor
+                // Motor logic
                 N_driver = Number(params.rated_speed) || 1450;
                 const P_rated = Number(params.rated_power) || 15;
                 Torque_max = (9550 * P_rated) / N_driver;
@@ -115,22 +159,12 @@ export class MechanicalNetworkSolver implements ISolver {
             variables[`${prefix}_speed_target`] = N_driver;
             variables[`${prefix}_torque_max`] = Torque_max;
 
-            // Calculate "Potential" Power Input
             const w_current = (N_driver * 2 * Math.PI) / 60;
             const P_avail = (Torque_max * w_current) / 1000;
             metrics.totalPowerInput += P_avail;
 
-            // --- Step 2: Propagate Forward (Speed) ---
-            // Traverse downstream mechanical links
             this.propagateSpeed(driver, N_driver, blueprint, variables, registry);
         }
-
-        // --- Step 3: Solve Loads (Mocking Feedback from Fluid Solver) ---
-        // In a true multi-physics loop, the Fluid Solver would run NEXT, using the speeds found above.
-        // It would return TORQUE REQUIRED.
-        // Then we would come back here to verify.
-
-        // For this pass, we just establish the kinematic chain state.
 
         return {
             id: crypto.randomUUID(),
@@ -160,11 +194,9 @@ export class MechanicalNetworkSolver implements ISolver {
         const prefix = currentComponent.name.replace(/\s+/g, '_');
         variables[`${prefix}_speed`] = currentSpeed;
 
-        // Find output connections
         const outConnections = blueprint.connections.filter(c => c.sourceComponentId === currentComponent.id);
 
         for (const conn of outConnections) {
-            // STRICT TYPING: Only propagate through mechanical connections
             if (conn.type !== 'mechanical') continue;
 
             const nextComp = blueprint.components.find(c => c.id === conn.targetComponentId);
@@ -173,16 +205,24 @@ export class MechanicalNetworkSolver implements ISolver {
             const nextDef = registry.getComponent(nextComp.componentDefinitionId);
             if (!nextDef) continue;
 
-            // Handle Gear Ratios
+            // Use physics interface for gear detection
             let nextSpeed = currentSpeed;
-            if (nextDef.id.includes('gear')) {
-                const z1 = Number(nextComp.parameterValues.z1) || 20;
-                const z2 = Number(nextComp.parameterValues.z2) || 60;
-                const ratio = z2 / z1;
-                nextSpeed = currentSpeed / ratio; // Reducer equation
+            try {
+                const compType = getComponentType(nextComp.componentDefinitionId, nextDef.id);
+                if (compType === 'gear') {
+                    const z1 = Number(nextComp.parameterValues.z1) || 20;
+                    const z2 = Number(nextComp.parameterValues.z2) || 60;
+                    nextSpeed = currentSpeed / (z2 / z1);
+                }
+            } catch {
+                // Fallback to ID check
+                if (nextDef.id.includes('gear')) {
+                    const z1 = Number(nextComp.parameterValues.z1) || 20;
+                    const z2 = Number(nextComp.parameterValues.z2) || 60;
+                    nextSpeed = currentSpeed / (z2 / z1);
+                }
             }
 
-            // Recursive Call
             const nextPrefix = nextComp.name.replace(/\s+/g, '_');
             if (!variables[`${nextPrefix}_speed`]) {
                 this.propagateSpeed(nextComp, nextSpeed, blueprint, variables, registry);

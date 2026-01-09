@@ -32,6 +32,7 @@ export const coolingWaterSystemTemplate: BlueprintTemplate = {
   components: [
     {
       id: createComponentId('comp'),
+      componentDefinitionId: 'fluid.pump.centrifugal',
       name: 'Cooling Water Pump',
       category: 'fluid',
       subcategory: 'turbomachinery',
@@ -59,6 +60,7 @@ export const coolingWaterSystemTemplate: BlueprintTemplate = {
     },
     {
       id: createComponentId('comp'),
+      // No standard ID for HX yet
       name: 'Heat Exchanger',
       category: 'heatTransfer',
       subcategory: 'heatExchanger',
@@ -87,6 +89,7 @@ export const coolingWaterSystemTemplate: BlueprintTemplate = {
     },
     {
       id: createComponentId('comp'),
+      componentDefinitionId: 'fluid.pipe.std',
       name: 'Supply Pipe',
       category: 'fluid',
       subcategory: 'internalFlow',
@@ -112,6 +115,7 @@ export const coolingWaterSystemTemplate: BlueprintTemplate = {
     },
     {
       id: createComponentId('comp'),
+      componentDefinitionId: 'fluid.pipe.std',
       name: 'Return Pipe',
       category: 'fluid',
       subcategory: 'internalFlow',
@@ -137,6 +141,7 @@ export const coolingWaterSystemTemplate: BlueprintTemplate = {
     },
     {
       id: createComponentId('comp'),
+      componentDefinitionId: 'fluid.tank.reservoir',
       name: 'Reservoir',
       category: 'fluid',
       subcategory: 'internalFlow',

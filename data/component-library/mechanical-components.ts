@@ -104,7 +104,22 @@ export const mechanicalComponents: MechComponentDefinition[] = [
                 source: 'Geometry',
                 solutionMethod: 'analytic'
             }
-        ]
+        ],
+        physics: {
+            domain: 'mechanical',
+            stateVariables: [
+                { name: 'speed', symbol: 'omega', unit: 'rad/s' },
+                { name: 'torque', symbol: 'tau', unit: 'N·m' }
+            ],
+            equations: [
+                { name: 'SpeedRatio', expression: 'omega_out = omega_in / (z2/z1)', variables: ['omega_in', 'omega_out', 'z1', 'z2'], type: 'constitutive' },
+                { name: 'TorqueConservation', expression: 'tau_out * omega_out = tau_in * omega_in * efficiency', variables: ['tau_in', 'tau_out', 'omega_in', 'omega_out', 'efficiency'], type: 'conservation' }
+            ],
+            ports: {
+                shaft_in: { domain: 'mechanical', variables: ['speed', 'torque'], direction: 'in' },
+                shaft_out: { domain: 'mechanical', variables: ['speed', 'torque'], direction: 'out' }
+            }
+        }
     },
     {
         id: 'mechanical.bearing.ball',
@@ -269,7 +284,7 @@ export const mechanicalComponents: MechComponentDefinition[] = [
                 unit: '%',
                 dataType: 'number',
                 value: 50,
-                source: 'control'
+                source: 'design'
             },
             {
                 id: 'free_length',
@@ -378,13 +393,29 @@ export const mechanicalComponents: MechComponentDefinition[] = [
                 source: 'Mechanical Power',
                 solutionMethod: 'analytic'
             }
-        ]
+        ],
+        physics: {
+            domain: 'mechanical',
+            stateVariables: [
+                { name: 'speed', symbol: 'omega', unit: 'rad/s' },
+                { name: 'torque', symbol: 'tau', unit: 'N·m' },
+                { name: 'power', symbol: 'P', unit: 'W' }
+            ],
+            equations: [
+                { name: 'PowerConversion', expression: 'P_mech = P_elec * efficiency', variables: ['P_mech', 'P_elec', 'efficiency'], type: 'constitutive' },
+                { name: 'TorqueGeneration', expression: 'tau = P_mech / omega', variables: ['tau', 'P_mech', 'omega'], type: 'constitutive' }
+            ],
+            ports: {
+                electrical_in: { domain: 'electrical', variables: ['voltage', 'current'], direction: 'in' },
+                shaft_out: { domain: 'mechanical', variables: ['speed', 'torque'], direction: 'out' }
+            }
+        }
     },
     {
         id: 'mechanical.engine.ic',
         version: '1.0.0',
         domain: 'mechanical',
-        subcategory: 'powerSource',
+        subcategory: 'powerCycle',
         name: 'Internal Combustion Engine',
         description: 'Multi-cylinder internal combustion engine with torque map.',
         tags: ['engine', 'diesel', 'petrol', 'power', 'source'],
@@ -455,7 +486,7 @@ export const mechanicalComponents: MechComponentDefinition[] = [
                 unit: '%',
                 dataType: 'number',
                 value: 50,
-                source: 'control',
+                source: 'design',
                 designRange: { min: 0, max: 100 }
             }
         ],
@@ -468,6 +499,22 @@ export const mechanicalComponents: MechComponentDefinition[] = [
                 source: 'Torque Map',
                 solutionMethod: 'analytic'
             }
-        ]
+        ],
+        physics: {
+            domain: 'mechanical',
+            stateVariables: [
+                { name: 'speed', symbol: 'omega', unit: 'rad/s' },
+                { name: 'torque', symbol: 'tau', unit: 'N·m' },
+                { name: 'fuel_flow', symbol: 'mdot_f', unit: 'kg/s' }
+            ],
+            equations: [
+                { name: 'IndicatedPower', expression: 'P_ind = V_d * N * MEP / 120', variables: ['P_ind', 'V_d', 'N', 'MEP'], type: 'constitutive' },
+                { name: 'BrakeTorque', expression: 'tau = P_ind * mechanical_efficiency / omega', variables: ['tau', 'P_ind', 'omega'], type: 'constitutive' }
+            ],
+            ports: {
+                shaft_out: { domain: 'mechanical', variables: ['speed', 'torque'], direction: 'out' },
+                thermal_out: { domain: 'thermal', variables: ['temperature', 'heatRate'], direction: 'out' }
+            }
+        }
     }
 ];

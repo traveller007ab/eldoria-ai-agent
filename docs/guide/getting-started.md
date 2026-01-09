@@ -41,19 +41,26 @@ Download from the [Download Hub](/guide/installation#desktop) in the app.
 - Click the **⚡ Generate** button
 - AI will produce output based on your content
 
-### 4. Explore Prompt Library
+### 4. Engineering & Simulation (SAF Lab 2.0)
 
-1. Click the **📖 BookOpen** icon in the sidebar
-2. Browse templates by category:
-   - **Engineering** — SAF System Deconstruction
-   - **Academic** — Thesis Chapter Generator
-   - **Business** — Competitive Analysis
-   - **Development** — Code Audit
-3. Fill in variables and click **Execute**
+**Strategic Analysis Framework (SAF)** allows you to simulate complex mechanical and fluid systems.
+
+1.  **Open Lab**: Click the **System** icon (Nodes) in the sidebar.
+2.  **Load a Template**:
+    *   Go to **File > Templates**.
+    *   Select **V8 Turbo Powertrain** for a full demo.
+    *   Select **Basic Pump Loop** for a simple starter.
+3.  **Run Simulation**:
+    *   Click **Run Static Analysis** (Header).
+    *   View real-time pressure, flow, and torque metrics.
+4.  **Edit Physics**:
+    *   Click any component (e.g. Pump).
+    *   Modify parameters in the **Properties Panel**.
+    *   *Tip:* Changing Fluid Viscosity now affects pipe friction dynamically!
 
 ## Next Steps
 
 - [Installation Options](/guide/installation) — Desktop, mobile, and PWA setup
-- [Your First Canvas](/guide/first-canvas) — Deep dive into the editor
+- [SAF Lab Manual](/features/saf-framework) — Deep dive into Physics Engine 2.0
 - [Connecting AI](/guide/connecting-ai) — API keys and model selection
 - [Academic Hub](/features/thesis-wizard) — Start your thesis project

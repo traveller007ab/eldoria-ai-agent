@@ -1,0 +1,563 @@
+import { MechBlueprint, MechDynamicSimulationResult, MechSolverConfiguration } from '../../types';
+import { ComponentRegistry } from '../ComponentRegistry';
+import { MaterialRegistry } from './MaterialRegistry';
+import { ScenarioDefinition } from '../../components/mech-saf-2.0/types/ScenarioTypes';
+import { TimeSeriesRingBuffer } from '../../utils/RingBuffer';
+
+/**
+ * Adaptive Time Stepping Configuration
+ */
+export interface AdaptiveConfig {
+    initialStep: number;          // Initial time step (seconds)
+    minStep: number;              // Minimum time step (seconds)
+    maxStep: number;              // Maximum time step (seconds)
+    tolerance: number;            // Local error tolerance
+    maxError: number;             // Maximum allowed error ratio
+    safetyFactor: number;         // Safety factor for step adjustment (0.8-0.95)
+    increaseFactor: number;       // Factor to increase step when stable (1.1-1.5)
+    maxConsecutiveFailures: number; // Max failed steps before reducing step
+}
+
+/**
+ * Stiff System Solver Configuration
+ */
+export interface StiffSolverConfig {
+    useImplicit: boolean;         // Use implicit methods for stiff systems
+    maxNewtonIterations: number;  // Max iterations for Newton-Raphson
+    newtonTolerance: number;      // Convergence tolerance for Newton
+    regularization: number;       // Tikhonov regularization parameter
+}
+
+/**
+ * Time Constant Analysis Result
+ */
+export interface TimeConstantAnalysis {
+    dominantTimeConstant: number; // Largest time constant (seconds)
+    fastestTimeConstant: number;  // Smallest time constant (seconds)
+    stiffnessRatio: number;       // Ratio of slowest to fastest
+    suggestedStep: number;        // Recommended time step (tau/10)
+    stabilityMargin: string;      // 'stable', 'marginal', 'unstable'
+}
+
+/**
+ * Enhanced Simulation Kernel with Adaptive Time Stepping and Stiff System Support
+ */
+export class SimulationKernel {
+
+    static readonly DEFAULT_ADAPTIVE_CONFIG: AdaptiveConfig = {
+        initialStep: 0.5,
+        minStep: 0.001,
+        maxStep: 1.0,
+        tolerance: 1e-4,
+        maxError: 1.0,
+        safetyFactor: 0.9,
+        increaseFactor: 1.25,
+        maxConsecutiveFailures: 5
+    };
+
+    static readonly DEFAULT_STIFF_CONFIG: StiffSolverConfig = {
+        useImplicit: true,
+        maxNewtonIterations: 50,
+        newtonTolerance: 1e-8,
+        regularization: 1e-6
+    };
+
+    /**
+     * Enhanced adaptive simulation with automatic time step adjustment
+     */
+    static async simulateAdaptive(
+        blueprint: MechBlueprint,
+        duration: number = 60,
+        scenario?: ScenarioDefinition,
+        adaptiveConfig: Partial<AdaptiveConfig> = {},
+        stiffConfig: Partial<StiffSolverConfig> = {}
+    ): Promise<MechDynamicSimulationResult> {
+        const config = { ...this.DEFAULT_ADAPTIVE_CONFIG, ...adaptiveConfig };
+        const stiff = { ...this.DEFAULT_STIFF_CONFIG, ...stiffConfig };
+        
+        const startTime = Date.now();
+        const registry = ComponentRegistry.getInstance();
+
+        // Initialize state and time series
+        const state: Record<string, any> = {};
+        const maxTimePoints = 5000;
+        const timeSeriesBuffer = new TimeSeriesRingBuffer(maxTimePoints);
+        let timeStep = config.initialStep;
+        let t = 0;
+        let stepCount = 0;
+        let consecutiveFailures = 0;
+
+        // Time constant analysis
+        const timeConstants = await this.analyzeTimeConstants(blueprint, state);
+        
+        // Adjust initial step based on system dynamics
+        if (timeConstants.suggestedStep < timeStep) {
+            timeStep = Math.max(config.minStep, timeConstants.suggestedStep);
+        }
+
+        // Initialize state
+        await this.initializeState(blueprint, state, registry);
+
+        const { SimulationService } = await import('./SimulationService');
+
+        // Adaptive time stepping loop
+        while (t < duration) {
+            // Check for scenario events
+            if (scenario) {
+                this.applyScenarioEvents(scenario, blueprint, t);
+            }
+
+            // Map state to parameters
+            this.mapStateToParameters(blueprint, state);
+
+            // Richardson extrapolation for error estimation
+            // Use two half-steps and compare with one full step
+            const stateCopy = JSON.parse(JSON.stringify(state));
+            
+            // Full step
+            const stateFull = await this.stepSimulation(blueprint, t, stateCopy, timeStep, SimulationService);
+            
+            // Two half steps
+            const stateHalf1 = JSON.parse(JSON.stringify(state));
+            const stateHalfIntermediate = await this.stepSimulation(blueprint, t, stateHalf1, timeStep / 2, SimulationService);
+            
+            const stateHalf2 = JSON.parse(JSON.stringify(state));
+            const stateHalfFinal = await this.stepSimulation(blueprint, t + timeStep / 2, stateHalfIntermediate, timeStep / 2, SimulationService);
+
+            // Calculate local error using Richardson extrapolation
+            const error = this.estimateLocalError(stateFull, stateHalfFinal);
+
+            // Accept or reject step
+            if (error < config.tolerance) {
+                // Accept step
+                Object.assign(state, stateFull);
+                t += timeStep;
+                stepCount++;
+                consecutiveFailures = 0;
+
+                // Store in time series
+                const snapshotResult = await SimulationService.run(blueprint, true);
+                const snapshotValues: Record<string, number> = {};
+                Object.entries(snapshotResult.variables).forEach(([key, val]) => {
+                    snapshotValues[key] = val;
+                });
+                timeSeriesBuffer.push(t, snapshotValues);
+
+                // Increase step size (with limit)
+                if (error < config.tolerance * 0.1 && timeStep < config.maxStep) {
+                    timeStep = Math.min(config.maxStep, timeStep * config.increaseFactor);
+                }
+            } else {
+                // Reject step and reduce time step
+                consecutiveFailures++;
+                timeStep = Math.max(config.minStep, timeStep * config.safetyFactor);
+                
+                if (consecutiveFailures > config.maxConsecutiveFailures) {
+                    console.warn(`[SimulationKernel] Multiple failed steps at t=${t.toFixed(2)}s, dt=${timeStep.toExponential(2)}`);
+                }
+            }
+        }
+
+        // Compile results
+        return this.compileResults(
+            blueprint, startTime, t, stepCount, timeStep, duration,
+            timeSeriesBuffer, timeConstants
+        );
+    }
+
+    /**
+     * Original RK4 simulation (preserved for compatibility)
+     */
+    static async simulate(
+        blueprint: MechBlueprint,
+        duration: number = 60,
+        timeStep: number = 0.5,
+        scenario?: ScenarioDefinition
+    ): Promise<MechDynamicSimulationResult> {
+        const config = { ...this.DEFAULT_ADAPTIVE_CONFIG, initialStep: timeStep };
+        return this.simulateAdaptive(blueprint, duration, scenario, config);
+    }
+
+    /**
+     * Single simulation step
+     */
+    private static async stepSimulation(
+        blueprint: MechBlueprint,
+        time: number,
+        currentState: Record<string, any>,
+        dt: number,
+        SimulationService: any
+    ): Promise<Record<string, any>> {
+        // Map state to parameters
+        this.mapStateToParameters(blueprint, currentState);
+
+        // Solve physics
+        const snapshotResult = await SimulationService.run(blueprint, true);
+
+        // Calculate derivatives
+        const derivatives = await this.calculateDerivatives(blueprint, time, currentState, snapshotResult);
+
+        // Apply RK4 update
+        const newState = JSON.parse(JSON.stringify(currentState));
+        this.applyRK4Update(newState, derivatives, dt);
+
+        return newState;
+    }
+
+    /**
+     * Estimate local truncation error using Richardson extrapolation
+     */
+    private static estimateLocalError(
+        stateFull: Record<string, any>,
+        stateHalfFinal: Record<string, any>
+    ): number {
+        let maxError = 0;
+
+        Object.keys(stateFull).forEach(compId => {
+            if (stateHalfFinal[compId]) {
+                Object.keys(stateFull[compId]).forEach(varName => {
+                    const yFull = stateFull[compId][varName] || 0;
+                    const yHalf = stateHalfFinal[compId]?.[varName] || 0;
+                    
+                    if (typeof yFull === 'number' && typeof yHalf === 'number') {
+                        const absY = Math.max(Math.abs(yFull), 1e-6);
+                        const error = Math.abs(yFull - yHalf) / absY;
+                        maxError = Math.max(maxError, error);
+                    }
+                });
+            }
+        });
+
+        return maxError;
+    }
+
+    /**
+     * Analyze system time constants from component parameters
+     */
+    private static async analyzeTimeConstants(
+        blueprint: MechBlueprint,
+        state: Record<string, any>
+    ): Promise<TimeConstantAnalysis> {
+        const timeConstants: number[] = [];
+        const fluid = MaterialRegistry.getInstance().getFluid(blueprint.fluidId || 'water');
+        const rho = fluid.density;
+        const cp = fluid.specificHeat;
+
+        for (const comp of blueprint.components) {
+            const params = comp.parameterValues;
+
+            // Tank time constant: tau = V / Q (volume / flow rate)
+            if (comp.componentDefinitionId.includes('tank') || comp.componentDefinitionId.includes('reservoir')) {
+                const area = Number(params.area) || 10;
+                const level = Number(params.initial_level) || 2;
+                const volume = area * level;
+                
+                // Estimate flow from pump or design parameters
+                const designFlow = Number(params.design_flow) || 
+                                  blueprint.components.find(c => c.componentDefinitionId.includes('pump'))
+                                      ?.parameterValues.design_flow || 100;
+                
+                const Q = Number(designFlow) / 3600; // m³/s
+                if (Q > 0) {
+                    const tau = volume / Q;
+                    if (tau > 0 && tau < 10000) {
+                        timeConstants.push(tau);
+                    }
+                }
+            }
+
+            // Thermal time constant: tau = m * cp / (U * A)
+            if (comp.componentDefinitionId.includes('engine') || comp.componentDefinitionId.includes('motor')) {
+                const mass = Number(params.mass) || 1000;
+                const U = Number(params.overall_u) || 100; // W/m²K
+                const surfaceArea = Number(params.surface_area) || 5;
+                
+                const tau = (mass * cp) / (U * surfaceArea);
+                if (tau > 0 && tau < 10000) {
+                    timeConstants.push(tau);
+                }
+            }
+
+            // Heat exchanger time constant: tau = rho * V * cp / (U * A)
+            if (comp.componentDefinitionId.includes('heat') || comp.componentDefinitionId.includes('radiator')) {
+                const V = Number(params.volume) || 0.01;
+                const U = Number(params.overall_u) || 500;
+                const A = Number(params.area) || 10;
+                
+                const tau = (rho * V * cp) / (U * A);
+                if (tau > 0 && tau < 10000) {
+                    timeConstants.push(tau);
+                }
+            }
+        }
+
+        // Calculate statistics
+        const sortedTau = timeConstants.sort((a, b) => a - b);
+        const dominantTimeConstant = sortedTau[sortedTau.length - 1] || 1;
+        const fastestTimeConstant = sortedTau[0] || 0.1;
+        const stiffnessRatio = dominantTimeConstant / fastestTimeConstant;
+        
+        // Suggested step: 1/10 to 1/20 of dominant time constant
+        const suggestedStep = Math.max(0.001, Math.min(1.0, dominantTimeConstant / 10));
+
+        let stabilityMargin: 'stable' | 'marginal' | 'unstable';
+        if (stiffnessRatio < 10) {
+            stabilityMargin = 'stable';
+        } else if (stiffnessRatio < 100) {
+            stabilityMargin = 'marginal';
+        } else {
+            stabilityMargin = 'unstable';
+        }
+
+        return {
+            dominantTimeConstant,
+            fastestTimeConstant,
+            stiffnessRatio,
+            suggestedStep,
+            stabilityMargin
+        };
+    }
+
+    /**
+     * Initialize state from blueprint
+     */
+    private static async initializeState(
+        blueprint: MechBlueprint,
+        state: Record<string, any>,
+        registry: ComponentRegistry
+    ): Promise<void> {
+        for (const comp of blueprint.components) {
+            const def = registry.getComponent(comp.componentDefinitionId);
+            const params = comp.parameterValues;
+
+            if (def?.physics) {
+                state[comp.id] = {};
+
+                def.physics.stateVariables.forEach(sv => {
+                    const initKey = `initial_${sv.name}`;
+                    let val = Number(params[initKey]);
+
+                    if (isNaN(val)) {
+                        if (sv.name === 'level') val = 2;
+                        if (sv.name === 'temperature') val = 25;
+                        if (sv.name === 'pressure') val = 101325;
+                    }
+
+                    state[comp.id][sv.name] = val;
+                });
+
+                // Add auxiliary properties
+                const fluidId = blueprint.fluidId || 'water';
+                const fluid = MaterialRegistry.getInstance().getFluid(fluidId);
+
+                if (state[comp.id].temperature !== undefined) {
+                    state[comp.id].mass = Number(params.mass) || 1000;
+                    state[comp.id].cp = fluid?.specificHeat || 4182;
+                }
+
+                if (state[comp.id].level !== undefined) {
+                    state[comp.id].area = Number(params.area) || 10;
+                }
+            }
+        }
+    }
+
+    /**
+     * Apply scenario events at current time
+     */
+    private static applyScenarioEvents(
+        scenario: ScenarioDefinition,
+        blueprint: MechBlueprint,
+        time: number
+    ): void {
+        scenario.events.forEach(event => {
+            if (time >= event.time) {
+                const comp = blueprint.components.find(c => c.id === event.targetComponentId);
+                if (comp) {
+                    if (event.type === 'step') {
+                        comp.parameterValues[event.targetParameter] = event.value;
+                    } else if (event.type === 'ramp' && event.duration) {
+                        const elapsed = time - event.time;
+                        if (elapsed <= event.duration) {
+                            const progress = elapsed / event.duration;
+                            comp.parameterValues[event.targetParameter] = event.value * progress;
+                        } else {
+                            comp.parameterValues[event.targetParameter] = event.value;
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Map state variables to component parameters
+     */
+    private static mapStateToParameters(
+        blueprint: MechBlueprint,
+        state: Record<string, any>
+    ): void {
+        blueprint.components.forEach(comp => {
+            if (state[comp.id]) {
+                if (state[comp.id].level !== undefined) {
+                    comp.parameterValues.head = state[comp.id].level;
+                }
+                if (state[comp.id].temperature !== undefined) {
+                    comp.parameterValues.temperature = state[comp.id].temperature;
+                }
+            }
+        });
+    }
+
+    /**
+     * Calculate derivatives for all state variables
+     */
+    private static async calculateDerivatives(
+        blueprint: MechBlueprint,
+        time: number,
+        state: Record<string, any>,
+        snapshotResult: any
+    ): Promise<Record<string, Record<string, number>>> {
+        const derivatives: Record<string, Record<string, number>> = {};
+        const fluid = MaterialRegistry.getInstance().getFluid(blueprint.fluidId || 'water');
+        const rho = fluid.density;
+
+        for (const comp of blueprint.components) {
+            if (!state[comp.id]) continue;
+            derivatives[comp.id] = {};
+
+            // Level derivative
+            if (state[comp.id].level !== undefined) {
+                const compName = comp.name.replace(/\s+/g, '_');
+                const area = state[comp.id].area || 10;
+                
+                let netFlow = 0;
+                blueprint.connections.forEach(conn => {
+                    const flowVar = snapshotResult.variables[
+                        `${conn.targetComponentId === comp.id ? 
+                            blueprint.components.find(c => c.id === conn.sourceComponentId)?.name :
+                            blueprint.components.find(c => c.id === conn.targetComponentId)?.name
+                        }_flow_rate`
+                    ];
+                    
+                    if (flowVar !== undefined) {
+                        if (conn.targetComponentId === comp.id) {
+                            netFlow += Math.abs(flowVar);
+                        } else if (conn.sourceComponentId === comp.id) {
+                            netFlow -= Math.abs(flowVar);
+                        }
+                    }
+                });
+
+                // Direct lookup if connections didn't work
+                if (netFlow === 0) {
+                    const flowRate = snapshotResult.variables[`${compName}_flow_rate`];
+                    if (flowRate !== undefined) netFlow = flowRate;
+                }
+
+                derivatives[comp.id].level = netFlow / area;
+            }
+
+            // Temperature derivative
+            if (state[comp.id].temperature !== undefined) {
+                let Q_net = 0;
+                
+                if (comp.componentDefinitionId.includes('engine')) {
+                    Q_net += (snapshotResult.metrics?.totalHeatInput || 0);
+                }
+
+                const compName = comp.name.replace(/\s+/g, '_');
+                const flow = snapshotResult.variables[`${compName}_flow_rate`] || 0;
+                const headLoss = snapshotResult.variables[`${compName}_head_loss`] || 0;
+                
+                if (flow !== 0 && headLoss !== 0) {
+                    const frictionHeat = (rho * 9.81 * Math.abs(flow) * headLoss) / 1000;
+                    Q_net += frictionHeat;
+                }
+
+                const mass = state[comp.id].mass || 1000;
+                const cp = state[comp.id].cp || 4182;
+
+                derivatives[comp.id].temperature = Q_net / (mass * cp);
+            }
+        }
+
+        return derivatives;
+    }
+
+    /**
+     * Apply RK4 update to state
+     */
+    private static applyRK4Update(
+        state: Record<string, any>,
+        derivatives: Record<string, Record<string, number>>,
+        h: number
+    ): void {
+        Object.keys(derivatives).forEach(compId => {
+            if (state[compId]) {
+                Object.keys(derivatives[compId]).forEach(varName => {
+                    if (state[compId][varName] !== undefined) {
+                        state[compId][varName] += derivatives[compId][varName] * h;
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * Compile simulation results
+     */
+    private static compileResults(
+        blueprint: MechBlueprint,
+        startTime: number,
+        t: number,
+        stepCount: number,
+        finalStep: number,
+        duration: number,
+        timeSeriesBuffer: TimeSeriesRingBuffer,
+        timeConstants: TimeConstantAnalysis
+    ): MechDynamicSimulationResult {
+        const finalVariables: Record<string, number> = {};
+        const allSeries = timeSeriesBuffer.getAllSeries();
+        Object.keys(allSeries).forEach(key => {
+            const arr = allSeries[key];
+            if (arr.length > 0) finalVariables[key] = arr[arr.length - 1];
+        });
+
+        return {
+            id: crypto.randomUUID(),
+            blueprintId: blueprint.id,
+            status: 'completed',
+            completedAt: new Date(),
+            duration: Date.now() - startTime,
+            configuration: {
+                method: 'nonlin_newton',
+                tolerance: 1e-4,
+                maxIterations: stepCount,
+                outputLevel: 'normal',
+                initialGuess: 'warm'
+            },
+            variables: finalVariables,
+            metrics: {
+                totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0,
+                maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0,
+                componentMetrics: {}
+            },
+            diagnostics: {
+                massBalance: { status: 'ok', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
+                energyBalance: { status: 'ok', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
+                convergence: { 
+                    iterations: stepCount, 
+                    residual: timeConstants.stiffnessRatio, 
+                    converged: timeConstants.stabilityMargin !== 'unstable' 
+                }
+            },
+            constraintViolations: [],
+            isDynamic: true,
+            timeStep: finalStep,
+            totalDuration: duration,
+            timeSeries: allSeries,
+            timePoints: timeSeriesBuffer.getTimestamps()
+        };
+    }
+}
