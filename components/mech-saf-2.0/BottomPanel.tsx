@@ -5,14 +5,18 @@ import { useMechStore } from '../../stores/useMechStore';
 export const BottomPanel: React.FC = () => {
     const { logs, clearLogs, isBottomPanelOpen, toggleBottomPanel } = useMechStore();
     const [activeTab, setActiveTab] = useState<'console' | 'debug'>('console');
+    const [filterType, setFilterType] = useState<'all' | 'info' | 'error' | 'warning' | 'success'>('all');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [showFilterMenu, setShowFilterMenu] = useState(false);
 
     // Auto-scroll to bottom
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [logs, activeTab, isBottomPanelOpen]);
+    }, [logs, activeTab, isBottomPanelOpen, filterType]);
+
+    const filteredLogs = logs.filter(log => filterType === 'all' || log.type === filterType);
 
     if (!isBottomPanelOpen) {
         return (
@@ -64,6 +68,33 @@ export const BottomPanel: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center gap-2">
+                    {activeTab === 'console' && (
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowFilterMenu(!showFilterMenu)}
+                                className={`p-1 hover:bg-slate-700 rounded transition-colors flex items-center gap-1 ${filterType !== 'all' ? 'text-blue-400' : 'text-slate-500'}`}
+                                title="Filter Logs"
+                            >
+                                <Filter className="w-3.5 h-3.5" />
+                                {filterType !== 'all' && <span className="text-[10px] uppercase font-bold">{filterType}</span>}
+                            </button>
+                            
+                            {showFilterMenu && (
+                                <div className="absolute right-0 top-full mt-1 w-32 bg-slate-800 border border-slate-700 rounded shadow-xl z-50 flex flex-col py-1">
+                                    {(['all', 'info', 'success', 'warning', 'error'] as const).map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => { setFilterType(type); setShowFilterMenu(false); }}
+                                            className={`px-3 py-1.5 text-left text-xs hover:bg-slate-700 capitalize flex items-center justify-between ${filterType === type ? 'text-blue-400 bg-slate-700/50' : 'text-slate-300'}`}
+                                        >
+                                            {type}
+                                            {filterType === type && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <button onClick={clearLogs} className="p-1 text-slate-500 hover:text-red-400" title="Clear Console">
                         <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -78,10 +109,12 @@ export const BottomPanel: React.FC = () => {
             <div className="flex-1 overflow-auto p-2 font-mono text-xs" ref={scrollRef}>
                 {activeTab === 'console' && (
                     <div className="space-y-1">
-                        {logs.length === 0 && (
-                            <div className="text-slate-600 italic px-2">No logs to display. Run a simulation to see output.</div>
+                        {filteredLogs.length === 0 && (
+                            <div className="text-slate-600 italic px-2">
+                                {logs.length === 0 ? "No logs to display. Run a simulation to see output." : `No ${filterType} logs found.`}
+                            </div>
                         )}
-                        {logs.map((log, i) => (
+                        {filteredLogs.map((log, i) => (
                             <div key={i} className="flex gap-2 hover:bg-slate-800/50 rounded px-2 py-0.5">
                                 <span className="text-slate-600 shrink-0 select-none">
                                     {log.timestamp.toLocaleTimeString()}
