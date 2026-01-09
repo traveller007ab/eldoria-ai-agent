@@ -352,6 +352,7 @@ export interface MechSimulationResult {
   constraintViolations: any[];
   issues?: DiagnosticIssue[];
   dynamicMetrics?: Record<string, any>;
+  isDynamic?: boolean;
 }
 
 export interface MechSimulationMetrics {
@@ -370,6 +371,14 @@ export interface MechSimulationDiagnostics {
   massBalance: { status: 'ok' | 'warning' | 'error'; inlet: number; outlet: number; imbalance: number; imbalancePercent: number; };
   energyBalance: { status: 'ok' | 'warning' | 'error'; input: number; output: number; imbalance: number; imbalancePercent: number; };
   convergence: { iterations: number; residual: number; converged: boolean; };
+}
+
+export interface MechDynamicSimulationResult extends MechSimulationResult {
+  isDynamic: true;
+  timeStep: number;
+  totalDuration: number;
+  timeSeries: Record<string, number[]>;
+  timePoints: number[];
 }
 
 export interface MechDynamicSimulationResult extends MechSimulationResult {

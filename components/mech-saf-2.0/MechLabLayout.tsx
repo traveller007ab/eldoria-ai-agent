@@ -113,6 +113,23 @@ export const MechLabLayout: React.FC = () => {
         } catch (error) {
             console.error(error);
             addLog(`Simulation error: ${error}`, 'error');
+            setLastSimulationResult({
+                id: crypto.randomUUID(),
+                blueprintId: currentBlueprint.id,
+                status: 'failed',
+                completedAt: new Date(),
+                duration: 0,
+                configuration: { method: 'nonlin_newton', tolerance: 0, maxIterations: 0, outputLevel: 'quiet', initialGuess: 'design' },
+                variables: {},
+                metrics: { totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0, maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {} },
+                diagnostics: {
+                    massBalance: { status: 'error', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
+                    energyBalance: { status: 'error', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
+                    convergence: { iterations: 0, residual: 0, converged: false }
+                },
+                constraintViolations: [],
+                issues: [{ id: 'sim-error', componentId: 'system', severity: 'critical', message: String(error), ruleId: 'SIM_ERROR' }]
+            });
         } finally {
             setIsSimulating(false);
         }
@@ -150,6 +167,23 @@ export const MechLabLayout: React.FC = () => {
         } catch (error) {
             console.error(error);
             addLog(`Dynamic simulation error: ${error}`, 'error');
+            setLastSimulationResult({
+                id: crypto.randomUUID(),
+                blueprintId: currentBlueprint.id,
+                status: 'failed',
+                completedAt: new Date(),
+                duration: 0,
+                configuration: { method: 'nonlin_newton', tolerance: 0, maxIterations: 0, outputLevel: 'quiet', initialGuess: 'design' },
+                variables: {},
+                metrics: { totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0, maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {} },
+                diagnostics: {
+                    massBalance: { status: 'error', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
+                    energyBalance: { status: 'error', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
+                    convergence: { iterations: 0, residual: 0, converged: false }
+                },
+                constraintViolations: [],
+                issues: [{ id: 'sim-error', componentId: 'system', severity: 'critical', message: String(error), ruleId: 'SIM_ERROR' }]
+            });
         } finally {
             setIsSimulating(false);
         }

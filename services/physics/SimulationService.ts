@@ -138,7 +138,8 @@ export class SimulationService {
                 metrics: resultMetrics,
                 diagnostics: resultDiagnostics,
                 constraintViolations: [],
-                issues: []
+                issues: [],
+                isDynamic: false
             };
 
             // Generate dynamic metrics based on model type

@@ -3,7 +3,7 @@ import { Terminal, Activity, X, Trash2, ChevronUp, ChevronDown, Filter } from 'l
 import { useMechStore } from '../../stores/useMechStore';
 
 export const BottomPanel: React.FC = () => {
-    const { logs, clearLogs, isBottomPanelOpen, toggleBottomPanel } = useMechStore();
+    const { logs, clearLogs, isBottomPanelOpen, toggleBottomPanel, isSimulating, lastSimulationResult } = useMechStore();
     const [activeTab, setActiveTab] = useState<'console' | 'debug'>('console');
     const [filterType, setFilterType] = useState<'all' | 'info' | 'error' | 'warning' | 'success'>('all');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -132,10 +132,43 @@ export const BottomPanel: React.FC = () => {
                     </div>
                 )}
                 {activeTab === 'debug' && (
-                    <div className="text-slate-400 px-2">
-                        {/* Placeholder for future detailed debug info */}
-                        <div className="text-purple-400 font-bold mb-2">Genesis Engine Status: Ready</div>
-                        <div>Waiting for simulation data...</div>
+                    <div className="text-slate-400 px-2 font-mono text-sm">
+                        <div className="mb-2">
+                            <span className="text-purple-400 font-bold">Genesis Engine Status: </span>
+                            <span className={isSimulating ? 'text-yellow-400 animate-pulse' : lastSimulationResult ? (lastSimulationResult.status === 'completed' ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500'}>
+                                {isSimulating ? 'Running Simulation...' : lastSimulationResult ? (lastSimulationResult.status === 'completed' ? 'Ready (Last Run Successful)' : 'Failed') : 'Ready'}
+                            </span>
+                        </div>
+                        
+                        {isSimulating ? (
+                            <div className="flex items-center gap-2 text-cyan-400">
+                                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-ping" />
+                                Solving system equations...
+                            </div>
+                        ) : lastSimulationResult ? (
+                            <div className="space-y-1">
+                                <div className="flex justify-between max-w-xs">
+                                    <span className="text-slate-500">Duration:</span>
+                                    <span className="text-slate-300">{lastSimulationResult.duration}ms</span>
+                                </div>
+                                <div className="flex justify-between max-w-xs">
+                                    <span className="text-slate-500">Iterations:</span>
+                                    <span className="text-slate-300">{lastSimulationResult.diagnostics?.convergence?.iterations ?? 0}</span>
+                                </div>
+                                <div className="flex justify-between max-w-xs">
+                                    <span className="text-slate-500">Residual:</span>
+                                    <span className="text-slate-300">{lastSimulationResult.diagnostics?.convergence?.residual?.toExponential(2) ?? 'N/A'}</span>
+                                </div>
+                                {(lastSimulationResult as any).isDynamic && (
+                                    <div className="flex justify-between max-w-xs">
+                                        <span className="text-slate-500">Time Steps:</span>
+                                        <span className="text-slate-300">{(lastSimulationResult as any).timePoints?.length ?? 0}</span>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-slate-600 italic">Waiting for simulation request...</div>
+                        )}
                     </div>
                 )}
             </div>

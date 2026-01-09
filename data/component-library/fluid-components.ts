@@ -258,6 +258,16 @@ export const fluidComponents: MechComponentDefinition[] = [
         references: [],
         ports: [
             {
+                id: 'inlet',
+                name: 'Inlet',
+                type: 'input',
+                domain: 'fluid',
+                variables: [],
+                state: 'disconnected',
+                required: false,
+                position: { x: 0.5, y: 0, side: 'top' }
+            },
+            {
                 id: 'outlet',
                 name: 'Outlet',
                 type: 'output',

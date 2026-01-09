@@ -524,6 +524,9 @@ export class SimulationKernel {
             if (arr.length > 0) finalVariables[key] = arr[arr.length - 1];
         });
 
+        // Calculate metrics from final state
+        const metrics = this.calculateMetrics(blueprint, finalVariables);
+
         return {
             id: crypto.randomUUID(),
             blueprintId: blueprint.id,
@@ -538,11 +541,7 @@ export class SimulationKernel {
                 initialGuess: 'warm'
             },
             variables: finalVariables,
-            metrics: {
-                totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0,
-                maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0,
-                componentMetrics: {}
-            },
+            metrics: metrics,
             diagnostics: {
                 massBalance: { status: 'ok', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
                 energyBalance: { status: 'ok', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
@@ -558,6 +557,53 @@ export class SimulationKernel {
             totalDuration: duration,
             timeSeries: allSeries,
             timePoints: timeSeriesBuffer.getTimestamps()
+        };
+    }
+
+    private static calculateMetrics(blueprint: MechBlueprint, variables: Record<string, number>): any {
+        let totalPowerInput = 0;
+        let totalPowerOutput = 0;
+        let totalFlowRate = 0;
+        let totalHeatInput = 0;
+        let totalHeatOutput = 0;
+        const componentMetrics: Record<string, any> = {};
+
+        blueprint.components.forEach(comp => {
+            const id = comp.id;
+            const name = comp.name.replace(/\s+/g, '_');
+            
+            // Try ID-based first, then Name-based
+            const power = variables[`${id}_power`] || variables[`${id}_brakePower`] || 
+                          variables[`${name}_power`] || variables[`${name}_brakePower`] || 
+                          variables[`${name}_power_kw`] * 1000 || 0; // Handle kW conversion if needed
+            
+            const flow = variables[`${id}_flow`] || variables[`${id}_flowRate`] || 
+                         variables[`${name}_flow`] || variables[`${name}_flow_rate`] || 0;
+            
+            const heat = variables[`${id}_heat`] || variables[`${id}_heatRejection`] || 
+                         variables[`${name}_heat`] || variables[`${name}_heat_rejection`] || 0;
+
+            if (comp.componentDefinitionId.includes('pump') || comp.componentDefinitionId.includes('engine')) {
+                if (power > 0) totalPowerOutput += power;
+                else totalPowerInput += Math.abs(power);
+            }
+            
+            if (flow > 0) totalFlowRate += flow;
+            if (heat > 0) totalHeatOutput += heat;
+
+            componentMetrics[id] = { power, flow, heat };
+        });
+
+        return {
+            totalPowerInput,
+            totalPowerOutput,
+            overallEfficiency: totalPowerInput > 0 ? (totalPowerOutput / totalPowerInput) * 100 : 0,
+            totalFlowRate,
+            maxPressure: 0, // Todo: scan pressures
+            pressureDrop: 0,
+            totalHeatInput,
+            totalHeatOutput,
+            componentMetrics
         };
     }
 }
