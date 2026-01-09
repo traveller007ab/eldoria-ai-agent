@@ -136,7 +136,7 @@ export const BottomPanel: React.FC = () => {
                         <div className="mb-2">
                             <span className="text-purple-400 font-bold">Genesis Engine Status: </span>
                             <span className={isSimulating ? 'text-yellow-400 animate-pulse' : lastSimulationResult ? (lastSimulationResult.status === 'completed' ? 'text-emerald-400' : 'text-red-400') : 'text-slate-500'}>
-                                {isSimulating ? 'Running Simulation...' : lastSimulationResult ? (lastSimulationResult.status === 'completed' ? 'Ready (Last Run Successful)' : 'Failed') : 'Ready'}
+                                {isSimulating ? 'Running Simulation...' : lastSimulationResult ? (lastSimulationResult.status === 'completed' ? 'Ready (Last Run Successful)' : 'Failed') : 'Idle'}
                             </span>
                         </div>
                         
@@ -167,7 +167,7 @@ export const BottomPanel: React.FC = () => {
                                 )}
                             </div>
                         ) : (
-                            <div className="text-slate-600 italic">Waiting for simulation request...</div>
+                            <div className="text-slate-600 italic">System is idle. Configure components and run simulation to see diagnostics.</div>
                         )}
                     </div>
                 )}

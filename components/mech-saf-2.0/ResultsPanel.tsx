@@ -65,20 +65,25 @@ export const ResultsPanel: React.FC = () => {
         <div className="flex flex-col h-full overflow-y-auto custom-scrollbar">
             {/* Status Header */}
             <div className={`p-4 border-b ${isConverged ? 'bg-emerald-900/20 border-emerald-700/50' : 'bg-red-900/20 border-red-700/50'}`}>
-                <div className="flex items-center gap-3">
-                    {isConverged ? (
-                        <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                    ) : (
-                        <AlertTriangle className="w-6 h-6 text-red-400" />
-                    )}
-                    <div>
-                        <div className={`font-semibold ${isConverged ? 'text-emerald-300' : 'text-red-300'}`}>
-                            {isConverged ? 'Simulation Converged' : 'Simulation Failed'}
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                        {isConverged ? (
+                            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                        ) : (
+                            <AlertTriangle className="w-6 h-6 text-red-400" />
+                        )}
+                        <div>
+                            <div className={`font-semibold ${isConverged ? 'text-emerald-300' : 'text-red-300'}`}>
+                                {isConverged ? 'Simulation Converged' : 'Simulation Failed'}
+                            </div>
+                            <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                                <Clock className="w-3 h-3" />
+                                {duration}ms | {diagnostics.convergence.iterations} iterations
+                            </div>
                         </div>
-                        <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                            <Clock className="w-3 h-3" />
-                            {duration}ms | {diagnostics.convergence.iterations} iterations
-                        </div>
+                    </div>
+                    <div className="px-2 py-1 rounded bg-black/20 text-[10px] uppercase font-bold tracking-wider text-slate-400 border border-slate-700/50">
+                        {(lastSimulationResult as any).isDynamic ? 'Dynamic Analysis' : 'Static Analysis'}
                     </div>
                 </div>
 

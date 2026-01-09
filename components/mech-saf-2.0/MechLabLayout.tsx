@@ -155,10 +155,15 @@ export const MechLabLayout: React.FC = () => {
                     }
                 }
             );
+            
+            if (!result) {
+                throw new Error('Simulation returned no results');
+            }
+
             setLastSimulationResult(result);
             
             if (result.status === 'completed') {
-                addLog(`Dynamic simulation completed. Generated ${result.timePoints.length} time steps.`, 'success');
+                addLog(`Dynamic simulation completed. Generated ${result.timePoints?.length || 0} time steps.`, 'success');
                 setIsPlaying(true); // Auto-play
                 setRightPanelTab('results');
             } else {
