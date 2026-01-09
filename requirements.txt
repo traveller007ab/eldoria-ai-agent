@@ -10,7 +10,7 @@ starlette>=0.40.0
 httpx>=0.27.0
 
 # Convex Database
-convex>=1.0.0
+convex>=0.7.0
 
 # Groq SDK
 groq>=0.11.0
