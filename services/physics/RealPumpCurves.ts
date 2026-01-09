@@ -371,4 +371,4 @@ export class RealPumpCurves {
     }
 }
 
-import { RealPipeFlow } from './RealPipeFlow';
+import { RealPipeFlow } from './RealPipeFlow.ts';

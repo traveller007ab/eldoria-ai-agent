@@ -1,6 +1,7 @@
-import { MechBlueprint, MechSimulationResult } from '../../types';
-import { MaterialRegistry } from './MaterialRegistry';
-import { ModelAnalyzer, ModelAnalysis, DynamicMetrics, SummaryMetrics, EngineMetrics, PumpMetrics, ThermalMetrics, HydraulicMetrics, VehicleMetrics, ProcessMetrics } from './ModelAnalyzer';
+import type { MechBlueprint, MechSimulationResult } from '../../types.ts';
+import { MaterialRegistry } from './MaterialRegistry.ts';
+import { ModelAnalyzer } from './ModelAnalyzer.ts';
+import type { ModelAnalysis, DynamicMetrics, SummaryMetrics, EngineMetrics, PumpMetrics, ThermalMetrics, HydraulicMetrics, VehicleMetrics, ProcessMetrics } from './ModelAnalyzer.ts';
 
 export class DynamicMetricsGenerator {
 

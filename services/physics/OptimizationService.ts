@@ -1,5 +1,5 @@
-import { MechBlueprint, MechSimulationResult } from '../../types';
-import { SimulationService } from './SimulationService';
+import type { MechBlueprint, MechSimulationResult } from '../../types.ts';
+import { SimulationService } from './SimulationService.ts';
 
 export interface OptimizationConfig {
     targetComponentId: string;

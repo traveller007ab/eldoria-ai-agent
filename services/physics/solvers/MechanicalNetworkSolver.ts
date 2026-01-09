@@ -1,13 +1,14 @@
-import { ISolver } from '../SolverRegistry';
-import {
+import type { ISolver } from '../SolverRegistry.ts';
+import type {
     MechBlueprint,
     MechSimulationResult,
     MechSolverConfiguration,
     MechSimulationMetrics
-} from '../../../types';
-import { ComponentRegistry } from '../../ComponentRegistry';
-import { getPhysicsForComponent, getComponentType, isEnergySource } from '../ComponentPhysics';
-import { RealEngineModel, EngineParameters, EngineState } from '../RealEngineModel';
+} from '../../../types.ts';
+import { ComponentRegistry } from '../../ComponentRegistry.ts';
+import { getPhysicsForComponent, getComponentType, isEnergySource } from '../ComponentPhysics.ts';
+import { RealEngineModel } from '../RealEngineModel.ts';
+import type { EngineParameters, EngineState } from '../RealEngineModel.ts';
 
 export class MechanicalNetworkSolver implements ISolver {
 

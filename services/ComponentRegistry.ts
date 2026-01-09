@@ -1,8 +1,8 @@
-import { MechComponentDefinition, MechanicalDomain } from '../types';
-import { fluidComponents } from '../data/component-library/fluid-components';
-import { thermalComponents } from '../data/component-library/thermal-components';
-import { mechanicalComponents } from '../data/component-library/mechanical-components';
-import { controlComponents } from '../data/component-library/control-components';
+import type { MechComponentDefinition, MechanicalDomain } from '../types.ts';
+import { fluidComponents } from '../data/component-library/fluid-components.ts';
+import { thermalComponents } from '../data/component-library/thermal-components.ts';
+import { mechanicalComponents } from '../data/component-library/mechanical-components.ts';
+import { controlComponents } from '../data/component-library/control-components.ts';
 
 export class ComponentRegistry {
     private static instance: ComponentRegistry;

@@ -1,9 +1,9 @@
-import { MechBlueprint, MechSimulationResult, MechSolverConfiguration } from '../../types';
-import { ComponentRegistry } from '../ComponentRegistry';
-import { MaterialRegistry } from './MaterialRegistry';
-import { DiagnosticService } from './DiagnosticService';
-import { DynamicMetricsGenerator } from './DynamicMetricsGenerator';
-import { getPhysicsForComponent, getComponentType } from './ComponentPhysics';
+import type { MechBlueprint, MechSimulationResult, MechSolverConfiguration } from '../../types.ts';
+import { ComponentRegistry } from '../ComponentRegistry.ts';
+import { MaterialRegistry } from './MaterialRegistry.ts';
+import { DiagnosticService } from './DiagnosticService.ts';
+import { DynamicMetricsGenerator } from './DynamicMetricsGenerator.ts';
+import { getPhysicsForComponent, getComponentType } from './ComponentPhysics.ts';
 
 /**
  * Calculate motor efficiency based on size, speed, and load
@@ -77,20 +77,20 @@ export class SimulationService {
 
         try {
             // --- Stage 1: Mechanical Kinematics ---
-            const { MechanicalNetworkSolver } = await import('./solvers/MechanicalNetworkSolver');
+            const { MechanicalNetworkSolver } = await import('./solvers/MechanicalNetworkSolver.ts');
             const mechSolver = new MechanicalNetworkSolver();
             const mechResult = await mechSolver.solve(blueprint, config, variables);
             Object.assign(variables, mechResult.variables);
 
             // --- Stage 2: Fluid Dynamics ---
-            const { FlowNetworkSolver } = await import('./solvers/FlowNetworkSolver');
+            const { FlowNetworkSolver } = await import('./solvers/FlowNetworkSolver.ts');
             const fluidSolver = new FlowNetworkSolver();
             // Inject mech context (e.g. pump speed) into fluid solver
             const fluidResult = await fluidSolver.solve(blueprint, config, variables);
             Object.assign(variables, fluidResult.variables);
 
             // --- Stage 3: Thermal Analysis ---
-            const { ThermalNetworkSolver } = await import('./solvers/ThermalNetworkSolver');
+            const { ThermalNetworkSolver } = await import('./solvers/ThermalNetworkSolver.ts');
             const thermalSolver = new ThermalNetworkSolver();
             // Pass merged variables (mech + fluid) as context for thermal calculations
             const thermalResult = await thermalSolver.solve(blueprint, config, variables);

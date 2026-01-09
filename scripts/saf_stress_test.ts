@@ -1,6 +1,6 @@
 
-import { DynamicSimulationService } from '../services/physics/DynamicSimulationService';
-import { MechBlueprint, ComponentInstance, ConnectionInstance } from '../types';
+import { DynamicSimulationService } from '../services/physics/DynamicSimulationService.ts';
+import type { MechBlueprint, ComponentInstance, ConnectionInstance } from '../types.ts';
 
 async function runStressTest() {
     console.log("==========================================");
@@ -17,9 +17,9 @@ async function runStressTest() {
 
     // 1. Source Tank
     components.push({
-        id: 'source_tank', componentDefinitionId: 'fluid.tank.open',
+        id: 'source_tank', componentDefinitionId: 'fluid.tank.reservoir',
         name: 'Source', position: { x: 0, y: 0 }, rotation: 0,
-        parameterValues: { initial_level: 10, area: 100 }, isSelected: false, groupIds: []
+        parameterValues: { head: 10 }, isSelected: false, groupIds: []
     });
 
     let previousId = 'source_tank';
@@ -35,21 +35,25 @@ async function runStressTest() {
             name: isPump ? `Pump ${i}` : `Pipe ${i}`,
             position: { x: i * 100, y: 0 }, rotation: 0,
             parameterValues: isPump
-                ? { rated_flow: 0.1, rated_head: 50, speed: 1450 }
+                ? { design_flow: 100, design_head: 50, speed: 1450 }
                 : { length: 10, diameter: 0.1, roughness: 0.001 },
             isSelected: false, groupIds: []
         });
+
+        // Determine ports
+        const targetPort = isPump ? 'inlet' : 'in';
+        const nextSourcePort = isPump ? 'outlet' : 'out';
 
         // Connect
         connections.push({
             id: `conn_${i}`,
             sourceComponentId: previousId, sourcePortId: previousPort,
-            targetComponentId: id, targetPortId: 'inlet', // Simplified port naming
+            targetComponentId: id, targetPortId: targetPort,
             type: 'fluid', isSelected: false
         });
 
         previousId = id;
-        previousPort = 'outlet';
+        previousPort = nextSourcePort;
     }
 
     const blueprint: MechBlueprint = {

@@ -1,4 +1,4 @@
-import { SolverConfiguration, SolverMethod, SimulationResult, Blueprint } from '../../src/types/mech-saf-2.0';
+import type { SolverConfiguration, SolverMethod, SimulationResult, Blueprint } from '../../src/types/mech-saf-2.0.ts';
 
 export interface ISolver {
     solve(blueprint: Blueprint, config: SolverConfiguration, context?: Record<string, number>): Promise<SimulationResult>;

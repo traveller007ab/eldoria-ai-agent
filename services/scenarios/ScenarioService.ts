@@ -3,8 +3,8 @@
  * Manages scenario loading, objective tracking, and scoring.
  */
 
-import { Scenario, ScenarioSession, ScenarioResult, ObjectiveStatus } from './types';
-import { MechSimulationResult } from '../../types';
+import type { Scenario, ScenarioSession, ScenarioResult, ObjectiveStatus } from './types.ts';
+import type { MechSimulationResult } from '../../types.ts';
 
 export class ScenarioService {
     private activeSession: ScenarioSession | null = null;

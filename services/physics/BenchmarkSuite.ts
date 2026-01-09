@@ -5,12 +5,12 @@
  * Or include in test suite for CI regression testing.
  */
 
-import { MechBlueprint, MechComponentInstance, MechConnection, MechanicalDomain } from '../../types';
-import { ComponentRegistry } from '../ComponentRegistry';
-import { SimulationService } from './SimulationService';
-import { DynamicSimulationService } from './DynamicSimulationService';
-import { FlowNetworkSolver } from './solvers/FlowNetworkSolver';
-import { SparseMatrix, SparseLinearSolver } from './SparseMatrix';
+import type { MechBlueprint, MechComponentInstance, MechConnection, MechanicalDomain } from '../../types.ts';
+import { ComponentRegistry } from '../ComponentRegistry.ts';
+import { SimulationService } from './SimulationService.ts';
+import { DynamicSimulationService } from './DynamicSimulationService.ts';
+import { FlowNetworkSolver } from './solvers/FlowNetworkSolver.ts';
+import { SparseMatrix, SparseLinearSolver } from './SparseMatrix.ts';
 
 interface BenchmarkResult {
     name: string;

@@ -1,8 +1,8 @@
-import { MechBlueprint, MechDynamicSimulationResult, MechSolverConfiguration } from '../../types';
-import { ComponentRegistry } from '../ComponentRegistry';
-import { MaterialRegistry } from './MaterialRegistry';
-import { ScenarioDefinition } from '../../components/mech-saf-2.0/types/ScenarioTypes';
-import { TimeSeriesRingBuffer } from '../../utils/RingBuffer';
+import type { MechBlueprint, MechDynamicSimulationResult, MechSolverConfiguration } from '../../types.ts';
+import { ComponentRegistry } from '../ComponentRegistry.ts';
+import { MaterialRegistry } from './MaterialRegistry.ts';
+import type { ScenarioDefinition } from '../../components/mech-saf-2.0/types/ScenarioTypes.ts';
+import { TimeSeriesRingBuffer } from '../../utils/RingBuffer.ts';
 
 /**
  * Adaptive Time Stepping Configuration
@@ -98,7 +98,7 @@ export class SimulationKernel {
         // Initialize state
         await this.initializeState(blueprint, state, registry);
 
-        const { SimulationService } = await import('./SimulationService');
+        const { SimulationService } = await import('./SimulationService.ts');
 
         // Adaptive time stepping loop
         while (t < duration) {

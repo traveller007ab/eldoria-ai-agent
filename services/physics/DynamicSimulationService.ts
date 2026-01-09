@@ -1,5 +1,5 @@
-import { MechBlueprint, MechDynamicSimulationResult } from '../../types';
-import { ScenarioDefinition } from '../../components/mech-saf-2.0/types/ScenarioTypes';
+import type { MechBlueprint, MechDynamicSimulationResult } from '../../types.ts';
+import type { ScenarioDefinition } from '../../components/mech-saf-2.0/types/ScenarioTypes.ts';
 
 interface WorkerProgressMessage {
     id: string;
@@ -31,7 +31,7 @@ export class DynamicSimulationService {
         }
 
         // Node.js / Fallback
-        const { SimulationKernel } = await import('./SimulationKernel');
+        const { SimulationKernel } = await import('./SimulationKernel.ts');
         return SimulationKernel.simulate(blueprint, duration, timeStep, scenario);
     }
 

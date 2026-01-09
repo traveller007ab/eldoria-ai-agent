@@ -1,4 +1,4 @@
-import { MechComponentDefinition } from '../../types';
+import type { MechComponentDefinition } from '../../types.ts';
 
 export const mechanicalComponents: MechComponentDefinition[] = [
     {

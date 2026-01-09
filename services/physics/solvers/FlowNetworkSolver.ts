@@ -1,22 +1,24 @@
-import { ISolver } from '../SolverRegistry';
-import {
+import type { ISolver } from '../SolverRegistry.ts';
+import type {
     MechBlueprint,
     MechSimulationResult,
     MechSolverConfiguration,
     MechSimulationMetrics,
     MechSimulationDiagnostics
-} from '../../../types';
-import { FastNumericMethods } from '../FastNumericMethods';
-import { NumericMethods } from '../NumericMethods';
-import { MaterialRegistry } from '../MaterialRegistry';
-import { ComponentRegistry } from '../../ComponentRegistry';
-import { SparseMatrix, SparseLinearSolver, SparseMatrixCSR } from '../SparseMatrix';
-import { getPhysicsForComponent, isFixedHeadComponent, getComponentType } from '../ComponentPhysics';
-import { FluidPropertyDatabase } from '../FluidProperties';
-import { RealPipeFlow } from '../RealPipeFlow';
-import { RealPumpCurves } from '../RealPumpCurves';
-import { RealValveModel } from '../RealValveModel';
-import { NewtonRaphsonSolver, SolverResult } from '../NewtonRaphsonSolver';
+} from '../../../types.ts';
+import { FastNumericMethods } from '../FastNumericMethods.ts';
+import { NumericMethods } from '../NumericMethods.ts';
+import { MaterialRegistry } from '../MaterialRegistry.ts';
+import { ComponentRegistry } from '../../ComponentRegistry.ts';
+import { SparseMatrix, SparseLinearSolver } from '../SparseMatrix.ts';
+import type { SparseMatrixCSR } from '../SparseMatrix.ts';
+import { getPhysicsForComponent, isFixedHeadComponent, getComponentType } from '../ComponentPhysics.ts';
+import { FluidPropertyDatabase } from '../FluidProperties.ts';
+import { RealPipeFlow } from '../RealPipeFlow.ts';
+import { RealPumpCurves } from '../RealPumpCurves.ts';
+import { RealValveModel } from '../RealValveModel.ts';
+import { NewtonRaphsonSolver } from '../NewtonRaphsonSolver.ts';
+import type { SolverResult } from '../NewtonRaphsonSolver.ts';
 
 interface HydraulicNode {
     id: number;

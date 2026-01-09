@@ -1,6 +1,6 @@
-import { MechBlueprint, MechSimulationResult, DiagnosticIssue } from '../../types';
-import { MaterialRegistry } from './MaterialRegistry';
-import { getPhysicsForComponent, getComponentType } from './ComponentPhysics';
+import type { MechBlueprint, MechSimulationResult, DiagnosticIssue } from '../../types.ts';
+import { MaterialRegistry } from './MaterialRegistry.ts';
+import { getPhysicsForComponent, getComponentType } from './ComponentPhysics.ts';
 
 export class DiagnosticService {
 

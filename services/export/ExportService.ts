@@ -4,8 +4,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { MechBlueprint, MechComponent, Connection } from '../../types';
-import { SAFBlueprintV1, ExportedComponent, ExportedConnection } from './schema';
+import type { MechBlueprint, MechComponent, Connection } from '../../types.ts';
+import type { SAFBlueprintV1, ExportedComponent, ExportedConnection } from './schema.ts';
 
 export class ExportService {
 

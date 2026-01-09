@@ -1,5 +1,5 @@
-import { MechBlueprint, MechSimulationResult } from '../../types';
-import { ComponentRegistry } from '../ComponentRegistry';
+import type { MechBlueprint, MechSimulationResult } from '../../types.ts';
+import { ComponentRegistry } from '../ComponentRegistry.ts';
 
 export type ModelCategory =
     | 'engine_system'

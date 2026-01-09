@@ -10,7 +10,7 @@
  * - Enables custom components without ID string matching
  */
 
-import { MechanicalDomain, MechSubDomain } from '../../types';
+import type { MechanicalDomain, MechSubDomain } from '../../types.ts';
 
 // ============================================================================
 // Physics Types

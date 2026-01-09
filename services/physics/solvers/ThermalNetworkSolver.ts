@@ -1,12 +1,12 @@
-import { ISolver } from '../SolverRegistry';
-import {
+import type { ISolver } from '../SolverRegistry.ts';
+import type {
     MechBlueprint,
     MechSimulationResult,
     MechSolverConfiguration
-} from '../../../types';
-import { MaterialRegistry } from '../MaterialRegistry';
-import { FluidPropertyDatabase } from '../FluidProperties';
-import { RealHeatExchanger } from '../RealHeatExchanger';
+} from '../../../types.ts';
+import { MaterialRegistry } from '../MaterialRegistry.ts';
+import { FluidPropertyDatabase } from '../FluidProperties.ts';
+import { RealHeatExchanger } from '../RealHeatExchanger.ts';
 
 interface ThermalNode {
     id: string;
