@@ -118,6 +118,9 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
             symbol_map[f"{conn.id}.Vin"] = v_in_sym
             symbol_map[f"{conn.id}.Vout"] = v_out_sym
             symbol_map[f"{conn.id}.I"] = i_sym
+            
+            # Transmission: Ideal Wire (Vin = Vout)
+            equations.append(Eq(v_out_sym, v_in_sym))
         else:
             p_sym = symbols(f"{conn.id}_P")
             t_sym = symbols(f"{conn.id}_T")
@@ -144,8 +147,28 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
         if domain == "electrical":
             # --- Electrical Domain Physics ---
             
-            # KCL: Currents
-            if inputs or outputs:
+            # 0. Connection Transmission Equations (Ideal Wires)
+            # Ensure Vin propagates to Vout on the wire itself
+            # We do this check once per connection, but here we iterate components.
+            # So we should do it outside or just rely on the component loop if we treat connections as components?
+            # No, req.connections are edges. We must constrain the edge variables.
+            # Let's add this constraint for every connection connected to this component? 
+            # No, that would duplicate equations.
+            # We should add a separate loop for connections or handle it in the Variable Registration phase.
+            # But let's add it here for now if we can ensure uniqueness, or better:
+            # We will fix the "Inputs/Outputs" logic to NOT force I=0 for terminals.
+            
+            # KCL: Currents (Sum I_in = Sum I_out)
+            # Only apply to components that act as nodes/junctions or transmission lines
+            # Sources and Sinks (Ground) are terminals, they don't satisfy KCL in this subgraph unless we model the return path.
+            # But for a valid circuit, KCL applies to the COMPONENT NODE.
+            # For a Battery, I_in (from negative terminal) = I_out (positive terminal).
+            # But here we only model 1 port?
+            # If we only model "Positive Terminal" as an Output, and "Negative" is implicit Ground,
+            # then we don't enforce KCL on the Battery component itself in this graph.
+            is_terminal = any(x in c_type for x in ["source", "battery", "ground"])
+            
+            if (inputs or outputs) and not is_terminal:
                 i_in = sum([conn_vars[c.id]["I"] for c in inputs]) if inputs else 0
                 i_out = sum([conn_vars[c.id]["I"] for c in outputs]) if outputs else 0
                 equations.append(Eq(i_in, i_out))
@@ -163,7 +186,7 @@ def build_system_equations(req: SimulationRequest) -> tuple[List[Any], List[Any]
                 v_s = params.get("voltage", 12)
                 if outputs:
                    # Simplest Source
-                   if not inputs: # Reference node
+                   if not inputs: # Reference node (Start of chain)
                        v_node_out = conn_vars[outputs[0].id]["Vin"]
                        equations.append(Eq(v_node_out, v_s))
                    else: # Floating source

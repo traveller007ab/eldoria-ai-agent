@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     PanelLeft, Play, Loader2, CheckCircle2, AlertTriangle, Settings2, Activity,
-    Download, FileJson, Upload, Save, ChevronDown, FileCode, Table, BarChart3, Undo2, Redo2, HelpCircle
+    Download, FileJson, Upload, Save, ChevronDown, FileCode, Table, BarChart3, Undo2, Redo2, HelpCircle, ArrowLeft, ChevronRight, Layers
 } from 'lucide-react';
 import { useMechStore } from '../../stores/useMechStore';
 import { ComponentPalette } from './ComponentPalette';
@@ -20,6 +20,7 @@ import { EnhancedGearBackground } from './EnhancedGearBackground';
 import { TopMenu } from './TopMenu';
 import { ScenarioSelectModal } from './ScenarioSelectModal';
 import { ScenarioHUD } from './ScenarioHUD';
+import { BottomPanel } from './BottomPanel';
 import { scenarioService } from '../../services/scenarios/ScenarioService';
 import { ExportService } from '../../services/export/ExportService';
 
@@ -29,6 +30,7 @@ export const MechLabLayout: React.FC = () => {
     const {
         isPropertiesPanelOpen,
         togglePropertiesPanel,
+        isLeftPanelOpen,
         currentBlueprint,
         isSimulating,
         setIsSimulating,
@@ -41,7 +43,11 @@ export const MechLabLayout: React.FC = () => {
         redo,
         canUndo,
         canRedo,
-        setIsPlaying
+        setIsPlaying,
+        navigationStack,
+        popBlueprint,
+        blueprints,
+        addLog
     } = useMechStore();
 
     const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('properties');
@@ -85,30 +91,28 @@ export const MechLabLayout: React.FC = () => {
         }
     ]);
 
-    // Check for saved project on mount
-    useEffect(() => {
-        const lastProjectId = ProjectService.getLastProjectId();
-        if (lastProjectId && (!currentBlueprint?.components.length)) {
-            const saved = ProjectService.loadBlueprint(lastProjectId);
-            if (saved) {
-                setBlueprint(saved);
-            }
-        }
-    }, []);
-
     const handleRunSimulation = async () => {
         if (!currentBlueprint) return;
         setIsSimulating(true);
         setLastSimulationResult(null); // Clear previous
+        addLog('Starting static simulation...', 'info');
 
         try {
             const result = await SimulationService.run(currentBlueprint);
             setLastSimulationResult(result);
-            if (result.diagnostics.convergence.converged) {
-                setRightPanelTab('results');
+            
+            if (result.status === 'completed') {
+                addLog(`Simulation completed in ${result.duration}ms.`, 'success');
+                if (result.diagnostics.convergence.converged) {
+                    setRightPanelTab('results');
+                }
+            } else {
+                addLog(`Simulation failed to converge.`, 'error');
+                result.issues.forEach(i => addLog(`[${i.severity}] ${i.message}`, i.severity === 'critical' ? 'error' : 'warning'));
             }
         } catch (error) {
             console.error(error);
+            addLog(`Simulation error: ${error}`, 'error');
         } finally {
             setIsSimulating(false);
         }
@@ -118,15 +122,34 @@ export const MechLabLayout: React.FC = () => {
         if (!currentBlueprint) return;
         setIsSimulating(true);
         setLastSimulationResult(null);
+        addLog('Starting dynamic simulation (60s)...', 'info');
 
         try {
             // Run 60s simulation with 0.5s step
-            const result = await DynamicSimulationService.simulate(currentBlueprint, 60, 0.5);
+            const result = await DynamicSimulationService.simulate(
+                currentBlueprint, 
+                60, 
+                0.5,
+                undefined,
+                (progress, currentTime) => {
+                    // Log progress every 20%
+                    if (progress % 20 === 0 || progress === 100) {
+                        addLog(`Simulation Progress: ${Math.round(progress)}% (t=${currentTime.toFixed(1)}s)`, 'info');
+                    }
+                }
+            );
             setLastSimulationResult(result);
-            setIsPlaying(true); // Auto-play
-            setRightPanelTab('results');
+            
+            if (result.status === 'completed') {
+                addLog(`Dynamic simulation completed. Generated ${result.timePoints.length} time steps.`, 'success');
+                setIsPlaying(true); // Auto-play
+                setRightPanelTab('results');
+            } else {
+                addLog('Dynamic simulation failed or was cancelled.', 'error');
+            }
         } catch (error) {
             console.error(error);
+            addLog(`Dynamic simulation error: ${error}`, 'error');
         } finally {
             setIsSimulating(false);
         }
@@ -379,15 +402,50 @@ export const MechLabLayout: React.FC = () => {
             {/* Hidden file input */}
             <div className="flex flex-1 overflow-hidden relative">
                 {/* Left Sidebar (Palette) */}
-                <div className="w-72 bg-slate-800 border-r border-slate-700 flex flex-col shrink-0 z-10">
-                    <ComponentPalette />
-                </div>
+                {isLeftPanelOpen && (
+                    <div className="w-72 bg-slate-800 border-r border-slate-700 flex flex-col shrink-0 z-10">
+                        <ComponentPalette />
+                    </div>
+                )}
 
                 {/* Center Canvas */}
-                <div className="flex-1 bg-slate-900 relative" onClick={() => setShowExportMenu(false)}>
-                    <EnhancedGearBackground />
-                    <Canvas />
-                    <TimelineControls />
+                <div className="flex-1 flex flex-col bg-slate-900 relative" onClick={() => setShowExportMenu(false)}>
+                    <div className="flex-1 relative w-full min-h-0">
+                        <EnhancedGearBackground />
+                        
+                        {/* Breadcrumbs Navigation */}
+                        {navigationStack.length > 0 && (
+                            <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-xs font-medium shadow-xl pointer-events-auto animate-in fade-in slide-in-from-top-2">
+                                <button 
+                                    onClick={() => popBlueprint()} 
+                                    className="hover:text-white text-emerald-400 hover:text-emerald-300 flex items-center gap-1 pr-3 border-r border-slate-700/50 transition-colors"
+                                >
+                                    <ArrowLeft className="w-3.5 h-3.5" /> 
+                                    <span className="uppercase tracking-wider font-bold">Back</span>
+                                </button>
+                                
+                                <div className="flex items-center gap-1 pl-2 select-none">
+                                    {navigationStack.map((id, i) => {
+                                        const bp = blueprints.find(b => b.id === id);
+                                        return (
+                                            <div key={id} className="flex items-center text-slate-500">
+                                                <span>{bp?.name || 'Root'}</span>
+                                                <ChevronRight className="w-3 h-3 mx-1 text-slate-600" />
+                                            </div>
+                                        );
+                                    })}
+                                    <span className="text-white font-semibold flex items-center gap-2">
+                                        <Layers className="w-3 h-3 text-purple-400" />
+                                        {currentBlueprint?.name}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        <Canvas />
+                        <TimelineControls />
+                    </div>
+                    <BottomPanel />
                 </div >
 
                 {/* Right Sidebar (Properties / Results / Analysis) */}

@@ -97,9 +97,11 @@ export interface ComponentInstance {
     rotation: number;
     parameterValues: Record<string, number | string>;
     customPorts?: any[]; // CustomPort
+    customEquations?: string; // User-defined SymPy equations
+    childBlueprintId?: string; // If present, this component is a subsystem container
     notes?: string;
     isSelected: boolean;
-    subsystemId?: string;
+    subsystemId?: string; // ID of the subsystem this component belongs to (if any)
     groupIds: string[];
 }
 
@@ -156,6 +158,7 @@ export interface SimulationResult {
     duration: number;
     configuration: SolverConfiguration;
     variables: Record<string, number>;
+    system_vars?: Record<string, number>; // Raw system variables from Genesis Engine
     metrics: SimulationMetrics;
     diagnostics: SimulationDiagnostics;
     constraintViolations: any[];

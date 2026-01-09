@@ -29,25 +29,35 @@ export const AnimatedConnection = memo(({
     const connectionState = useMemo(() => {
         if (!lastSimulationResult) return { flow: 0, temp: 20, isSimulating: false };
 
-        const simVars = lastSimulationResult.variables;
+        const simVars = lastSimulationResult.system_vars || lastSimulationResult.variables;
+        
+        // 1. Try Direct Edge ID Lookup (Preferred for Genesis Engine)
+        // Check for common flow variables: I (Current), m (Mass Flow), Q (Volumetric Flow)
+        const directFlow = simVars[`${id}.I`] ?? simVars[`${id}.m`] ?? simVars[`${id}.Q`];
+        
+        if (directFlow !== undefined) {
+            // For temperature, we might look for source node temp or fluid temp
+            // Default to 20C if not found
+            return { 
+                flow: Math.abs(Number(directFlow)), 
+                temp: 20, 
+                isSimulating: true 
+            };
+        }
 
+        // 2. Fallback: Component-based heuristic (Legacy)
         // Find relevant variables for the source component
-        // Try to match source component ID roughly
-        // We need a way to map Edge -> Variable.
-        // In our simple solver, flow is often global or per-loop. 
-        // But let's look for `${sourceComponentName}_flow` or similar.
-
         const sourceComp = currentBlueprint?.components.find(c => c.id === source);
         if (!sourceComp) return { flow: 0, temp: 20, isSimulating: true };
 
         const prefix = sourceComp.name.replace(/\s+/g, '_');
-
+        
         // Try various keys
         const flow = simVars[`${prefix}_flow`] ?? simVars[`${prefix}_flow_rate`] ?? simVars['totalFlowRate'] ?? 0;
         const temp = simVars[`${prefix}_T_out`] ?? 20;
 
         return { flow: Math.abs(flow as number), temp: (temp as number), isSimulating: true };
-    }, [lastSimulationResult, source, currentBlueprint]);
+    }, [lastSimulationResult, source, id, currentBlueprint]);
 
     // Animation Speed: Higher flow -> Faster animation (lower duration)
     const animationDuration = connectionState.flow > 0

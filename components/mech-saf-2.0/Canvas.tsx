@@ -57,7 +57,8 @@ const CanvasContent: React.FC = () => {
         removeComponents,
         selectedComponentId,
         selectedComponentIds,
-        clipboard
+        clipboard,
+        lastSimulationResult
     } = useMechStore();
 
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -71,13 +72,26 @@ const CanvasContent: React.FC = () => {
     // Sync nodes from store when blueprint changes
     useEffect(() => {
         if (currentBlueprint) {
-            setNodes(currentBlueprint.components.map(c => ({
-                id: c.id,
-                type: 'mechNode',
-                position: c.position,
-                data: { label: c.name, component: c },
-                selected: selectedComponentIds.includes(c.id) || selectedComponentId === c.id
-            })));
+            setNodes(currentBlueprint.components.map(c => {
+                // Filter simulation results for this component
+                const simState = lastSimulationResult?.system_vars 
+                    ? Object.entries(lastSimulationResult.system_vars)
+                        .filter(([k]) => k.startsWith(`${c.id}.`))
+                        .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {})
+                    : undefined;
+
+                return {
+                    id: c.id,
+                    type: 'mechNode',
+                    position: c.position,
+                    data: { 
+                        label: c.name, 
+                        component: c,
+                        simulationState: simState // Inject Telemetry
+                    },
+                    selected: selectedComponentIds.includes(c.id) || selectedComponentId === c.id
+                };
+            }));
 
             setEdges(currentBlueprint.connections.map(c => ({
                 id: c.id,
@@ -90,7 +104,7 @@ const CanvasContent: React.FC = () => {
                 style: { stroke: '#64748b', strokeWidth: 2 }
             })));
         }
-    }, [currentBlueprint?.components.length, currentBlueprint?.connections.length, selectedComponentIds.length, selectedComponentId]);
+    }, [currentBlueprint?.components.length, currentBlueprint?.connections.length, selectedComponentIds.length, selectedComponentId, lastSimulationResult]); // Add lastSimulationResult dependency
 
     // Keyboard shortcuts
     useEffect(() => {

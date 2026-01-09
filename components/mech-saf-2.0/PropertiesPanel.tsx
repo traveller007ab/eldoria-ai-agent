@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useMechStore } from '../../stores/useMechStore';
 import { ComponentRegistry } from '../../services/ComponentRegistry';
 import { MaterialRegistry } from '../../services/physics/MaterialRegistry';
-import { X, Sliders, Zap, Activity, Droplets, Plus, Pencil, AlertCircle, Info } from 'lucide-react';
+import { X, Sliders, Zap, Activity, Droplets, Plus, Pencil, AlertCircle, Info, FileCode, Layers } from 'lucide-react';
 import { DynoGraph } from './DynoGraph';
 import { CustomFluidDialog } from './CustomFluidDialog';
 import { ParameterValidator, getValidationStatus } from '../../utils/ParameterValidator';
@@ -13,6 +13,8 @@ export const PropertiesPanel: React.FC = () => {
         currentBlueprint,
         togglePropertiesPanel,
         updateComponentParameter,
+        updateComponentEquations,
+        convertToSubsystem,
         lastSimulationResult,
         setFluidId
     } = useMechStore();
@@ -290,6 +292,38 @@ export const PropertiesPanel: React.FC = () => {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {/* Custom Physics Section */}
+                <div>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                        <FileCode className="w-3 h-3" />
+                        Custom Physics (Genesis)
+                    </div>
+                    <div className="space-y-2">
+                        <textarea
+                            value={selectedComponent.customEquations || ''}
+                            onChange={(e) => updateComponentEquations(selectedComponent.id, e.target.value)}
+                            placeholder="Enter SymPy equations (e.g., Eq(V_out, V_in * 0.5))"
+                            className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-500 min-h-[100px]"
+                        />
+                        <p className="text-[10px] text-slate-500">
+                            Use SymPy syntax. Available symbols: {componentDef.parameters.map(p => p.symbol).join(', ')}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Subsystem Conversion */}
+                {!selectedComponent.childBlueprintId && (
+                    <div className="pt-2 border-t border-slate-700">
+                        <button
+                            onClick={() => convertToSubsystem(selectedComponent.id)}
+                            className="w-full flex items-center justify-center gap-2 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded text-purple-300 hover:text-purple-200 transition-colors"
+                        >
+                            <Layers className="w-4 h-4" />
+                            <span className="text-xs font-medium">Convert to Subsystem</span>
+                        </button>
                     </div>
                 )}
 

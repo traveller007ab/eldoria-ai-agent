@@ -31,21 +31,35 @@ interface MechLabState {
     historyIndex: number;
     maxHistorySize: number;
 
+    // Logs
+    logs: Array<{ timestamp: Date; message: string; type: 'info' | 'error' | 'success' | 'warning' }>;
+    addLog: (message: string, type?: 'info' | 'error' | 'success' | 'warning') => void;
+    clearLogs: () => void;
+
     // UI State
     isPropertiesPanelOpen: boolean;
+    isLeftPanelOpen: boolean;
+    isBottomPanelOpen: boolean;
     activeDomain: MechanicalDomain;
     selectedComponentId: string | null;
     selectedComponentIds: string[];
     selectedConnectionId: string | null;
     clipboard: MechComponentInstance | null;
 
+    // Navigation
+    navigationStack: string[]; // Stack of blueprint IDs [Root, Child1, Child2]
+
     // Actions
     setBlueprint: (blueprint: MechBlueprint) => void;
+    pushBlueprint: (blueprintId: string) => void;
+    popBlueprint: () => void;
+    convertToSubsystem: (componentId: string) => void;
     addComponent: (component: MechComponentInstance) => void;
     removeComponent: (id: string) => void;
     removeComponents: (ids: string[]) => void;
     updateComponentPosition: (id: string, position: { x: number; y: number }) => void;
     updateComponentParameter: (componentId: string, paramId: string, value: number | string) => void;
+    updateComponentEquations: (componentId: string, equations: string) => void;
     updateComponentName: (componentId: string, name: string) => void;
     duplicateComponent: (id: string) => void;
     duplicateComponents: (ids: string[]) => void;
@@ -83,6 +97,8 @@ interface MechLabState {
     clearSelection: () => void;
     selectConnection: (id: string | null) => void;
     togglePropertiesPanel: () => void;
+    toggleLeftPanel: () => void;
+    toggleBottomPanel: () => void;
     setActiveDomain: (domain: MechanicalDomain) => void;
 
     // Bulk operations
@@ -124,12 +140,115 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     historyIndex: -1,
     maxHistorySize: 50,
 
-    isPropertiesPanelOpen: true,
-    activeDomain: 'fluid',
+    // Logs
+    logs: [],
+    addLog: (message, type = 'info') => set((state) => ({
+        logs: [...state.logs, { timestamp: new Date(), message, type }].slice(-1000)
+    })),
+    clearLogs: () => set({ logs: [] }),
+
+    // UI State
+    isPropertiesPanelOpen: false,
+    isLeftPanelOpen: true,
+    isBottomPanelOpen: true, // Default open for visibility
+    activeDomain: 'mechanical',
     selectedComponentId: null,
     selectedComponentIds: [],
     selectedConnectionId: null,
     clipboard: null,
+
+    // Navigation
+    navigationStack: [],
+
+    pushBlueprint: (blueprintId) => set((state) => {
+        const { currentBlueprint, blueprints } = state;
+        if (!currentBlueprint) return state;
+
+        // 1. Save current blueprint to registry
+        const updatedBlueprints = [...blueprints.filter(b => b.id !== currentBlueprint.id), currentBlueprint];
+        
+        // 2. Find target blueprint
+        let targetBlueprint = updatedBlueprints.find(b => b.id === blueprintId);
+        
+        // If not found, create empty (should rarely happen if convertToSubsystem works right)
+        if (!targetBlueprint) {
+             targetBlueprint = {
+                ...createEmptyBlueprint(),
+                id: blueprintId,
+                name: 'Subsystem',
+             };
+             updatedBlueprints.push(targetBlueprint);
+        }
+
+        return {
+            blueprints: updatedBlueprints,
+            navigationStack: [...state.navigationStack, currentBlueprint.id],
+            currentBlueprint: targetBlueprint,
+            history: [], 
+            historyIndex: -1,
+            selectedComponentId: null,
+            selectedComponentIds: []
+        };
+    }),
+
+    popBlueprint: () => set((state) => {
+        if (state.navigationStack.length === 0) return state;
+        
+        const { currentBlueprint, blueprints } = state;
+        
+        // 1. Save current child blueprint
+        let updatedBlueprints = blueprints;
+        if (currentBlueprint) {
+            updatedBlueprints = [...blueprints.filter(b => b.id !== currentBlueprint.id), currentBlueprint];
+        }
+
+        // 2. Pop parent ID
+        const newStack = [...state.navigationStack];
+        const parentId = newStack.pop();
+        
+        // 3. Load parent
+        const parentBlueprint = updatedBlueprints.find(b => b.id === parentId);
+        if (!parentBlueprint) return state;
+
+        return {
+            blueprints: updatedBlueprints,
+            navigationStack: newStack,
+            currentBlueprint: parentBlueprint,
+            history: [],
+            historyIndex: -1,
+            selectedComponentId: null,
+            selectedComponentIds: []
+        };
+    }),
+
+    convertToSubsystem: (componentId) => set((state) => {
+        if (!state.currentBlueprint) return state;
+        
+        const newBlueprintId = crypto.randomUUID();
+        const component = state.currentBlueprint.components.find(c => c.id === componentId);
+        if (!component) return state;
+
+        // Create the new blueprint immediately in registry
+        const newBlueprint: MechBlueprint = {
+            ...createEmptyBlueprint(),
+            id: newBlueprintId,
+            name: component.name,
+            description: `Subsystem for ${component.name}`
+        };
+
+        return {
+            blueprints: [...state.blueprints, newBlueprint],
+            currentBlueprint: {
+                ...state.currentBlueprint,
+                components: state.currentBlueprint.components.map(c => 
+                    c.id === componentId 
+                    ? { ...c, childBlueprintId: newBlueprintId }
+                    : c
+                ),
+                updatedAt: new Date()
+            }
+        };
+    }),
 
     setBlueprint: (blueprint) => {
         set({ currentBlueprint: blueprint, history: [], historyIndex: -1 });
@@ -276,6 +395,19 @@ export const useMechStore = create<MechLabState>((set, get) => ({
                 ...state.currentBlueprint,
                 components: state.currentBlueprint.components.map(c =>
                     c.id === componentId ? { ...c, parameterValues: { ...c.parameterValues, [paramId]: value } } : c
+                ),
+                updatedAt: new Date()
+            }
+        };
+    }),
+
+    updateComponentEquations: (componentId, equations) => set((state) => {
+        if (!state.currentBlueprint) return state;
+        return {
+            currentBlueprint: {
+                ...state.currentBlueprint,
+                components: state.currentBlueprint.components.map(c =>
+                    c.id === componentId ? { ...c, customEquations: equations } : c
                 ),
                 updatedAt: new Date()
             }
@@ -463,6 +595,8 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     clearSelection: () => set({ selectedComponentIds: [], selectedComponentId: null, selectedConnectionId: null, isPropertiesPanelOpen: false }),
     selectConnection: (id) => set({ selectedConnectionId: id, selectedComponentId: null, selectedComponentIds: [], isPropertiesPanelOpen: false }),
     togglePropertiesPanel: () => set((state) => ({ isPropertiesPanelOpen: !state.isPropertiesPanelOpen })),
+    toggleLeftPanel: () => set((state) => ({ isLeftPanelOpen: !state.isLeftPanelOpen })),
+    toggleBottomPanel: () => set((state) => ({ isBottomPanelOpen: !state.isBottomPanelOpen })),
     setActiveDomain: (domain) => set({ activeDomain: domain }),
 
     clearBlueprint: () => set((state) => {

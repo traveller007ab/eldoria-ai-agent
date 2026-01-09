@@ -2,13 +2,15 @@ import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import { MechComponentInstance, MechPortDefinition } from '../../types';
 import { ComponentRegistry } from '../../services/ComponentRegistry';
-import { Droplets, Flame, Cog, Cpu, Zap, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Droplets, Flame, Cog, Cpu, Zap, AlertTriangle, AlertCircle, Layers, ArrowRightCircle } from 'lucide-react';
+import { useMechStore } from '../../stores/useMechStore';
 
 interface MechNodeData {
     label: string;
     component: MechComponentInstance;
     issueSeverity?: 'warning' | 'critical';
     issueMessage?: string;
+    simulationState?: Record<string, number>; // Live Telemetry
 }
 
 const getIconForDomain = (domain: string) => {
@@ -42,6 +44,7 @@ const getPortPosition = (port: MechPortDefinition, index: number, totalPorts: nu
 
 export const MechNode: React.FC<NodeProps<MechNodeData>> = memo(({ data, selected }) => {
     const { component } = data;
+    const { pushBlueprint } = useMechStore();
     const componentDef = ComponentRegistry.getInstance().getComponent(component.componentDefinitionId);
 
     if (!componentDef) {
@@ -58,8 +61,16 @@ export const MechNode: React.FC<NodeProps<MechNodeData>> = memo(({ data, selecte
     const topPorts = componentDef.ports.filter(p => p.position?.side === 'top');
     const bottomPorts = componentDef.ports.filter(p => p.position?.side === 'bottom');
 
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        if (component.childBlueprintId) {
+            e.stopPropagation();
+            pushBlueprint(component.childBlueprintId);
+        }
+    };
+
     return (
         <div
+            onDoubleClick={handleDoubleClick}
             className={`
         relative min-w-[140px] px-3 py-2 rounded-lg
         bg-gradient-to-br ${colors.bg} backdrop-blur-sm
@@ -70,9 +81,16 @@ export const MechNode: React.FC<NodeProps<MechNodeData>> = memo(({ data, selecte
             {/* Header */}
             <div className="flex items-center gap-2 mb-1">
                 <div className={`${colors.icon}`}>
-                    {getIconForDomain(componentDef.domain)}
+                    {component.childBlueprintId ? <Layers className="w-4 h-4" /> : getIconForDomain(componentDef.domain)}
                 </div>
                 <span className="text-sm font-medium text-white truncate">{component.name}</span>
+
+                {/* Subsystem Indicator */}
+                {component.childBlueprintId && (
+                    <div className="absolute -top-1 -right-1 bg-purple-500/20 border border-purple-500/50 rounded-full p-0.5">
+                        <Layers className="w-2.5 h-2.5 text-purple-300" />
+                    </div>
+                )}
 
                 {/* Diagnostics Badge */}
                 {data.issueSeverity && (
@@ -90,7 +108,38 @@ export const MechNode: React.FC<NodeProps<MechNodeData>> = memo(({ data, selecte
                 {componentDef.subcategory}
             </div>
 
-            {/* Left Ports */}
+            {/* Live Telemetry Display */}
+            {data.simulationState && (
+                <div className="mt-2 space-y-0.5 border-t border-white/10 pt-1">
+                    {Object.entries(data.simulationState).slice(0, 3).map(([key, value]) => {
+                        // Format key (e.g. "port1.P" -> "P")
+                        const shortKey = key.split('.').pop() || key;
+                        // Format value
+                        const displayVal = typeof value === 'number' ? value.toFixed(1) : value;
+                        return (
+                            <div key={key} className="flex justify-between text-[9px] font-mono">
+                                <span className="text-slate-400">{shortKey}:</span>
+                                <span className="text-emerald-300">{displayVal}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Subsystem Entry Action */}
+            {component.childBlueprintId && (
+                <div className="mt-2 pt-2 border-t border-white/10">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); pushBlueprint(component.childBlueprintId!); }}
+                        className="w-full flex items-center justify-center gap-1.5 py-1 px-2 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-[10px] font-medium transition-colors"
+                    >
+                        <ArrowRightCircle className="w-3 h-3" />
+                        Enter Subsystem
+                    </button>
+                </div>
+            )}
+            
+            {/* Ports - Absolute Positioning */}
             {leftPorts.map((port, index) => (
                 <Handle
                     key={port.id}

@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     File, FolderOpen, Save, FileJson, LogOut,
     Edit, Undo2, Redo2, Settings,
-    Eye, Layout, PanelLeft, PanelRight,
+    Eye, Layout, PanelLeft, PanelRight, Terminal,
     ChevronDown, Play, Plus, Trophy, Target, Zap
 } from 'lucide-react';
 import { useMechStore } from '../../stores/useMechStore';
@@ -19,7 +19,7 @@ interface TopMenuProps {
 export const TopMenu: React.FC<TopMenuProps> = ({ onLoadTemplate, onSaveProject, onOpenMissions, onExport }) => {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    const { undo, redo, canUndo, canRedo, togglePropertiesPanel } = useMechStore();
+    const { undo, redo, canUndo, canRedo, togglePropertiesPanel, toggleLeftPanel, toggleBottomPanel } = useMechStore();
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -109,18 +109,32 @@ export const TopMenu: React.FC<TopMenuProps> = ({ onLoadTemplate, onSaveProject,
 
             {/* VIEW MENU */}
             <div className="relative">
-                <MenuButton id="view" label="View" icon={Eye} />
+                <MenuButton id="view" label="View" icon={Layout} />
                 {activeMenu === 'view' && (
                     <Dropdown>
-                        <MenuItem icon={PanelLeft} label="Toggle Sidebar" shortcut="Ctrl+B" />
-                        <MenuItem icon={PanelRight} label="Toggle Properties" shortcut="Ctrl+P" onClick={togglePropertiesPanel} />
-                        {/* <MenuItem icon={Layout} label="Reset Layout" divider /> */}
-                        {/* <MenuItem icon={Settings} label="Interface Settings" /> */}
+                        <MenuItem 
+                            icon={PanelLeft} 
+                            label="Left Panel" 
+                            shortcut="Ctrl+B" 
+                            onClick={toggleLeftPanel}
+                        />
+                        <MenuItem 
+                            icon={PanelRight} 
+                            label="Right Panel" 
+                            shortcut="Ctrl+P" 
+                            onClick={togglePropertiesPanel}
+                        />
+                        <MenuItem 
+                            icon={Terminal} 
+                            label="Bottom Panel" 
+                            shortcut="Ctrl+J" 
+                            onClick={toggleBottomPanel}
+                        />
                     </Dropdown>
                 )}
             </div>
 
-            {/* MISSIONS MENU */}
+            {/* SCENARIO / MISSIONS */}
             <div className="relative">
                 <button
                     onClick={onOpenMissions}
