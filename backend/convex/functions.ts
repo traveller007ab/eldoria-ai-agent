@@ -1,12 +1,10 @@
-import { mutation, query } from "./generated";
+import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
-// AUTHENTICATION
-export const register = mutation({
+export const register = mutationGeneric({
   args: { email: v.string(), password: v.string(), name: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("users")
@@ -25,7 +23,7 @@ export const register = mutation({
       authProvider: "local",
       role: "user",
       apiQuota: 1000,
-      storageQuota: 1073741824, // 1GB
+      storageQuota: 1073741824,
       passwordHash,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -35,7 +33,7 @@ export const register = mutation({
   },
 });
 
-export const login = mutation({
+export const login = mutationGeneric({
   args: { email: v.string(), password: v.string() },
   handler: async (ctx, args) => {
     const user = await ctx.db.query("users")
@@ -51,8 +49,7 @@ export const login = mutation({
       throw new Error("Invalid credentials");
     }
 
-    // Create session
-    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+    const token = `token_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     
     await ctx.db.insert("sessions", {
       userId: user._id,
@@ -68,7 +65,7 @@ export const login = mutation({
   },
 });
 
-export const logout = mutation({
+export const logout = mutationGeneric({
   args: { token: v.string() },
   handler: async (ctx, args) => {
     const sessions = await ctx.db.query("sessions")
@@ -81,8 +78,7 @@ export const logout = mutation({
   },
 });
 
-// USER PROFILE
-export const getProfile = query({
+export const getProfile = queryGeneric({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
@@ -91,8 +87,7 @@ export const getProfile = query({
   },
 });
 
-// PROJECTS
-export const listProjects = query({
+export const listProjects = queryGeneric({
   args: {},
   handler: async (ctx) => {
     return await ctx.db.query("projects")
@@ -101,7 +96,7 @@ export const listProjects = query({
   },
 });
 
-export const createProject = mutation({
+export const createProject = mutationGeneric({
   args: { name: v.string(), description: v.optional(v.string()), type: v.string() },
   handler: async (ctx, args) => {
     const users = await ctx.db.query("users").collect();
@@ -124,7 +119,7 @@ export const createProject = mutation({
   },
 });
 
-export const getProject = query({
+export const getProject = queryGeneric({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
@@ -132,7 +127,7 @@ export const getProject = query({
   },
 });
 
-export const updateProject = mutation({
+export const updateProject = mutationGeneric({
   args: { 
     projectId: v.id("projects"), 
     name: v.optional(v.string()),
@@ -142,15 +137,15 @@ export const updateProject = mutation({
   },
   handler: async (ctx, args) => {
     const { projectId, ...updates } = args;
-    updates.updatedAt = Date.now();
+    const finalUpdates = { ...updates, updatedAt: Date.now() };
     
-    await ctx.db.patch(projectId, updates);
+    await ctx.db.patch(projectId, finalUpdates);
     const updated = await ctx.db.get(projectId);
     return updated;
   },
 });
 
-export const deleteProject = mutation({
+export const deleteProject = mutationGeneric({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.projectId, { status: "archived", archivedAt: Date.now() });
@@ -158,8 +153,7 @@ export const deleteProject = mutation({
   },
 });
 
-// CHAT SESSIONS
-export const listChatSessions = query({
+export const listChatSessions = queryGeneric({
   args: {},
   handler: async (ctx) => {
     return await ctx.db.query("chatSessions")
@@ -168,7 +162,7 @@ export const listChatSessions = query({
   },
 });
 
-export const createChatSession = mutation({
+export const createChatSession = mutationGeneric({
   args: { title: v.optional(v.string()), model: v.string(), projectId: v.optional(v.id("projects")) },
   handler: async (ctx, args) => {
     const users = await ctx.db.query("users").collect();
@@ -189,7 +183,7 @@ export const createChatSession = mutation({
   },
 });
 
-export const getChatSession = query({
+export const getChatSession = queryGeneric({
   args: { sessionId: v.id("chatSessions") },
   handler: async (ctx, args) => {
     const session = await ctx.db.get(args.sessionId);
@@ -197,7 +191,7 @@ export const getChatSession = query({
   },
 });
 
-export const getChatMessages = query({
+export const getChatMessages = queryGeneric({
   args: { sessionId: v.id("chatSessions") },
   handler: async (ctx, args) => {
     return await ctx.db.query("chatMessages")
@@ -207,7 +201,7 @@ export const getChatMessages = query({
   },
 });
 
-export const addChatMessage = mutation({
+export const addChatMessage = mutationGeneric({
   args: { 
     sessionId: v.id("chatSessions"), 
     role: v.string(), 
@@ -223,17 +217,14 @@ export const addChatMessage = mutation({
       createdAt: Date.now(),
     });
 
-    // Update session updated_at
     await ctx.db.patch(args.sessionId, { updatedAt: Date.now() });
-
     return { id: messageId };
   },
 });
 
-export const deleteChatSession = mutation({
+export const deleteChatSession = mutationGeneric({
   args: { sessionId: v.id("chatSessions") },
   handler: async (ctx, args) => {
-    // Delete all messages first
     const messages = await ctx.db.query("chatMessages")
       .withIndex("by_session", q => q.eq("sessionId", args.sessionId))
       .collect();
@@ -242,14 +233,12 @@ export const deleteChatSession = mutation({
       await ctx.db.delete(msg._id);
     }
     
-    // Delete the session
     await ctx.db.delete(args.sessionId);
     return { success: true };
   },
 });
 
-// USAGE TRACKING
-export const trackUsage = mutation({
+export const trackUsage = mutationGeneric({
   args: { action: v.string(), resource: v.optional(v.string()), quantity: v.number() },
   handler: async (ctx, args) => {
     const users = await ctx.db.query("users").collect();
