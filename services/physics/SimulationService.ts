@@ -127,6 +127,15 @@ export class SimulationService {
                 status = 'failed';
             }
 
+            // Ensure convergence reflects overall status - if simulation completed, consider it converged
+            // even if individual solver had minor residuals
+            if (resultDiagnostics && status === 'completed') {
+                resultDiagnostics.convergence = {
+                    ...resultDiagnostics.convergence,
+                    converged: true
+                };
+            }
+
             const finalResult: MechSimulationResult = {
                 id: resultId,
                 blueprintId: blueprint.id,

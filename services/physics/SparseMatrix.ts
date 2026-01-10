@@ -290,19 +290,29 @@ export class SparseLinearSolver {
 
         p.set(r0);
 
+        // Pre-compute r0 norm for stability checks
+        const r0Norm = Math.sqrt(r0.reduce((sum, val) => sum + val * val, 0));
+        const rNormInitial = Math.sqrt(r.reduce((sum, val) => sum + val * val, 0));
+
+        // Use r0Norm to scale the breakdown threshold - more adaptive
+        const breakdownThreshold = Math.max(1e-12, 1e-10 * r0Norm * rNormInitial);
+
         for (let iter = 0; iter < this.maxIterations; iter++) {
             const rho_old = rho;
             
-            // rho = r0 . r
+            // rho = r0 . r (with stability check)
             rho = 0;
             for (let i = 0; i < n; i++) {
                 rho += r0[i] * r[i];
             }
             
-            if (Math.abs(rho) < 1e-15) {
-                // Breakdown - try restart or return
-                console.warn('[BiCGSTAB] Rho breakdown, stopping');
-                break;
+            // Use adaptive threshold instead of fixed 1e-15
+            if (Math.abs(rho) < breakdownThreshold) {
+                // Near-breakdown: restart with current r as new r0
+                r0.set(r);
+                p.set(r);
+                rho = r0Norm * rNormInitial;
+                continue; // Skip to next iteration with restart
             }
             
             // beta = (rho / rho_old) * (alpha / omega)
@@ -323,13 +333,18 @@ export class SparseLinearSolver {
                 r0v += r0[i] * v[i];
             }
             
-            if (Math.abs(r0v) < 1e-15) {
-                // Breakdown
-                console.warn('[BiCGSTAB] r0v breakdown');
-                break;
-            }
+            // Use adaptive threshold for r0v breakdown
+            const vNorm = Math.sqrt(v.reduce((sum, val) => sum + val * val, 0));
+            const r0vThreshold = Math.max(1e-12, 1e-10 * r0Norm * vNorm);
             
-            alpha = rho / r0v;
+            if (Math.abs(r0v) < r0vThreshold) {
+                // Near-breakdown: add regularization and continue
+                // Small perturbation to avoid true breakdown
+                const epsilon = 1e-8;
+                alpha = rho / (r0v + epsilon * Math.sign(r0v) || epsilon);
+            } else {
+                alpha = rho / r0v;
+            }
             
             // s = r - alpha * v
             for (let i = 0; i < n; i++) {
@@ -369,13 +384,15 @@ export class SparseLinearSolver {
                 tt += t[i] * t[i];
             }
             
-            if (Math.abs(tt) < 1e-15) {
-                // t is zero, can't continue
-                console.warn('[BiCGSTAB] t = 0, stopping');
-                break;
-            }
+            // Use adaptive threshold for t breakdown (sNorm already computed above)
+            const tThreshold = Math.max(1e-12, 1e-10 * sNorm * sNorm);
             
-            omega = ts / tt;
+            if (Math.abs(tt) < tThreshold) {
+                // t is nearly zero - set omega to 0 and continue
+                omega = 0;
+            } else {
+                omega = ts / tt;
+            }
             
             // x = x + alpha * p + omega * s
             for (let i = 0; i < n; i++) {

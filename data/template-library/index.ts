@@ -470,6 +470,444 @@ const PROCESS_MIXING: MechBlueprint = {
     ]
 };
 
+const EV_DRIVETRAIN: MechBlueprint = {
+    id: 'ev-drivetrain',
+    name: 'Electric Vehicle Drivetrain',
+    description: 'EV powertrain with battery, motor, inverter, and reduction gear.',
+    domain: 'mechanical',
+    version: '1.0.0',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    author: 'System',
+    tags: ['ev', 'electric', 'motor', 'battery'],
+    simulations: [],
+    components: [
+        {
+            id: 'Battery_Pack',
+            name: 'Battery Pack',
+            componentDefinitionId: 'electrical.battery.li_ion',
+            position: { x: 100, y: 400 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { capacity_kwh: 60, voltage: 400, soc: 80, max_discharge_rate: 200 }
+        },
+        {
+            id: 'Inverter',
+            name: 'Power Inverter',
+            componentDefinitionId: 'electrical.inverter',
+            position: { x: 250, y: 300 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { efficiency: 96, max_power: 150 }
+        },
+        {
+            id: 'Electric_Motor',
+            name: 'Traction Motor',
+            componentDefinitionId: 'mechanical.motor.electric',
+            position: { x: 400, y: 300 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { power_rating: 150, speed_rated: 8000, max_torque: 400 }
+        },
+        {
+            id: 'Reducer',
+            name: 'Single Speed Reducer',
+            componentDefinitionId: 'mechanical.gear.spur',
+            position: { x: 550, y: 300 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { ratio: 8.5, efficiency: 97 }
+        },
+        {
+            id: 'Differential',
+            name: 'LSD Differential',
+            componentDefinitionId: 'mechanical.gear.differential',
+            position: { x: 700, y: 300 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { ratio: 3.5, efficiency: 95 }
+        },
+        {
+            id: 'Cooling_Pump',
+            name: 'Coolant Pump',
+            componentDefinitionId: 'fluid.pump.centrifugal',
+            position: { x: 250, y: 500 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { design_flow: 30, design_head: 10 }
+        },
+        {
+            id: 'Radiator_EV',
+            name: 'Motor Radiator',
+            componentDefinitionId: 'thermal.radiator',
+            position: { x: 400, y: 500 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_rejection: 15, air_temp: 25 }
+        }
+    ],
+    connections: [
+        { id: 'e1', sourceComponentId: 'Battery_Pack', targetComponentId: 'Inverter', sourcePortId: 'dc_out', targetPortId: 'dc_in', type: 'electrical', isSelected: false },
+        { id: 'e2', sourceComponentId: 'Inverter', targetComponentId: 'Electric_Motor', sourcePortId: 'ac_out', targetPortId: 'power_in', type: 'electrical', isSelected: false },
+        { id: 's1', sourceComponentId: 'Electric_Motor', targetComponentId: 'Reducer', sourcePortId: 'shaft_out', targetPortId: 'shaft_in', type: 'mechanical', isSelected: false },
+        { id: 's2', sourceComponentId: 'Reducer', targetComponentId: 'Differential', sourcePortId: 'shaft_out', targetPortId: 'shaft_in', type: 'mechanical', isSelected: false },
+        { id: 'f1', sourceComponentId: 'Cooling_Pump', targetComponentId: 'Electric_Motor', sourcePortId: 'outlet', targetPortId: 'cooling_in', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Electric_Motor', targetComponentId: 'Radiator_EV', sourcePortId: 'cooling_out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Radiator_EV', targetComponentId: 'Cooling_Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
+    ]
+};
+
+const HVAC_CHILLER: MechBlueprint = {
+    id: 'hvac-chiller',
+    name: 'VRF Chiller System',
+    description: 'Variable refrigerant flow chiller with compressor and heat exchange.',
+    domain: 'thermal',
+    version: '1.0.0',
+    fluidId: 'r410a',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    author: 'System',
+    tags: ['hvac', 'chiller', 'refrigeration', 'cooling'],
+    simulations: [],
+    components: [
+        {
+            id: 'Compressor',
+            name: 'Scroll Compressor',
+            componentDefinitionId: 'mechanical.compressor.scroll',
+            position: { x: 300, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { displacement: 100, max_speed: 6000, efficiency: 90 }
+        },
+        {
+            id: 'Condenser',
+            name: 'Air-Cooled Condenser',
+            componentDefinitionId: 'thermal.hx.air',
+            position: { x: 500, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_rejection: 100, area: 20, air_temp: 35 }
+        },
+        {
+            id: 'Expansion_Valve',
+            name: 'TXV Expansion Valve',
+            componentDefinitionId: 'fluid.valve.expansion',
+            position: { x: 500, y: 400 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { cv: 5, opening: 100 }
+        },
+        {
+            id: 'Evaporator',
+            name: 'Evaporator Coil',
+            componentDefinitionId: 'thermal.hx.shell_tube',
+            position: { x: 300, y: 400 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_duty: 80, area: 15 }
+        },
+        {
+            id: 'Crankcase_Heater',
+            name: 'Crankcase Heater',
+            componentDefinitionId: 'thermal.heater.electric',
+            position: { x: 150, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { power: 0.1, setpoint: 60 }
+        }
+    ],
+    connections: [
+        { id: 'f1', sourceComponentId: 'Compressor', targetComponentId: 'Condenser', sourcePortId: 'discharge', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Condenser', targetComponentId: 'Expansion_Valve', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Expansion_Valve', targetComponentId: 'Evaporator', sourcePortId: 'outlet', targetPortId: 'shell_in', type: 'fluid', isSelected: false },
+        { id: 'f4', sourceComponentId: 'Evaporator', targetComponentId: 'Compressor', sourcePortId: 'shell_out', targetPortId: 'suction', type: 'fluid', isSelected: false }
+    ]
+};
+
+const MULTI_PUMP_PARALLEL: MechBlueprint = {
+    id: 'multi-pump-parallel',
+    name: 'Parallel Pump Station',
+    description: 'Redundant pump system with flow sharing and VFD control.',
+    domain: 'fluid',
+    version: '1.0.0',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    author: 'System',
+    tags: ['pump', 'parallel', 'redundancy', 'vfd'],
+    simulations: [],
+    components: [
+        {
+            id: 'Suction_Header',
+            name: 'Suction Header',
+            componentDefinitionId: 'fluid.pipe.std',
+            position: { x: 100, y: 300 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { length: 5, diameter: 200 }
+        },
+        {
+            id: 'Pump_A',
+            name: 'Pump A (Lead)',
+            componentDefinitionId: 'fluid.pump.centrifugal',
+            position: { x: 300, y: 150 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { design_flow: 100, design_head: 50, efficiency: 85, speed: 1450 }
+        },
+        {
+            id: 'Pump_B',
+            name: 'Pump B (Lag)',
+            componentDefinitionId: 'fluid.pump.centrifugal',
+            position: { x: 300, y: 450 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { design_flow: 100, design_head: 50, efficiency: 85, speed: 1450 }
+        },
+        {
+            id: 'Discharge_Header',
+            name: 'Discharge Header',
+            componentDefinitionId: 'fluid.pipe.std',
+            position: { x: 500, y: 300 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { length: 5, diameter: 200 }
+        },
+        {
+            id: 'Check_Valve_A',
+            name: 'Check Valve A',
+            componentDefinitionId: 'fluid.valve.check',
+            position: { x: 400, y: 150 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { cv: 200, cracking_pressure: 0.5 }
+        },
+        {
+            id: 'Check_Valve_B',
+            name: 'Check Valve B',
+            componentDefinitionId: 'fluid.valve.check',
+            position: { x: 400, y: 450 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { cv: 200, cracking_pressure: 0.5 }
+        },
+        {
+            id: 'Isolation_Valve_A',
+            name: 'Isolation Valve A',
+            componentDefinitionId: 'fluid.valve.gate',
+            position: { x: 200, y: 150 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { cv: 300, opening: 100 }
+        },
+        {
+            id: 'Isolation_Valve_B',
+            name: 'Isolation Valve B',
+            componentDefinitionId: 'fluid.valve.gate',
+            position: { x: 200, y: 450 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { cv: 300, opening: 100 }
+        }
+    ],
+    connections: [
+        { id: 'f0', sourceComponentId: 'Suction_Header', targetComponentId: 'Isolation_Valve_A', sourcePortId: 'out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f1', sourceComponentId: 'Isolation_Valve_A', targetComponentId: 'Pump_A', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Pump_A', targetComponentId: 'Check_Valve_A', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Check_Valve_A', targetComponentId: 'Discharge_Header', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f4', sourceComponentId: 'Suction_Header', targetComponentId: 'Isolation_Valve_B', sourcePortId: 'out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f5', sourceComponentId: 'Isolation_Valve_B', targetComponentId: 'Pump_B', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f6', sourceComponentId: 'Pump_B', targetComponentId: 'Check_Valve_B', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f7', sourceComponentId: 'Check_Valve_B', targetComponentId: 'Discharge_Header', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
+    ]
+};
+
+const HYDRO_POWER: MechBlueprint = {
+    id: 'hydro-power',
+    name: 'Micro Hydroelectric Plant',
+    description: 'Run-of-river hydro power with penstock, turbine, and generator.',
+    domain: 'fluid',
+    version: '1.0.0',
+    fluidId: 'water',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    author: 'System',
+    tags: ['hydro', 'power', 'turbine', 'renewable'],
+    simulations: [],
+    components: [
+        {
+            id: 'Intake',
+            name: 'Water Intake',
+            componentDefinitionId: 'fluid.tank.reservoir',
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { head: 50, area: 20 }
+        },
+        {
+            id: 'Penstock',
+            name: 'Penstock Pipe',
+            componentDefinitionId: 'fluid.pipe.std',
+            position: { x: 250, y: 250 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { length: 200, diameter: 500, roughness: 0.03 }
+        },
+        {
+            id: 'Turbine',
+            name: 'Pelton Turbine',
+            componentDefinitionId: 'fluid.turbine.hydraulic',
+            position: { x: 400, y: 400 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { design_flow: 2, head: 45, efficiency: 88, max_speed: 750 }
+        },
+        {
+            id: 'Generator',
+            name: 'Synchronous Generator',
+            componentDefinitionId: 'electrical.generator',
+            position: { x: 550, y: 400 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { rated_power: 500, voltage: 400, frequency: 50, efficiency: 95 }
+        },
+        {
+            id: 'Transformer',
+            name: 'Step-Up Transformer',
+            componentDefinitionId: 'electrical.transformer',
+            position: { x: 700, y: 400 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { power_rating: 600, primary_voltage: 400, secondary_voltage: 11000, efficiency: 98 }
+        },
+        {
+            id: 'Tailrace',
+            name: 'Tailrace Channel',
+            componentDefinitionId: 'fluid.pipe.std',
+            position: { x: 400, y: 550 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { length: 50, diameter: 600 }
+        }
+    ],
+    connections: [
+        { id: 'f1', sourceComponentId: 'Intake', targetComponentId: 'Penstock', sourcePortId: 'outlet', targetPortId: 'in', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Penstock', targetComponentId: 'Turbine', sourcePortId: 'out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Turbine', targetComponentId: 'Tailrace', sourcePortId: 'outlet', targetPortId: 'in', type: 'fluid', isSelected: false },
+        { id: 's1', sourceComponentId: 'Turbine', targetComponentId: 'Generator', sourcePortId: 'shaft_out', targetPortId: 'shaft_in', type: 'mechanical', isSelected: false },
+        { id: 'e1', sourceComponentId: 'Generator', targetComponentId: 'Transformer', sourcePortId: 'ac_out', targetPortId: 'primary_in', type: 'electrical', isSelected: false }
+    ]
+};
+
+const COMPRESSED_AIR: MechBlueprint = {
+    id: 'compressed-air',
+    name: 'Compressed Air System',
+    description: 'Industrial air compressor with dryer, tank, and distribution.',
+    domain: 'fluid',
+    version: '1.0.0',
+    fluidId: 'air',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    author: 'System',
+    tags: ['compressed', 'air', 'compressor', 'pneumatic'],
+    simulations: [],
+    components: [
+        {
+            id: 'Air_Compressor',
+            name: 'Screw Compressor',
+            componentDefinitionId: 'mechanical.compressor.screw',
+            position: { x: 200, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { displacement: 500, max_pressure: 10, efficiency: 85, speed: 3000 }
+        },
+        {
+            id: 'Aftercooler',
+            name: 'Aftercooler',
+            componentDefinitionId: 'thermal.hx.air',
+            position: { x: 350, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_rejection: 50, area: 10, air_temp: 35 }
+        },
+        {
+            id: 'Air_Dryer',
+            name: 'Refrigerated Dryer',
+            componentDefinitionId: 'thermal.dryer',
+            position: { x: 500, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { capacity: 100, dew_point: 3 }
+        },
+        {
+            id: 'Air_Tank',
+            name: 'Receiver Tank',
+            componentDefinitionId: 'fluid.tank.reservoir',
+            position: { x: 650, y: 300 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { head: 8, volume: 2000 }
+        },
+        {
+            id: 'Filter_1',
+            name: 'Pre-Filter',
+            componentDefinitionId: 'fluid.filter',
+            position: { x: 350, y: 350 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { pressure_drop: 0.2, efficiency: 99 }
+        },
+        {
+            id: 'Filter_2',
+            name: 'Fine Filter',
+            componentDefinitionId: 'fluid.filter',
+            position: { x: 500, y: 350 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { pressure_drop: 0.3, efficiency: 99.9 }
+        }
+    ],
+    connections: [
+        { id: 'f1', sourceComponentId: 'Air_Compressor', targetComponentId: 'Aftercooler', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f2', sourceComponentId: 'Aftercooler', targetComponentId: 'Filter_1', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f3', sourceComponentId: 'Filter_1', targetComponentId: 'Air_Dryer', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f4', sourceComponentId: 'Air_Dryer', targetComponentId: 'Filter_2', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
+        { id: 'f5', sourceComponentId: 'Filter_2', targetComponentId: 'Air_Tank', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
+    ]
+};
+
+
 export const TEMPLATE_REGISTRY: SystemTemplate[] = [
     {
         id: 'v8-turbo',
@@ -512,6 +950,41 @@ export const TEMPLATE_REGISTRY: SystemTemplate[] = [
         description: 'Multi-stream injection system.',
         blueprint: PROCESS_MIXING,
         thumbnail: 'flask'
+    },
+    {
+        id: 'ev-drivetrain',
+        name: 'EV Drivetrain',
+        description: 'Electric vehicle powertrain with battery, motor, and reduction.',
+        blueprint: EV_DRIVETRAIN,
+        thumbnail: 'zap'
+    },
+    {
+        id: 'hvac-chiller',
+        name: 'VRF Chiller System',
+        description: 'Variable refrigerant flow chiller with compressor.',
+        blueprint: HVAC_CHILLER,
+        thumbnail: 'snowflake'
+    },
+    {
+        id: 'multi-pump',
+        name: 'Parallel Pump Station',
+        description: 'Redundant pump system with flow sharing.',
+        blueprint: MULTI_PUMP_PARALLEL,
+        thumbnail: 'layers'
+    },
+    {
+        id: 'hydro-power',
+        name: 'Micro Hydro Plant',
+        description: 'Run-of-river hydro power with turbine and generator.',
+        blueprint: HYDRO_POWER,
+        thumbnail: 'waves'
+    },
+    {
+        id: 'compressed-air',
+        name: 'Compressed Air System',
+        description: 'Industrial air compressor with dryer and tank.',
+        blueprint: COMPRESSED_AIR,
+        thumbnail: 'wind'
     },
     {
         id: 'empty',

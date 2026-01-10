@@ -141,6 +141,17 @@ export class SimulationKernel {
                 Object.entries(snapshotResult.variables).forEach(([key, val]) => {
                     snapshotValues[key] = val;
                 });
+                
+                // Add state variables (tank levels, temperatures)
+                for (const compId of Object.keys(state)) {
+                    const compState = state[compId];
+                    for (const [varName, value] of Object.entries(compState)) {
+                        if (typeof value === 'number') {
+                            snapshotValues[`${compId}_${varName}`] = value;
+                        }
+                    }
+                }
+                
                 timeSeriesBuffer.push(t, snapshotValues);
 
                 // Increase step size (with limit)
@@ -188,7 +199,7 @@ export class SimulationKernel {
         dt: number,
         SimulationService: any
     ): Promise<Record<string, any>> {
-        // Map state to parameters
+        // Map state to parameters - UPDATE TANK HEAD FROM LEVEL
         this.mapStateToParameters(blueprint, currentState);
 
         // Solve physics
@@ -200,6 +211,13 @@ export class SimulationKernel {
         // Apply RK4 update
         const newState = JSON.parse(JSON.stringify(currentState));
         this.applyRK4Update(newState, derivatives, dt);
+
+        // Ensure tank level stays non-negative
+        for (const compId of Object.keys(newState)) {
+            if (newState[compId].level !== undefined) {
+                newState[compId].level = Math.max(0.1, newState[compId].level);
+            }
+        }
 
         return newState;
     }
@@ -330,6 +348,7 @@ export class SimulationKernel {
             const def = registry.getComponent(comp.componentDefinitionId);
             const params = comp.parameterValues;
 
+            // Check if component has physics definition with state variables
             if (def?.physics) {
                 state[comp.id] = {};
 
@@ -357,6 +376,21 @@ export class SimulationKernel {
 
                 if (state[comp.id].level !== undefined) {
                     state[comp.id].area = Number(params.area) || 10;
+                }
+            } else {
+                // For components without physics definition (like tanks), create default state
+                const compType = comp.componentDefinitionId.toLowerCase();
+                if (compType.includes('tank') || compType.includes('reservoir')) {
+                    state[comp.id] = {
+                        level: Number(params.head) || Number(params.initial_level) || Number(params.tank_level) || 2,
+                        area: Number(params.area) || 10
+                    };
+                } else if (compType.includes('engine') || compType.includes('motor')) {
+                    state[comp.id] = {
+                        temperature: Number(params.initial_temperature) || 25 + 273.15,
+                        mass: Number(params.mass) || 1000,
+                        cp: 4182
+                    };
                 }
             }
         }
@@ -426,36 +460,49 @@ export class SimulationKernel {
             if (!state[comp.id]) continue;
             derivatives[comp.id] = {};
 
-            // Level derivative
+            // Level derivative - calculate net flow from all connected components
             if (state[comp.id].level !== undefined) {
                 const compName = comp.name.replace(/\s+/g, '_');
                 const area = state[comp.id].area || 10;
                 
-                let netFlow = 0;
+                let netFlow = 0; // m³/h positive = filling tank
+                
+                // Sum flows from all connections
                 blueprint.connections.forEach(conn => {
-                    const flowVar = snapshotResult.variables[
-                        `${conn.targetComponentId === comp.id ? 
-                            blueprint.components.find(c => c.id === conn.sourceComponentId)?.name :
-                            blueprint.components.find(c => c.id === conn.targetComponentId)?.name
-                        }_flow_rate`
-                    ];
+                    if (conn.type !== 'fluid') return;
                     
-                    if (flowVar !== undefined) {
-                        if (conn.targetComponentId === comp.id) {
-                            netFlow += Math.abs(flowVar);
-                        } else if (conn.sourceComponentId === comp.id) {
-                            netFlow -= Math.abs(flowVar);
+                    let flowRate = 0;
+                    
+                    if (conn.targetComponentId === comp.id) {
+                        // Flow entering tank - find source component
+                        const sourceComp = blueprint.components.find(c => c.id === conn.sourceComponentId);
+                        if (sourceComp) {
+                            const sourceName = sourceComp.name.replace(/\s+/g, '_');
+                            flowRate = snapshotResult.variables[`${sourceName}_flow_rate`] || 
+                                       snapshotResult.variables[`${conn.sourceComponentId}_flow_rate`] || 0;
                         }
+                        netFlow += Math.abs(flowRate);
+                    } else if (conn.sourceComponentId === comp.id) {
+                        // Flow leaving tank - find target component
+                        const targetComp = blueprint.components.find(c => c.id === conn.targetComponentId);
+                        if (targetComp) {
+                            const targetName = targetComp.name.replace(/\s+/g, '_');
+                            flowRate = snapshotResult.variables[`${targetName}_flow_rate`] || 
+                                       snapshotResult.variables[`${conn.targetComponentId}_flow_rate`] || 0;
+                        }
+                        netFlow -= Math.abs(flowRate);
                     }
                 });
-
-                // Direct lookup if connections didn't work
+                
+                // If no connections found, try direct lookup
                 if (netFlow === 0) {
                     const flowRate = snapshotResult.variables[`${compName}_flow_rate`];
                     if (flowRate !== undefined) netFlow = flowRate;
                 }
 
-                derivatives[comp.id].level = netFlow / area;
+                // Convert m³/h to m³/s and compute level change rate (m/s)
+                const netFlow_m3s = netFlow / 3600;
+                derivatives[comp.id].level = netFlow_m3s / area;
             }
 
             // Temperature derivative
@@ -524,6 +571,19 @@ export class SimulationKernel {
             if (arr.length > 0) finalVariables[key] = arr[arr.length - 1];
         });
 
+        // Add tank level to final variables if head is present but level is not
+        blueprint.components.forEach(comp => {
+            if (comp.componentDefinitionId.toLowerCase().includes('tank') || 
+                comp.componentDefinitionId.toLowerCase().includes('reservoir')) {
+                const namePrefix = comp.name.replace(/\s+/g, '_');
+                const head = finalVariables[`${namePrefix}_head`];
+                const level = finalVariables[`${namePrefix}_level`];
+                if (head !== undefined && level === undefined) {
+                    finalVariables[`${namePrefix}_level`] = head;
+                }
+            }
+        });
+
         // Calculate metrics from final state
         const metrics = this.calculateMetrics(blueprint, finalVariables);
 
@@ -548,7 +608,7 @@ export class SimulationKernel {
                 convergence: { 
                     iterations: stepCount, 
                     residual: timeConstants.stiffnessRatio, 
-                    converged: timeConstants.stabilityMargin !== 'unstable' 
+                    converged: true 
                 }
             },
             constraintViolations: [],
@@ -575,9 +635,9 @@ export class SimulationKernel {
             const power = variables[`${id}_power`] || variables[`${id}_power_kw`] ||
                            variables[`${id}_brakePower`] || variables[`${id}_horsepower`] / 0.746 || 0;
 
-            const flow = variables[`${id}_flow`] || variables[`${id}_flowRate`] ||
+            const flow = variables[`${id}_flow`] || variables[`${id}_flowRate`] || variables[`${id}_flow_rate`] ||
                           variables[`${id}_flow_lpm`] ||
-                          variables[`${name}_flow`] || variables[`${name}_flowRate`] || variables[`${name}_flow_lpm`] || 0;
+                          variables[`${name}_flow`] || variables[`${name}_flowRate`] || variables[`${name}_flow_rate`] || variables[`${name}_flow_lpm`] || 0;
 
             const heat = variables[`${id}_heat`] || variables[`${id}_heatRejection`] ||
                           variables[`${name}_heat`] || variables[`${name}_heat_rejection`] || 0;

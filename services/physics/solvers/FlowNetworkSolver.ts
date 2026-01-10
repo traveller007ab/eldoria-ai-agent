@@ -339,16 +339,21 @@ export class FlowNetworkSolver implements ISolver {
             const hStart = finalHeads[link.startNode];
             const hEnd = finalHeads[link.endNode];
             const dh = hStart - hEnd;
+            
+            const prefix = link.componentId.replace(/\s+/g, '_');
+            const comp = blueprint.components.find(c => c.id === link.componentId);
+            const namePrefix = comp ? comp.name.replace(/\s+/g, '_') : link.componentId;
+            
+            if (isNaN(dh)) {
+                console.log(`[FlowNetworkSolver] WARNING: NaN dh for ${namePrefix}, hStart=${hStart}, hEnd=${hEnd}`);
+            }
+            
             const Q = this.calculateFlow(link, dh, { rho, mu, g });
 
             // Should be in m3/h for display usually, but internally m3/s
-            const prefix = link.componentId.replace(/\s+/g, '_'); // Careful, need name? Using comp Id for now
-            // Ideally we map back to Component Name from blueprint
-            const comp = blueprint.components.find(c => c.id === link.componentId);
-            const namePrefix = comp ? comp.name.replace(/\s+/g, '_') : link.componentId;
-
             variables[`${namePrefix}_flow_rate`] = Q * 3600; // m3/h
             variables[`${namePrefix}_head_loss`] = Math.abs(dh); // Approx
+            console.log(`[FlowNetworkSolver] Set ${namePrefix}_flow_rate = ${(Q * 3600).toFixed(2)} m3/h`);
 
             // Calculate Velocity
             let velocity = 0;
@@ -516,6 +521,11 @@ export class FlowNetworkSolver implements ISolver {
         const MAX_FLOW = 10;
         const MIN_DH = -1000;
         const MAX_DH = 1000;
+        
+        if (isNaN(dh)) {
+            return 0;
+        }
+        
         const dh_clamped = Math.max(MIN_DH, Math.min(MAX_DH, dh));
 
         if (link.type === 'pipe') {
@@ -525,9 +535,13 @@ export class FlowNetworkSolver implements ISolver {
             const D = D_mm / 1000;
             const roughness = (Number(link.params['roughness']) || 0.045) / 1000;
 
+            if (length <= 0 || D <= 0) {
+                return 0;
+            }
+
             const area = Math.PI * D * D / 4;
             const velocityGuess = Math.sqrt(Math.abs(dh_clamped) * 2 * g / (8 * 0.02 * length / (Math.PI * Math.PI * g * Math.pow(D, 5))));
-            const Q_m3s = RealPipeFlow.calculateFlowFromHeadLoss(
+            const flowResult = RealPipeFlow.calculateFlowFromHeadLoss(
                 Math.abs(dh_clamped),
                 length,
                 D,
@@ -535,8 +549,10 @@ export class FlowNetworkSolver implements ISolver {
                 0, // minor losses
                 mu,
                 rho
-            ).flowRate;
-
+            );
+            
+            const Q_m3s = flowResult.flowRate;
+            
             return Math.max(-MAX_FLOW, Math.min(MAX_FLOW, Q_m3s));
         }
 
@@ -707,9 +723,15 @@ export class FlowNetworkSolver implements ISolver {
             const def = registry.getComponent(comp.componentDefinitionId);
             const fluidPorts = def?.ports?.filter((p: any) => p.domain === 'fluid') || [];
 
+            // Tanks are not flow links - they're storage vessels
+            if (comp.componentDefinitionId.toLowerCase().includes('tank') || 
+                comp.componentDefinitionId.toLowerCase().includes('reservoir')) {
+                return; // Skip tanks for link creation
+            }
+
             if (fluidPorts.length < 2) {
-                fluidPorts.push({ id: 'in', type: 'input', domain: 'fluid' as const, name: 'Inlet' });
-                fluidPorts.push({ id: 'out', type: 'output', domain: 'fluid' as const, name: 'Outlet' });
+                fluidPorts.push({ id: 'in', type: 'input' as const, domain: 'fluid' as const, name: 'Inlet', variables: [], state: 'disconnected' as const, required: false, position: { x: 0, y: 0.5, side: 'left' as const } });
+                fluidPorts.push({ id: 'out', type: 'output' as const, domain: 'fluid' as const, name: 'Outlet', variables: [], state: 'disconnected' as const, required: false, position: { x: 1, y: 0.5, side: 'right' as const } });
             }
 
             if (fluidPorts.length >= 2) {

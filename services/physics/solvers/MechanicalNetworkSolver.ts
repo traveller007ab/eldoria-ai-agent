@@ -61,8 +61,6 @@ export class MechanicalNetworkSolver implements ISolver {
 
             if (compType === 'engine' || def.id.includes('engine')) {
                 // Engine logic using RealEngineModel
-                let N_driver = 0;
-                let Torque_max = 0;
                 const engineParams: EngineParameters = {
                     displacement: Number(params.displacement) || 2.0,
                     cylinders: Number(params.cylinders) || 4,
@@ -82,7 +80,10 @@ export class MechanicalNetworkSolver implements ISolver {
                 };
 
                 const engineState: EngineState = {
-                    rpm: Number(params.rpm) || 3000,
+                    rpm: (() => {
+                        const v = Number(params.rpm) || Number(params.rated_speed) || Number(params.max_rpm);
+                        return isNaN(v) ? 3000 : v;
+                    })(),
                     throttlePosition: (Number(params.throttle) || 50) / 100,
                     manifoldPressure: Number(params.manifold_pressure) || 100,
                     intakeTemp: Number(params.intake_temp) || 300,
@@ -97,9 +98,6 @@ export class MechanicalNetworkSolver implements ISolver {
                     outputs = RealEngineModel.analyzeEngine(engineParams, engineState);
                     N_driver = engineState.rpm;
                     Torque_max = outputs.torque;
-
-                    const namePrefix = driver.name.replace(/\s+/g, '_');
-                    const id = driver.id;
 
                     // Output standardized keys for both ID and Name
                     [namePrefix, id].forEach(p => {
@@ -151,8 +149,6 @@ export class MechanicalNetworkSolver implements ISolver {
                     Torque_max = peakTorque * torqueMultiplier * throttle;
 
                     // Store fallback calculations
-                    const namePrefix = driver.name.replace(/\s+/g, '_');
-                    const id = driver.id;
                     const power_kw = (Torque_max * N_driver) / 9550;
 
                     [namePrefix, id].forEach(p => {

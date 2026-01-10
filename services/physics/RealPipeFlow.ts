@@ -124,6 +124,11 @@ export class RealPipeFlow {
         const area = Math.PI * diameter * diameter / 4;
         const relativeRoughness = roughness / diameter;
 
+        // Handle zero head loss (no pressure difference = no flow)
+        if (headLoss <= 0) {
+            return this.createResult(0, 0, 0, 0.02, headLoss, diameter);
+        }
+
         // Initial guess using Hagen-Poiseuille
         let Q = Math.sqrt(headLoss * Math.PI * Math.pow(diameter, 4) * this.g / (128 * fluidViscosity * length));
         
