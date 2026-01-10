@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, CheckCircle2, Circle, Clock, Flame, HelpCircle, ChevronDown, ChevronUp, AlertCircle, X } from 'lucide-react';
+import { Target, CheckCircle2, Circle, Clock, Flame, HelpCircle, ChevronDown, ChevronUp, AlertCircle, X, Trophy } from 'lucide-react';
 import { scenarioService } from '../../services/scenarios/ScenarioService';
 import { ScenarioSession } from '../../services/scenarios/types';
 import { useMechStore } from '../../stores/useMechStore';

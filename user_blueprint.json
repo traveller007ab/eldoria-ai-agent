@@ -1,0 +1,202 @@
+{ 
+     "id": "demo-engine-pump-001", 
+     "name": "V8 Engine Pump Loop", 
+     "description": "Demonstration of Multi-Physics: V8 Engine driving a Centrifugal Pump through a Gearbox.", 
+     "domain": "fluid", 
+     "version": "1.0.0", 
+     "createdAt": "2024-01-07T12:00:00.000Z", 
+     "updatedAt": "2024-01-07T12:00:00.000Z", 
+     "author": "System", 
+     "fluidId": "water", 
+     "tags": [ 
+         "demo", 
+         "engine", 
+         "pump", 
+         "multiphysics" 
+     ], 
+     "components": [ 
+         { 
+             "id": "engine-1", 
+             "componentDefinitionId": "mechanical.engine.ic", 
+             "name": "V8 Engine", 
+             "position": { 
+                 "x": 100, 
+                 "y": 100 
+             }, 
+             "rotation": 0, 
+             "parameterValues": { 
+                 "max_power": 300, 
+                 "max_speed": 6000, 
+                 "idle_speed": 800, 
+                 "throttle": 50 
+             }, 
+             "isSelected": false, 
+             "groupIds": [] 
+         }, 
+         { 
+             "id": "gearbox-1", 
+             "componentDefinitionId": "mechanical.gear.spur", 
+             "name": "Reduction Gear", 
+             "position": { 
+                 "x": 350, 
+                 "y": 100 
+             }, 
+             "rotation": 0, 
+             "parameterValues": { 
+                 "z1": 20, 
+                 "z2": 40, 
+                 "module": 5 
+             }, 
+             "isSelected": false, 
+             "groupIds": [] 
+         }, 
+         { 
+             "id": "pump-1", 
+             "componentDefinitionId": "fluid.pump.centrifugal", 
+             "name": "Main Pump", 
+             "position": { 
+                 "x": 600, 
+                 "y": 100 
+             }, 
+             "rotation": 0, 
+             "parameterValues": { 
+                 "design_flow": 150, 
+                 "design_head": 80 
+             }, 
+             "isSelected": false, 
+             "groupIds": [] 
+         }, 
+         { 
+             "id": "tank-1", 
+             "componentDefinitionId": "fluid.tank.reservoir", 
+             "name": "Supply Tank", 
+             "position": { 
+                 "x": 600, 
+                 "y": 400 
+             }, 
+             "rotation": 0, 
+             "parameterValues": { 
+                 "head": 5, 
+                 "initial_level": 5, 
+                 "area": 10 
+             }, 
+             "isSelected": false, 
+             "groupIds": [] 
+         }, 
+         { 
+             "id": "pipe-suction", 
+             "componentDefinitionId": "fluid.pipe.std", 
+             "name": "Suction Line", 
+             "position": { 
+                 "x": 600, 
+                 "y": 250 
+             }, 
+             "rotation": 90, 
+             "parameterValues": { 
+                 "length": 5, 
+                 "diameter": 200, 
+                 "roughness": 0.045 
+             }, 
+             "isSelected": false, 
+             "groupIds": [] 
+         }, 
+         { 
+             "id": "valve-discharge", 
+             "componentDefinitionId": "fluid.valve.globe", 
+             "name": "Throttle Valve", 
+             "position": { 
+                 "x": 800, 
+                 "y": 100 
+             }, 
+             "rotation": 0, 
+             "parameterValues": { 
+                 "opening": 100, 
+                 "cv": 200 
+             }, 
+             "isSelected": false, 
+             "groupIds": [] 
+         }, 
+         { 
+             "id": "pipe-return", 
+             "componentDefinitionId": "fluid.pipe.std", 
+             "name": "Return Line", 
+             "position": { 
+                 "x": 800, 
+                 "y": 400 
+             }, 
+             "rotation": 0, 
+             "parameterValues": { 
+                 "length": 20, 
+                 "diameter": 150 
+             }, 
+             "isSelected": false, 
+             "groupIds": [] 
+         } 
+     ], 
+     "connections": [ 
+         { 
+             "id": "c1", 
+             "sourceComponentId": "engine-1", 
+             "sourcePortId": "shaft_out", 
+             "targetComponentId": "gearbox-1", 
+             "targetPortId": "shaft_in", 
+             "type": "mechanical", 
+             "isSelected": false 
+         }, 
+         { 
+             "id": "c2", 
+             "sourceComponentId": "gearbox-1", 
+             "sourcePortId": "shaft_out", 
+             "targetComponentId": "pump-1", 
+             "targetPortId": "shaft_in", 
+             "type": "mechanical", 
+             "isSelected": false 
+         }, 
+         { 
+             "id": "c3", 
+             "sourceComponentId": "tank-1", 
+             "sourcePortId": "outlet", 
+             "targetComponentId": "pipe-suction", 
+             "targetPortId": "in", 
+             "type": "fluid", 
+             "isSelected": false 
+         }, 
+         { 
+             "id": "c4", 
+             "sourceComponentId": "pipe-suction", 
+             "sourcePortId": "out", 
+             "targetComponentId": "pump-1", 
+             "targetPortId": "inlet", 
+             "type": "fluid", 
+             "isSelected": false 
+         }, 
+         { 
+             "id": "c5", 
+             "sourceComponentId": "pump-1", 
+             "sourcePortId": "outlet", 
+             "targetComponentId": "valve-discharge", 
+             "targetPortId": "in", 
+             "type": "fluid", 
+             "isSelected": false 
+         }, 
+         { 
+             "id": "c6", 
+             "sourceComponentId": "valve-discharge", 
+             "sourcePortId": "out", 
+             "targetComponentId": "pipe-return", 
+             "targetPortId": "in", 
+             "type": "fluid", 
+             "isSelected": false 
+         }, 
+         { 
+             "id": "c7", 
+             "sourceComponentId": "pipe-return", 
+             "sourcePortId": "out", 
+             "targetComponentId": "tank-1", 
+             "targetPortId": "inlet", 
+             "type": "fluid", 
+             "isSelected": false 
+         } 
+     ], 
+     "simulations": []
+}

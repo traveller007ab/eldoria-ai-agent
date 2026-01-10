@@ -13,7 +13,7 @@ interface ScenarioSelectModalProps {
 export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen, onClose }) => {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
-    const { loadBlueprint } = useMechStore();
+    const { setBlueprint } = useMechStore();
 
     if (!isOpen) return null;
 
@@ -40,11 +40,16 @@ export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen
     };
 
     const handleStart = (scenario: Scenario) => {
+        console.log('[Missions] Starting scenario:', scenario.id, scenario.title);
+        console.log('[Missions] Initial blueprint:', scenario.initialBlueprint);
+
         // Load the scenario's initial blueprint
-        loadBlueprint(scenario.initialBlueprint);
+        setBlueprint(scenario.initialBlueprint);
+        console.log('[Missions] Blueprint loaded');
 
         // Start the scenario session
-        scenarioService.startScenario(scenario);
+        const session = scenarioService.startScenario(scenario);
+        console.log('[Missions] Scenario session started:', session);
 
         onClose();
     };

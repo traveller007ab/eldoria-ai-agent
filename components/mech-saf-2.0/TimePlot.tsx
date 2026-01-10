@@ -31,10 +31,12 @@ export const TimePlot: React.FC<TimePlotProps> = ({
         const rangeV = maxV - minV || 1;
         const paddedMinV = minV - rangeV * 0.1;
         const paddedMaxV = maxV + rangeV * 0.1;
-        const paddedRangeV = paddedMaxV - paddedMinV;
+        const paddedRangeV = paddedMaxV - paddedMinV || 1; // Avoid div by zero
+
+        const timeRange = maxT - minT || 1; // Avoid div by zero
 
         return timePoints.map((t, i) => {
-            const x = ((t - minT) / (maxT - minT)) * 100;
+            const x = ((t - minT) / timeRange) * 100;
             const y = 100 - ((data[i] - paddedMinV) / paddedRangeV) * 100;
             return `${x},${y}`;
         }).join(' ');

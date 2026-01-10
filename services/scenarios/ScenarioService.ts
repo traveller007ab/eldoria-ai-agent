@@ -172,6 +172,10 @@ export class ScenarioService {
         return this.activeSession;
     }
 
+    getCurrentScenario(): Scenario | null {
+        return this.currentScenario;
+    }
+
     abandonScenario(): void {
         this.activeSession = null;
         this.currentScenario = null;

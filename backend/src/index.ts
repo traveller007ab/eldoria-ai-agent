@@ -3,7 +3,7 @@ import { logger } from '@/utils/logger';
 
 const app = new App();
 
-const port = parseInt(process.env.PORT || '3001', 10);
+const port = parseInt(process.env['PORT'] || '3001', 10);
 
 app.listen();
 

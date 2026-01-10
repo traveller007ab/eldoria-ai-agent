@@ -101,7 +101,7 @@ export const MechLabLayout: React.FC = () => {
         try {
             const result = await SimulationService.run(currentBlueprint);
             setLastSimulationResult(result);
-            
+
             if (result.status === 'completed') {
                 addLog(`Simulation completed in ${result.duration}ms.`, 'success');
                 if (result.diagnostics.convergence.converged) {
@@ -143,12 +143,15 @@ export const MechLabLayout: React.FC = () => {
         addLog('Starting dynamic simulation (60s)...', 'info');
 
         try {
+            // Get active scenario for event tracking
+            const activeScenario = scenarioService.getCurrentScenario();
+
             // Run 60s simulation with 0.5s step
             const result = await DynamicSimulationService.simulate(
-                currentBlueprint, 
-                60, 
+                currentBlueprint,
+                60,
                 0.5,
-                undefined,
+                activeScenario || undefined,
                 (progress, currentTime) => {
                     // Log progress every 20%
                     if (progress % 20 === 0 || progress === 100) {
@@ -156,13 +159,13 @@ export const MechLabLayout: React.FC = () => {
                     }
                 }
             );
-            
+
             if (!result) {
                 throw new Error('Simulation returned no results');
             }
 
             setLastSimulationResult(result);
-            
+
             if (result.status === 'completed') {
                 addLog(`Dynamic simulation completed. Generated ${result.timePoints?.length || 0} time steps.`, 'success');
                 setIsPlaying(true); // Auto-play
@@ -457,18 +460,18 @@ export const MechLabLayout: React.FC = () => {
                 <div className="flex-1 flex flex-col bg-slate-900 relative" onClick={() => setShowExportMenu(false)}>
                     <div className="flex-1 relative w-full min-h-0">
                         <EnhancedGearBackground />
-                        
+
                         {/* Breadcrumbs Navigation */}
                         {navigationStack?.length > 0 && (
                             <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-xs font-medium shadow-xl pointer-events-auto animate-in fade-in slide-in-from-top-2">
-                                <button 
-                                    onClick={() => popBlueprint()} 
+                                <button
+                                    onClick={() => popBlueprint()}
                                     className="hover:text-white text-emerald-400 hover:text-emerald-300 flex items-center gap-1 pr-3 border-r border-slate-700/50 transition-colors"
                                 >
-                                    <ArrowLeft className="w-3.5 h-3.5" /> 
+                                    <ArrowLeft className="w-3.5 h-3.5" />
                                     <span className="uppercase tracking-wider font-bold">Back</span>
                                 </button>
-                                
+
                                 <div className="flex items-center gap-1 pl-2 select-none">
                                     {navigationStack.map((id, i) => {
                                         const bp = blueprints.find(b => b.id === id);

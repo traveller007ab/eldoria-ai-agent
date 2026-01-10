@@ -98,7 +98,7 @@ export class SimulationService {
 
             // Consolidate Metrics
             const totalPowerInput = mechResult.metrics?.totalPowerInput || fluidResult.metrics?.totalPowerInput || 0;
-            const totalPowerOutput = fluidResult.metrics?.totalPowerOutput || 0;
+            const totalPowerOutput = (mechResult.metrics?.totalPowerOutput || 0) + (fluidResult.metrics?.totalPowerOutput || 0);
             const overallEfficiency = totalPowerInput > 0 ? (totalPowerOutput / totalPowerInput) * 100 : 0;
             const totalHeatInput = thermalResult.metrics?.totalHeatInput || 0;
 

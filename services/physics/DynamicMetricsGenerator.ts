@@ -72,24 +72,21 @@ export class DynamicMetricsGenerator {
         );
 
         const enginePrefix = engineComp?.name.replace(/\s+/g, '_') || 'engine';
+        const engineId = engineComp?.id || 'engine';
 
-        // Get engine variables - check multiple naming conventions
-        const torque = result.variables[`${enginePrefix}_torque`] ||
-                      result.variables[`${enginePrefix}_torque_nm`] ||
-                      result.variables[`torque`] ||
-                      result.variables[`engine_torque`] ||
-                      result.variables[`engine_1_torque`] ||
-                      result.variables[`V8_Engine_torque`] || 0;
-        const rpm = result.variables[`${enginePrefix}_rpm`] ||
-                   result.variables[`${enginePrefix}_speed_rpm`] ||
-                   result.variables[`${enginePrefix}_speed_target`] ||
-                   result.variables[`rpm`] ||
-                   result.variables[`engine_rpm`] ||
-                   result.variables[`engine_1_rpm`] ||
-                   result.variables[`V8_Engine_rpm`] || 0;
-        const bsfc = result.variables[`${enginePrefix}_bsfc`] ||
-                    result.variables[`bsfc`] ||
-                    result.variables[`engine_bsfc`] || 0;
+        // Get engine variables - check ID first, then Name
+        const torque = result.variables[`${engineId}_torque`] ||
+            result.variables[`${enginePrefix}_torque`] ||
+            result.variables[`${engineId}_torque_nm`] ||
+            result.variables[`${enginePrefix}_torque_nm`] || 0;
+
+        const rpm = result.variables[`${engineId}_speed`] ||
+            result.variables[`${engineId}_rpm`] ||
+            result.variables[`${enginePrefix}_rpm`] ||
+            result.variables[`${enginePrefix}_speed`] || 0;
+
+        const bsfc = result.variables[`${engineId}_bsfc`] ||
+            result.variables[`${enginePrefix}_bsfc`] || 0;
 
         // If no engine data from solver, check if this is a hydraulic system with temperature-only tracking
         const hasEngineData = torque > 0 || rpm > 0;
@@ -193,8 +190,8 @@ export class DynamicMetricsGenerator {
 
         // Air-fuel ratio
         const airFuelRatio = result.variables[`${enginePrefix}_afr`] ||
-                            result.variables[`afr`] ||
-                            result.variables[`engine_afr`] || 14.7;
+            result.variables[`afr`] ||
+            result.variables[`engine_afr`] || 14.7;
 
         // Specific output (kW per liter of displacement)
         const specificOutput = displacement > 0 && powerKW > 0 ? powerKW / displacement : 0;
@@ -226,11 +223,14 @@ export class DynamicMetricsGenerator {
         );
 
         const pumpPrefix = pumpComp?.name.replace(/\s+/g, '_') || 'pump';
+        const pumpId = pumpComp?.id || 'pump';
 
-        const flowRate = result.variables[`${pumpPrefix}_flow_rate`] ||
-                        result.variables[`flow_rate`] || 0;
-        const head = result.variables[`${pumpPrefix}_head`] ||
-                    result.variables[`head`] || 0;
+        const flowRate = result.variables[`${pumpId}_flow_rate`] ||
+            result.variables[`${pumpPrefix}_flow_rate`] ||
+            result.variables[`flow_rate`] || 0;
+        const head = result.variables[`${pumpId}_head`] ||
+            result.variables[`${pumpPrefix}_head`] ||
+            result.variables[`head`] || 0;
         const powerInput = result.metrics.totalPowerInput;
         const efficiency = powerInput > 0 ? (flowRate * head * 9.81 / powerInput) * 100 : 0;
 
@@ -290,8 +290,8 @@ export class DynamicMetricsGenerator {
         const hxPrefix = hxComp?.name.replace(/\s+/g, '_') || 'hx';
 
         const heatDuty = result.variables[`${hxPrefix}_heat_duty`] ||
-                        result.variables[`heat_duty`] ||
-                        result.metrics.totalHeatInput || 0;
+            result.variables[`heat_duty`] ||
+            result.metrics.totalHeatInput || 0;
 
         const tempIn = result.variables[`${hxPrefix}_temp_in`] || 80;
         const tempOut = result.variables[`${hxPrefix}_temp_out`] || 60;
@@ -390,7 +390,7 @@ export class DynamicMetricsGenerator {
 
         // Calculate top speed (where power = drag force * velocity)
         const airDensity = 1.225; // kg/m³
-        const topSpeed = Math.pow((2 * wheelPower * 1000) / (airDensity * frontalArea * dragCoefficient), 1/3) / 3.6; // m/s to km/h
+        const topSpeed = Math.pow((2 * wheelPower * 1000) / (airDensity * frontalArea * dragCoefficient), 1 / 3) / 3.6; // m/s to km/h
 
         // Acceleration time (0-100 km/h estimate)
         const accelerationForce = (wheelPower * 1000) / 20; // N at 72 km/h (20 m/s)

@@ -193,7 +193,7 @@
             "sourceComponentId": "pipe-return",
             "sourcePortId": "out",
             "targetComponentId": "tank-1",
-            "targetPortId": "outlet",
+            "targetPortId": "inlet",
             "type": "fluid",
             "isSelected": false
         }

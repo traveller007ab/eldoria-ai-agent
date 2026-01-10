@@ -57,17 +57,17 @@ export class ThermalNetworkSolver implements ISolver {
 
         const fluidId = blueprint.fluidId || 'water';
         const fluid = MaterialRegistry.getInstance().getFluid(fluidId);
-        
+
         // Get temperature from context or use 20°C default
         const temperatureK = context['temperature'] || 293.15;
-        
+
         // Use real fluid properties with temperature dependence
         const rho = FluidPropertyDatabase.getDensityAtTemperature(fluidId, temperatureK);
         const cp = fluid?.specificHeat || 4182;
         const mu = FluidPropertyDatabase.getViscosityAtTemperature(fluidId, temperatureK);
         const k_thermal = FluidPropertyDatabase.getFluid(fluidId)?.thermalConductivity || 0.6;
         const Pr = FluidPropertyDatabase.calculatePrandtlNumber(fluidId, temperatureK);
-        
+
         const g = 9.80665;
 
         const nodes: ThermalNode[] = [];
@@ -87,9 +87,9 @@ export class ThermalNetworkSolver implements ISolver {
             const frictionHeat = rho * g * (flow_m3h / 3600) * head_loss_m; // W
 
             // Check if this is a heat exchanger
-            const isHeatExchanger = comp.componentDefinitionId.toLowerCase().includes('heat') || 
-                                   comp.componentDefinitionId.toLowerCase().includes('radiator') ||
-                                   comp.componentDefinitionId.toLowerCase().includes('cooler');
+            const isHeatExchanger = comp.componentDefinitionId.toLowerCase().includes('heat') ||
+                comp.componentDefinitionId.toLowerCase().includes('radiator') ||
+                comp.componentDefinitionId.toLowerCase().includes('cooler');
 
             if (isHeatExchanger) {
                 // Extract heat exchanger parameters
@@ -118,12 +118,12 @@ export class ThermalNetworkSolver implements ISolver {
             const hasHeatDuty = params.heat_duty;
             const hasFrictionHeat = flow_m3h > 0 && head_loss_m > 0;
             const isThermalType = comp.componentDefinitionId.includes('thermal') ||
-                                  comp.componentDefinitionId.includes('heater') ||
-                                  comp.componentDefinitionId.includes('engine') ||
-                                  comp.componentDefinitionId.includes('cooler') ||
-                                  comp.componentDefinitionId.includes('hx') ||
-                                  comp.componentDefinitionId.includes('valve') ||
-                                  comp.componentDefinitionId.includes('pipe');
+                comp.componentDefinitionId.includes('heater') ||
+                comp.componentDefinitionId.includes('engine') ||
+                comp.componentDefinitionId.includes('cooler') ||
+                comp.componentDefinitionId.includes('hx') ||
+                comp.componentDefinitionId.includes('valve') ||
+                comp.componentDefinitionId.includes('pipe');
 
             if (!tempParam && !hasHeatDuty && !hasFrictionHeat && !isThermalType) {
                 return;
@@ -143,10 +143,39 @@ export class ThermalNetworkSolver implements ISolver {
                 heatGen += Number(params.heat_duty) * 1000;
             }
 
+            // Calculate realistic temperatures for boiler/condenser components
+            let componentTemp = Number(tempParam) || 300;
+
+            // Boiler: use steam pressure to determine saturation temperature
+            if (comp.componentDefinitionId.includes('boiler')) {
+                const steamPressureBar = Number(params.steam_pressure) || 10;
+                // Approximate saturation temperature: T_sat ≈ 100 + 35*ln(P_bar) for steam
+                // At 40 bar: ~250°C, at 10 bar: ~180°C, at 1 bar: 100°C
+                componentTemp = 373.15 + 35 * Math.log(steamPressureBar); // K
+
+                // Calculate boiler heat input (Q = m_steam * h_fg)
+                const steamCapacity = Number(params.steam_capacity) || 5000; // kg/h
+                const hfg = 2000; // Approximate latent heat in kJ/kg
+                const boilerHeatInput = (steamCapacity / 3600) * hfg * 1000; // W
+                heatGen = boilerHeatInput;
+                metrics.totalHeatInput += boilerHeatInput / 1000;
+            }
+
+            // Condenser: lower temperature (condensing steam)
+            if (comp.componentDefinitionId.includes('condenser') ||
+                (comp.componentDefinitionId.includes('hx') && comp.name.toLowerCase().includes('condenser'))) {
+                // Condenser typically operates at 30-50°C (vacuum condition)
+                componentTemp = Number(params.condenser_temp) || 318.15; // ~45°C default
+
+                // Heat rejected = approximately equal to boiler heat input (minus turbine work)
+                const heatDuty = Number(params.heat_duty) || 4000; // kW
+                metrics.totalHeatOutput += heatDuty;
+            }
+
             const node: ThermalNode = {
                 id: `thermal_${comp.id}`,
                 componentId: comp.id,
-                temperature: Number(tempParam) || 300,
+                temperature: componentTemp,
                 mass,
                 heatCapacity,
                 heatGen,
@@ -260,8 +289,8 @@ export class ThermalNetworkSolver implements ISolver {
 
             if (node.componentId.includes('radiator') || node.componentId.includes('cooler')) {
                 const heatRejected = context[`${prefix}_heat_rejection`] ||
-                                    context[`${prefix}_cooling_capacity`] ||
-                                    node.heatGen * 0.9;
+                    context[`${prefix}_cooling_capacity`] ||
+                    node.heatGen * 0.9;
                 if (heatRejected > 0) {
                     metrics.totalHeatOutput += Number(heatRejected);
                     variables[`${prefix}_heat_rejection`] = Number(heatRejected);
@@ -271,8 +300,8 @@ export class ThermalNetworkSolver implements ISolver {
 
         // REAL HEAT EXCHANGER ANALYSIS using NTU-LMTD method
         heatExchangers.forEach((hx, idx) => {
-            const comp = blueprint.components.find(c => 
-                c.componentDefinitionId.toLowerCase().includes('heat') || 
+            const comp = blueprint.components.find(c =>
+                c.componentDefinitionId.toLowerCase().includes('heat') ||
                 c.componentDefinitionId.toLowerCase().includes('radiator')
             );
             const prefix = comp?.name.replace(/\s+/g, '_') || `heat_exchanger_${idx}`;
@@ -302,7 +331,7 @@ export class ThermalNetworkSolver implements ISolver {
         });
 
         // Calculate heat exchanger areas if not provided
-        const hxComponents = blueprint.components.filter(c => 
+        const hxComponents = blueprint.components.filter(c =>
             c.componentDefinitionId.toLowerCase().includes('heat') ||
             c.componentDefinitionId.toLowerCase().includes('radiator')
         );

@@ -35,6 +35,7 @@ export const SCENARIO_REGISTRY: Scenario[] = [
             {
                 id: 'obj-flow',
                 description: 'Achieve a flow rate of at least 50 L/min',
+                // Now using ID-based standard keys
                 variable: 'Pump_flow_lpm',
                 type: 'greater_than',
                 target: 50,
@@ -75,7 +76,7 @@ export const SCENARIO_REGISTRY: Scenario[] = [
             components: [
                 {
                     id: 'V8_Engine',
-                    name: 'V8 Engine (Hot!)',
+                    name: 'V8 Engine',
                     componentDefinitionId: 'mechanical.engine.parametric',
                     position: { x: 100, y: 300 },
                     parameterValues: {
@@ -86,14 +87,14 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                 },
                 {
                     id: 'Small_Radiator',
-                    name: 'Undersized Radiator',
+                    name: 'Radiator',
                     componentDefinitionId: 'mechanical.heatexchanger.radiator',
                     position: { x: 400, y: 300 },
                     parameterValues: { area: 0.3, htc: 50 } // Too small!
                 },
                 {
                     id: 'Coolant_Pump',
-                    name: 'Coolant Pump',
+                    name: 'Pump',
                     componentDefinitionId: 'mechanical.pump.centrifugal',
                     position: { x: 250, y: 450 },
                     parameterValues: { design_flow: 15, design_head: 10 } // Undersized
@@ -111,8 +112,7 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                 type: 'less_than',
                 description: 'Keep engine temperature below 95°C for 30 seconds',
                 target: 95,
-                // Solver now produces [ID]_temperature and [ID]_power_kw
-                variable: 'V8_Engine_temperature',
+                variable: 'V8_Engine_temperature', // Matches ID_temperature
                 maintainDurationSeconds: 30,
                 points: 100
             },
@@ -121,9 +121,8 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                 type: 'greater_than',
                 description: 'Maintain power output above 200 kW',
                 target: 200,
-                variable: 'V8_Engine_power_kw',
+                variable: 'V8_Engine_power_kw', // Matches ID_power_kw
                 maintainDurationSeconds: 10,
-                // Service logic handles accumulation if maintains.
                 points: 100
             },
             {

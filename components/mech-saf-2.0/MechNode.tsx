@@ -48,9 +48,13 @@ export const MechNode: React.FC<NodeProps<MechNodeData>> = memo(({ data, selecte
     const componentDef = ComponentRegistry.getInstance().getComponent(component.componentDefinitionId);
 
     if (!componentDef) {
+        // Graceful fallback: show component name/id instead of "Unknown"
         return (
-            <div className="px-4 py-2 bg-red-900/50 border border-red-500 rounded-lg text-red-300">
-                Unknown Component
+            <div className="px-4 py-2 bg-amber-900/30 border border-amber-500/50 rounded-lg text-amber-200">
+                <div className="text-sm font-medium">{component.name || 'Component'}</div>
+                <div className="text-[10px] text-amber-400/70 mt-0.5">
+                    {component.componentDefinitionId}
+                </div>
             </div>
         );
     }
@@ -138,7 +142,7 @@ export const MechNode: React.FC<NodeProps<MechNodeData>> = memo(({ data, selecte
                     </button>
                 </div>
             )}
-            
+
             {/* Ports - Absolute Positioning */}
             {leftPorts.map((port, index) => (
                 <Handle

@@ -573,17 +573,20 @@ export class SimulationKernel {
             const name = comp.name.replace(/\s+/g, '_');
             
             // Try ID-based first, then Name-based
-            const power = variables[`${id}_power`] || variables[`${id}_brakePower`] || 
-                          variables[`${name}_power`] || variables[`${name}_brakePower`] || 
-                          variables[`${name}_power_kw`] * 1000 || 0; // Handle kW conversion if needed
-            
-            const flow = variables[`${id}_flow`] || variables[`${id}_flowRate`] || 
-                         variables[`${name}_flow`] || variables[`${name}_flow_rate`] || 0;
-            
-            const heat = variables[`${id}_heat`] || variables[`${id}_heatRejection`] || 
-                         variables[`${name}_heat`] || variables[`${name}_heat_rejection`] || 0;
+            const power = variables[`${id}_power`] || variables[`${id}_power_kw`] ||
+                           variables[`${id}_brakePower`] || variables[`${id}_horsepower`] / 0.746 || 0;
 
-            if (comp.componentDefinitionId.includes('pump') || comp.componentDefinitionId.includes('engine')) {
+            const flow = variables[`${id}_flow`] || variables[`${id}_flowRate`] ||
+                          variables[`${id}_flow_lpm`] ||
+                          variables[`${name}_flow`] || variables[`${name}_flowRate`] || variables[`${name}_flow_lpm`] || 0;
+
+            const heat = variables[`${id}_heat`] || variables[`${id}_heatRejection`] ||
+                          variables[`${name}_heat`] || variables[`${name}_heat_rejection`] || 0;
+
+            if (comp.componentDefinitionId.includes('pump')) {
+                if (power > 0) totalPowerOutput += power;
+                else totalPowerInput += Math.abs(power);
+            } else if (comp.componentDefinitionId.includes('engine') || comp.componentDefinitionId.includes('motor')) {
                 if (power > 0) totalPowerOutput += power;
                 else totalPowerInput += Math.abs(power);
             }
