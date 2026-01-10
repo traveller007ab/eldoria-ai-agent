@@ -131,6 +131,13 @@ export const PropertiesPanel: React.FC = () => {
     }
 
     if (!selectedComponent || !componentDef) {
+        return (
+            <div className="flex flex-col h-full items-center justify-center text-slate-500 p-4 text-center">
+                <Sliders className="w-12 h-12 mb-3 opacity-50" />
+                <p className="text-sm">Select a component to view properties</p>
+            </div>
+        );
+    }
 
     const handleParameterChange = (paramId: string, value: string) => {
         const numValue = parseFloat(value);
