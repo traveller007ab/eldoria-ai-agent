@@ -1,9 +1,10 @@
 import React, { Dispatch, SetStateAction } from 'react';
 import { useMechStore } from '../../stores/useMechStore';
 import { TimePlot } from './TimePlot';
-import { CheckCircle2, AlertTriangle, Activity, Gauge, Droplets, Flame, Zap, Clock, LineChart, Printer, Download, Settings } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Activity, Gauge, Droplets, Flame, Zap, Clock, LineChart, Printer, Download, Settings, GitCompare } from 'lucide-react';
 import { MechDynamicSimulationResult } from '../../types';
 import { ReportPreviewModal } from './ReportPreviewModal';
+import { ComparisonPanel } from './ComparisonPanel';
 import { exportToCSV, exportToJSON, exportDynamicMetricsJSON } from '../../utils/ExportUtils';
 import { ModelAnalyzer, ModelCategory } from '../../services/physics/ModelAnalyzer';
 
@@ -20,11 +21,12 @@ const MODEL_CATEGORIES: { value: ModelCategory; label: string }[] = [
 ];
 
 export const ResultsPanel: React.FC = () => {
-    const { lastSimulationResult, isSimulating, currentBlueprint } = useMechStore();
+    const { lastSimulationResult, lastStaticResult, isSimulating, currentBlueprint } = useMechStore();
     const [isReportOpen, setIsReportOpen] = React.useState(false);
     const [exportFormat, setExportFormat] = React.useState<'csv' | 'json' | 'dynamic' | null>(null);
     const [overrideCategory, setOverrideCategory] = React.useState<ModelCategory | null>(null);
     const [showCategorySelector, setShowCategorySelector] = React.useState(false);
+    const [showComparison, setShowComparison] = React.useState(false);
 
     const handleExport = (format: 'csv' | 'json' | 'dynamic') => {
         if (!lastSimulationResult || !currentBlueprint) return;
@@ -135,8 +137,28 @@ export const ResultsPanel: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    <button
+                        onClick={() => setShowComparison(!showComparison)}
+                        className={`flex items-center gap-2 px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                            showComparison
+                                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                                : 'bg-slate-800 border-slate-600 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
+                        title="Compare Static vs Dynamic Results"
+                    >
+                        <GitCompare className="w-3.5 h-3.5" />
+                        {showComparison ? 'Hide Comparison' : 'Compare'}
+                    </button>
                 </div>
             </div>
+
+            {/* Comparison Panel */}
+            {showComparison && (
+                <div className="border-b border-cyan-500/30">
+                    <ComparisonPanel />
+                </div>
+            )}
 
             {/* Diagnostic Issues */}
             {lastSimulationResult.issues && lastSimulationResult.issues.length > 0 && (

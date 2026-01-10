@@ -307,6 +307,7 @@ export interface MechConnection {
   targetPortId: string;
   type: string;
   isSelected: boolean;
+  fluidId?: string;  // Optional per-connection fluid (for multi-fluid systems)
 }
 
 export interface MechBlueprint {

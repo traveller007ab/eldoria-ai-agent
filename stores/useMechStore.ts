@@ -19,6 +19,7 @@ interface MechLabState {
     currentBlueprint: MechBlueprint | null;
     blueprints: MechBlueprint[];
     lastSimulationResult: MechSimulationResult | null;
+    lastStaticResult: MechSimulationResult | null;
     isSimulating: boolean;
 
     // Playback State
@@ -65,6 +66,7 @@ interface MechLabState {
     duplicateComponents: (ids: string[]) => void;
     addConnection: (connection: MechConnection) => void;
     removeConnection: (id: string) => void;
+    updateConnectionFluid: (connectionId: string, fluidId: string) => void;
     setFluidId: (id: string) => void;
 
     // History
@@ -83,6 +85,7 @@ interface MechLabState {
     setIsSimulating: (val: boolean) => void;
 
     setLastSimulationResult: (result: MechSimulationResult | null) => void;
+    setLastStaticResult: (result: MechSimulationResult | null) => void;
 
     // Playback Actions
     setPlaybackTime: (time: number) => void;
@@ -128,6 +131,7 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     currentBlueprint: createEmptyBlueprint(),
     blueprints: [],
     lastSimulationResult: null,
+    lastStaticResult: null,
     isSimulating: false,
 
     // Playback Defaults
@@ -555,6 +559,20 @@ export const useMechStore = create<MechLabState>((set, get) => ({
         };
     }),
 
+    updateConnectionFluid: (connectionId, fluidId) => set((state) => {
+        if (!state.currentBlueprint) return state;
+
+        return {
+            currentBlueprint: {
+                ...state.currentBlueprint,
+                connections: state.currentBlueprint.connections.map(c =>
+                    c.id === connectionId ? { ...c, fluidId } : c
+                ),
+                updatedAt: new Date()
+            }
+        };
+    }),
+
     setFluidId: (id) => set((state) => {
         if (!state.currentBlueprint) return state;
         return {
@@ -568,7 +586,18 @@ export const useMechStore = create<MechLabState>((set, get) => ({
 
     setIsSimulating: (val) => set({ isSimulating: val }),
 
-    setLastSimulationResult: (result) => set({ lastSimulationResult: result, playbackTime: 0, isPlaying: false }),
+    setLastSimulationResult: (result) => set((state) => {
+        // Track static results separately for comparison
+        const isDynamic = (result as any)?.isDynamic;
+        return {
+            lastSimulationResult: result,
+            lastStaticResult: isDynamic ? state.lastStaticResult : result,
+            playbackTime: 0,
+            isPlaying: false
+        };
+    }),
+
+    setLastStaticResult: (result) => set({ lastStaticResult: result }),
 
     setPlaybackTime: (time) => set({ playbackTime: time }),
     setPlaybackSpeed: (speed) => set({ playbackSpeed: speed }),

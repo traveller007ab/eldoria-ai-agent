@@ -19,12 +19,19 @@ export const SCENARIO_REGISTRY: Scenario[] = [
         tags: ['hydraulics', 'pump', 'beginner'],
         initialBlueprint: {
             id: 'tutorial-1-start',
-            project_name: 'Pump Sizing Tutorial',
-            updated_at: new Date().toISOString(),
+            name: 'Pump Sizing Tutorial',
+            description: '',
+            domain: 'mechanical' as any,
+            version: '1.0.0',
+            simulations: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            author: 'SAF Lab',
+            tags: [],
             components: [
-                { id: 'Tank', name: 'Reservoir', componentDefinitionId: 'mechanical.tank.atmospheric', position: { x: 200, y: 400 }, parameterValues: { level: 3 } },
-                { id: 'Pump', name: 'Undersized Pump', componentDefinitionId: 'mechanical.pump.centrifugal', position: { x: 400, y: 300 }, parameterValues: { design_flow: 10, design_head: 5 } },
-                { id: 'Pipe', name: 'Discharge Pipe', componentDefinitionId: 'mechanical.pipe.standard', position: { x: 600, y: 300 }, parameterValues: { length: 50, diameter: 80 } }
+                { id: 'Tank', name: 'Reservoir', componentDefinitionId: 'mechanical.tank.atmospheric', position: { x: 200, y: 400 }, rotation: 0, isSelected: false, groupIds: [], parameterValues: { level: 3 } },
+                { id: 'Pump', name: 'Undersized Pump', componentDefinitionId: 'mechanical.pump.centrifugal', position: { x: 400, y: 300 }, rotation: 0, isSelected: false, groupIds: [], parameterValues: { design_flow: 10, design_head: 5 } },
+                { id: 'Pipe', name: 'Discharge Pipe', componentDefinitionId: 'mechanical.pipe.standard', position: { x: 600, y: 300 }, rotation: 0, isSelected: false, groupIds: [], parameterValues: { length: 50, diameter: 80 } }
             ],
             connections: [
                 { id: 'f1', sourceComponentId: 'Tank', targetComponentId: 'Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false },
@@ -71,14 +78,24 @@ export const SCENARIO_REGISTRY: Scenario[] = [
         timeLimitSeconds: 300, // 5 minutes
         initialBlueprint: {
             id: 'challenge-1-start',
-            project_name: 'Overheating V8 Challenge',
-            updated_at: new Date().toISOString(),
+            name: 'Overheating V8 Challenge',
+            description: '',
+            domain: 'mechanical' as any,
+            version: '1.0.0',
+            simulations: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            author: 'SAF Lab',
+            tags: [],
             components: [
                 {
                     id: 'V8_Engine',
                     name: 'V8 Engine',
                     componentDefinitionId: 'mechanical.engine.parametric',
                     position: { x: 100, y: 300 },
+                    rotation: 0,
+                    isSelected: false,
+                    groupIds: [],
                     parameterValues: {
                         cylinders: 8, bore_mm: 86, stroke_mm: 86,
                         compression_ratio: 10.0, aspiration: 'turbocharged',
@@ -90,14 +107,20 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                     name: 'Radiator',
                     componentDefinitionId: 'mechanical.heatexchanger.radiator',
                     position: { x: 400, y: 300 },
-                    parameterValues: { area: 0.3, htc: 50 } // Too small!
+                    rotation: 0,
+                    isSelected: false,
+                    groupIds: [],
+                    parameterValues: { area: 0.3, htc: 50 }
                 },
                 {
                     id: 'Coolant_Pump',
                     name: 'Pump',
                     componentDefinitionId: 'mechanical.pump.centrifugal',
                     position: { x: 250, y: 450 },
-                    parameterValues: { design_flow: 15, design_head: 10 } // Undersized
+                    rotation: 0,
+                    isSelected: false,
+                    groupIds: [],
+                    parameterValues: { design_flow: 15, design_head: 10 }
                 }
             ],
             connections: [
@@ -154,14 +177,24 @@ export const SCENARIO_REGISTRY: Scenario[] = [
         tags: ['engine', 'comparison', 'turbo'],
         initialBlueprint: {
             id: 'experiment-1',
-            project_name: 'Turbo vs NA Experiment',
-            updated_at: new Date().toISOString(),
+            name: 'Turbo vs NA Experiment',
+            description: '',
+            domain: 'mechanical' as any,
+            version: '1.0.0',
+            simulations: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            author: 'SAF Lab',
+            tags: [],
             components: [
                 {
                     id: 'NA_Engine',
                     name: 'NA 2.0L Engine',
                     componentDefinitionId: 'mechanical.engine.parametric',
                     position: { x: 100, y: 200 },
+                    rotation: 0,
+                    isSelected: false,
+                    groupIds: [],
                     parameterValues: { cylinders: 4, bore_mm: 86, stroke_mm: 86, aspiration: 'na' }
                 },
                 {
@@ -169,6 +202,9 @@ export const SCENARIO_REGISTRY: Scenario[] = [
                     name: 'Turbo 2.0L Engine',
                     componentDefinitionId: 'mechanical.engine.parametric',
                     position: { x: 100, y: 400 },
+                    rotation: 0,
+                    isSelected: false,
+                    groupIds: [],
                     parameterValues: { cylinders: 4, bore_mm: 86, stroke_mm: 86, aspiration: 'turbo', boost_pressure_bar: 1.0 }
                 }
             ],

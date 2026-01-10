@@ -10,13 +10,15 @@ import { ParameterValidator, getValidationStatus } from '../../utils/ParameterVa
 export const PropertiesPanel: React.FC = () => {
     const {
         selectedComponentId,
+        selectedConnectionId,
         currentBlueprint,
         togglePropertiesPanel,
         updateComponentParameter,
         updateComponentEquations,
         convertToSubsystem,
         lastSimulationResult,
-        setFluidId
+        setFluidId,
+        updateConnectionFluid
     } = useMechStore();
 
     const [showCustomFluidDialog, setShowCustomFluidDialog] = useState(false);
@@ -24,6 +26,10 @@ export const PropertiesPanel: React.FC = () => {
 
     const selectedComponent = currentBlueprint?.components.find(c => c.id === selectedComponentId);
     const componentDef = selectedComponent ? ComponentRegistry.getInstance().getComponent(selectedComponent.componentDefinitionId) : null;
+
+    const selectedConnection = selectedConnectionId 
+        ? currentBlueprint?.connections.find(c => c.id === selectedConnectionId)
+        : null;
 
     const handleFluidCreated = (fluidId: string) => {
         setFluidId(fluidId);
@@ -34,34 +40,49 @@ export const PropertiesPanel: React.FC = () => {
         setShowCustomFluidDialog(true);
     };
 
-    if (!selectedComponent || !componentDef) {
-        const currentFluidId = currentBlueprint?.fluidId || 'water';
-        const currentFluid = MaterialRegistry.getInstance().getFluid(currentFluidId);
-        const isCustomFluid = MaterialRegistry.getInstance().isCustomFluid(currentFluidId);
-        const allFluids = MaterialRegistry.getInstance().getAllFluids();
+    const handleConnectionFluidChange = (fluidId: string) => {
+        if (selectedConnectionId) {
+            updateConnectionFluid(selectedConnectionId, fluidId);
+        }
+    };
+
+    if (selectedConnection) {
+        const connectionFluidId = selectedConnection.fluidId || currentBlueprint?.fluidId || 'water';
+        const connectionFluid = MaterialRegistry.getInstance().getFluid(connectionFluidId);
         const customFluids = MaterialRegistry.getInstance().getCustomFluids();
+
+        const sourceComp = currentBlueprint?.components.find(c => c.id === selectedConnection.sourceComponentId);
+        const targetComp = currentBlueprint?.components.find(c => c.id === selectedConnection.targetComponentId);
 
         return (
             <>
                 <div className="flex flex-col h-full">
                     <div className="p-4 border-b border-slate-700 bg-slate-800/50">
-                        <h3 className="font-semibold text-slate-200">Project Settings</h3>
-                        <p className="text-xs text-slate-500">Global configuration</p>
+                        <h3 className="font-semibold text-slate-200">Connection</h3>
+                        <p className="text-xs text-slate-500">
+                            {sourceComp?.name} → {targetComp?.name}
+                        </p>
                     </div>
 
                     <div className="p-4 space-y-6">
-                        {/* Fluid Selection */}
                         <div>
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                                 <Droplets className="w-3 h-3" />
-                                Working Fluid
+                                Connection Fluid
+                            </div>
+
+                            <div className="bg-amber-900/20 border border-amber-800 rounded p-2 mb-3">
+                                <p className="text-xs text-amber-200">
+                                    Override the global fluid for this specific connection to create dual-loop systems.
+                                </p>
                             </div>
 
                             <select
                                 className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
-                                value={currentFluidId}
-                                onChange={(e) => setFluidId(e.target.value)}
+                                value={selectedConnection.fluidId || ''}
+                                onChange={(e) => handleConnectionFluidChange(e.target.value)}
                             >
+                                <option value="">Use Global ({currentBlueprint?.fluidId || 'water'})</option>
                                 <optgroup label="Built-in Fluids">
                                     {MaterialRegistry.getInstance().getBuiltInFluids().map(f => (
                                         <option key={f.id} value={f.id}>{f.name}</option>
@@ -76,85 +97,40 @@ export const PropertiesPanel: React.FC = () => {
                                 )}
                             </select>
 
-                            <div className="flex gap-2 mt-2">
+                            {selectedConnection.fluidId && (
                                 <button
-                                    onClick={() => {
-                                        setEditingFluidId(undefined);
-                                        setShowCustomFluidDialog(true);
-                                    }}
-                                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-xs text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
+                                    onClick={() => handleConnectionFluidChange('')}
+                                    className="mt-2 w-full flex items-center justify-center gap-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-xs text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
                                 >
-                                    <Plus className="w-3 h-3" />
-                                    New Fluid
+                                    <X className="w-3 h-3" />
+                                    Use Global Fluid
                                 </button>
-                                {isCustomFluid && (
-                                    <button
-                                        onClick={() => handleEditFluid(currentFluidId)}
-                                        className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded text-xs text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
-                                    >
-                                        <Pencil className="w-3 h-3" />
-                                        Edit
-                                    </button>
-                                )}
-                            </div>
+                            )}
 
-                            {currentFluid && (
+                            {connectionFluid && (
                                 <div className="mt-4 bg-slate-900/50 rounded-lg p-3 border border-slate-700/50 space-y-2">
                                     <div className="flex justify-between text-xs">
                                         <span className="text-slate-500">Density</span>
-                                        <span className="text-slate-300 font-mono">{currentFluid.density} kg/m³</span>
+                                        <span className="text-slate-300 font-mono">{connectionFluid.density} kg/m³</span>
                                     </div>
                                     <div className="flex justify-between text-xs">
                                         <span className="text-slate-500">Viscosity</span>
-                                        <span className="text-slate-300 font-mono">{currentFluid.viscosity.toExponential(2)} Pa·s</span>
+                                        <span className="text-slate-300 font-mono">{connectionFluid.viscosity.toExponential(2)} Pa·s</span>
                                     </div>
                                     <div className="flex justify-between text-xs">
                                         <span className="text-slate-500">Specific Heat</span>
-                                        <span className="text-slate-300 font-mono">{currentFluid.specificHeat} kJ/kg·K</span>
+                                        <span className="text-slate-300 font-mono">{connectionFluid.specificHeat} kJ/kg·K</span>
                                     </div>
-                                    <div className="flex justify-between text-xs">
-                                        <span className="text-slate-500">Bulk Modulus</span>
-                                        <span className="text-slate-300 font-mono">{(currentFluid.bulkModulus / 1e9).toFixed(2)} GPa</span>
-                                    </div>
-                                    {currentFluid.gamma && (
-                                        <div className="flex justify-between text-xs">
-                                            <span className="text-slate-500">Gamma (Cp/Cv)</span>
-                                            <span className="text-slate-300 font-mono">{currentFluid.gamma}</span>
-                                        </div>
-                                    )}
-                                    {currentFluid.tags && currentFluid.tags.length > 0 && (
-                                        <div className="flex gap-1 mt-2 flex-wrap">
-                                            {currentFluid.tags.map(tag => (
-                                                <span key={tag} className="px-1.5 py-0.5 bg-slate-800 rounded text-[10px] text-cyan-400">
-                                                    {tag}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
                             )}
                         </div>
-
-                        <div className="bg-blue-900/20 border border-blue-800 rounded p-3">
-                            <p className="text-xs text-blue-200">
-                                Select a component on the canvas to edit its specific parameters.
-                            </p>
-                        </div>
                     </div>
                 </div>
-
-                <CustomFluidDialog
-                    isOpen={showCustomFluidDialog}
-                    onClose={() => {
-                        setShowCustomFluidDialog(false);
-                        setEditingFluidId(undefined);
-                    }}
-                    onFluidCreated={handleFluidCreated}
-                    editFluidId={editingFluidId}
-                />
             </>
         );
     }
+
+    if (!selectedComponent || !componentDef) {
 
     const handleParameterChange = (paramId: string, value: string) => {
         const numValue = parseFloat(value);

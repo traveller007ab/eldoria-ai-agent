@@ -3,7 +3,7 @@
  * Defines the structure for Engineering Challenges and Tutorials
  */
 
-import { MechBlueprint } from '../../../types';
+import { MechBlueprint } from '../../types';
 
 /**
  * A Scenario is a pre-configured challenge or tutorial with objectives.
@@ -105,4 +105,109 @@ export interface ScenarioResult {
     timeElapsedSeconds: number;
     objectiveResults: Record<string, { achieved: boolean; points: number }>;
     medal: 'none' | 'bronze' | 'silver' | 'gold' | 'platinum';
+}
+
+/**
+ * Time-based event for scenario timeline
+ */
+export interface MissionEvent {
+    id: string;
+    type: 'step' | 'ramp' | 'conditional' | 'periodic';
+    name: string;
+    description: string;
+
+    /** When the event triggers (seconds from start) */
+    triggerTime: number;
+
+    /** What to modify */
+    targetComponentId: string;
+    targetParameter: string;
+
+    /** Event configuration */
+    value?: number;           // For step: new value
+    duration?: number;        // For ramp: transition time
+    condition?: string;       // For conditional: e.g., "temperature > 100"
+    period?: number;          // For periodic: repeat interval
+    maxRepeats?: number;      // For periodic: max occurrences
+
+    /** Visual styling in timeline */
+    color?: string;
+    icon?: string;
+}
+
+/**
+ * Mission constraints (budget, weight, etc.)
+ */
+export interface MissionConstraint {
+    id: string;
+    type: 'cost' | 'weight' | 'size' | 'efficiency' | 'emissions' | 'power';
+    name: string;
+    operator: 'less_than' | 'greater_than' | 'equals';
+    value: number;
+    unit: string;
+    penalty?: number;  // Points deducted if violated
+}
+
+/**
+ * Enhanced scenario with mission features
+ */
+export interface MissionScenario extends Scenario {
+    /** Timeline events */
+    events: MissionEvent[];
+
+    /** Constraints for the mission */
+    constraints: MissionConstraint[];
+
+    /** Scoring configuration */
+    scoring: {
+        timeBonus: number;        // Points per second under time limit
+        efficiencyBonus: number;  // Bonus for efficient solutions
+        budgetBonus: number;      // Bonus for under budget
+        perfectScore: number;     // Maximum possible score
+    };
+
+    /** Grading thresholds */
+    grades: {
+        platinum: number;  // % of max points
+        gold: number;
+        silver: number;
+        bronze: number;
+    };
+
+    /** Background story/context */
+    narrative?: string;
+
+    /** Real-world context */
+    context?: {
+        industry: string;
+        application: string;
+        difficultyFactors: string[];
+    };
+}
+
+/**
+ * Mission session with enhanced tracking
+ */
+export interface MissionSession extends ScenarioSession {
+    /** Current simulation time */
+    currentTime: number;
+
+    /** Active events */
+    activeEvents: string[];
+
+    /** Constraint status */
+    constraintStatus: Record<string, { violated: boolean; currentValue: number }>;
+
+    /** Running score breakdown */
+    scoreBreakdown: {
+        basePoints: number;
+        timeBonus: number;
+        efficiencyBonus: number;
+        constraintPenalties: number;
+        hintPenalties: number;
+        total: number;
+    };
+
+    /** Milestones achieved */
+    milestones: { id: string; time: number }[];
 }

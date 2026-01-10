@@ -906,6 +906,102 @@ const COMPRESSED_AIR: MechBlueprint = {
         { id: 'f5', sourceComponentId: 'Filter_2', targetComponentId: 'Air_Tank', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
     ]
 };
+const DUAL_LOOP_COOLING: MechBlueprint = {
+    id: 'dual-loop-cooling',
+    name: 'Dual-Loop Cooling System',
+    description: 'Engine cooling system with separate water and oil loops through a heat exchanger.',
+    domain: 'thermal',
+    version: '1.0.0',
+    fluidId: 'water',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    author: 'System',
+    tags: ['cooling', 'thermal', 'multi-fluid', 'heat-exchanger'],
+    simulations: [],
+    components: [
+        {
+            id: 'Water_Pump',
+            name: 'Water Pump',
+            componentDefinitionId: 'fluid.pump.centrifugal',
+            position: { x: 150, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { design_flow: 50, design_head: 20, speed: 1450 }
+        },
+        {
+            id: 'Engine_Water_Jacket',
+            name: 'Engine Water Jacket',
+            componentDefinitionId: 'thermal.heat_source',
+            position: { x: 350, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_generation: 50, mass: 500, cp: 3800 }
+        },
+        {
+            id: 'Radiator',
+            name: 'Radiator',
+            componentDefinitionId: 'thermal.hx.air',
+            position: { x: 550, y: 200 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_rejection: 40, area: 2.5, air_temp: 25 }
+        },
+        {
+            id: 'Oil_Pump',
+            name: 'Oil Pump',
+            componentDefinitionId: 'fluid.pump.centrifugal',
+            position: { x: 150, y: 450 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { design_flow: 15, design_head: 15, speed: 1450 }
+        },
+        {
+            id: 'Engine_Oil_Pan',
+            name: 'Engine Oil Pan',
+            componentDefinitionId: 'thermal.heat_source',
+            position: { x: 350, y: 450 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_generation: 15, mass: 200, cp: 2000 }
+        },
+        {
+            id: 'Oil_Cooler',
+            name: 'Oil Cooler (HX)',
+            componentDefinitionId: 'thermal.hx.shell_tube',
+            position: { x: 550, y: 450 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { heat_rejection: 12, area: 0.5, effectiveness: 0.7 }
+        },
+        {
+            id: 'Thermostat',
+            name: 'Thermostat',
+            componentDefinitionId: 'fluid.valve.thermostatic',
+            position: { x: 350, y: 100 },
+            rotation: 0,
+            isSelected: false,
+            groupIds: [],
+            parameterValues: { setpoint: 90, opening_temp: 85, fully_open_temp: 105 }
+        }
+    ],
+    connections: [
+        { id: 'w1', sourceComponentId: 'Water_Pump', targetComponentId: 'Engine_Water_Jacket', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', fluidId: 'water', isSelected: false },
+        { id: 'w2', sourceComponentId: 'Engine_Water_Jacket', targetComponentId: 'Thermostat', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', fluidId: 'water', isSelected: false },
+        { id: 'w3', sourceComponentId: 'Thermostat', targetComponentId: 'Radiator', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', fluidId: 'water', isSelected: false },
+        { id: 'w4', sourceComponentId: 'Radiator', targetComponentId: 'Water_Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', fluidId: 'water', isSelected: false },
+        { id: 'o1', sourceComponentId: 'Oil_Pump', targetComponentId: 'Engine_Oil_Pan', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', fluidId: 'oil', isSelected: false },
+        { id: 'o2', sourceComponentId: 'Engine_Oil_Pan', targetComponentId: 'Oil_Cooler', sourcePortId: 'outlet', targetPortId: 'shell_in', type: 'fluid', fluidId: 'oil', isSelected: false },
+        { id: 'o3', sourceComponentId: 'Oil_Cooler', targetComponentId: 'Oil_Pump', sourcePortId: 'shell_out', targetPortId: 'inlet', type: 'fluid', fluidId: 'oil', isSelected: false },
+        { id: 't1', sourceComponentId: 'Radiator', targetComponentId: 'Oil_Cooler', sourcePortId: 'outlet', targetPortId: 'tube_in', type: 'thermal', isSelected: false }
+    ]
+};
+
 
 
 export const TEMPLATE_REGISTRY: SystemTemplate[] = [
@@ -987,6 +1083,13 @@ export const TEMPLATE_REGISTRY: SystemTemplate[] = [
         thumbnail: 'wind'
     },
     {
+        id: 'dual-loop-cooling',
+        name: 'Dual-Loop Cooling System',
+        description: 'Engine water cooling with separate oil loop - multi-fluid system.',
+        blueprint: DUAL_LOOP_COOLING,
+        thumbnail: 'cooling'
+    },
+    {
         id: 'empty',
         name: 'Empty Project',
         description: 'Start from scratch.',
@@ -1007,3 +1110,4 @@ export const TEMPLATE_REGISTRY: SystemTemplate[] = [
         thumbnail: 'file'
     }
 ];
+

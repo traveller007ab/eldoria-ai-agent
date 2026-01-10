@@ -63,20 +63,32 @@ export class FlowNetworkSolver implements ISolver {
                 'Hydraulic system has topology issues (disconnected nodes or singular matrix). Check connections.');
         }
 
-        // Get fluid properties with temperature dependence
-        const fluid = MaterialRegistry.getInstance().getFluid(blueprint.fluidId || 'water')!;
-        const fluidId = blueprint.fluidId || 'water';
+        // Get fluid properties with multi-fluid support
+        // Check each connection for its own fluid, otherwise use blueprint fluid
+        const fluidGroups = new Map<string, { fluidId: string; connections: HydraulicLink[] }>();
         
-        // Use temperature from context or default to 20°C (293.15 K)
+        // Group connections by fluid type
+        links.forEach(link => {
+            const connection = blueprint.connections.find(c => c.sourceComponentId === link.componentId || c.targetComponentId === link.componentId);
+            const fluidId = connection?.fluidId || blueprint.fluidId || 'water';
+            
+            if (!fluidGroups.has(fluidId)) {
+                fluidGroups.set(fluidId, { fluidId, connections: [] });
+            }
+            fluidGroups.get(fluidId)!.connections.push(link);
+        });
+        
+        // Get base fluid properties
+        const fluidId = blueprint.fluidId || 'water';
         const temperatureK = context['temperature'] || 293.15;
         
         // Get temperature-corrected fluid properties from real physics library
         const rho = FluidPropertyDatabase.getDensityAtTemperature(fluidId, temperatureK);
         const mu = FluidPropertyDatabase.getViscosityAtTemperature(fluidId, temperatureK);
-        const g = 9.80665; // Standard gravity
+        const g = 9.80665;
         
         // Calculate derived properties
-        const nu = mu / rho; // Kinematic viscosity
+        const nu = mu / rho;
         const Pr = FluidPropertyDatabase.calculatePrandtlNumber(fluidId, temperatureK);
         const c_speed = FluidPropertyDatabase.calculateSpeedOfSound(fluidId, temperatureK);
 

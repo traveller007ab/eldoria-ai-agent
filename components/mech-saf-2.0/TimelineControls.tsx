@@ -14,7 +14,7 @@ export const TimelineControls: React.FC = () => {
         setPlaybackSpeed
     } = useMechStore();
 
-    const animationRef = useRef<number>();
+    const animationRef = useRef<number | undefined>(undefined);
     const lastTimeRef = useRef<number>(0);
 
     // Animation Loop

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Play, Trophy, Clock, Target, Flame, Droplet, Zap, BookOpen, Award } from 'lucide-react';
-import { getScenarios, getScenarioById } from '../../services/scenarios/ScenarioRegistry';
-import { Scenario } from '../../services/scenarios/types';
+import { X, Play, Trophy, Clock, Target, Flame, Droplet, Zap, BookOpen, Award, Settings, Star } from 'lucide-react';
+import { getScenarios } from '../../services/scenarios/ScenarioRegistry';
+import { getMissions } from '../../services/scenarios/MissionRegistry';
+import { Scenario, MissionScenario } from '../../services/scenarios/types';
 import { scenarioService } from '../../services/scenarios/ScenarioService';
 import { useMechStore } from '../../stores/useMechStore';
 
@@ -12,12 +13,13 @@ interface ScenarioSelectModalProps {
 
 export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen, onClose }) => {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-    const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+    const [selectedScenario, setSelectedScenario] = useState<(Scenario | MissionScenario) | null>(null);
     const { setBlueprint } = useMechStore();
 
     if (!isOpen) return null;
 
     const scenarios = getScenarios(selectedCategory ? { category: selectedCategory } : undefined);
+    const missions = selectedCategory === 'mission' ? getMissions() : [];
 
     const getCategoryIcon = (cat: string) => {
         switch (cat) {
@@ -25,6 +27,7 @@ export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen
             case 'challenge': return <Trophy className="w-4 h-4" />;
             case 'experiment': return <Zap className="w-4 h-4" />;
             case 'certification': return <Award className="w-4 h-4" />;
+            case 'mission': return <Star className="w-4 h-4" />;
             default: return <Target className="w-4 h-4" />;
         }
     };
@@ -72,7 +75,7 @@ export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen
                 </div>
 
                 {/* Category Tabs */}
-                <div className="p-3 border-b border-slate-700 flex gap-2">
+                <div className="p-3 border-b border-slate-700 flex gap-2 flex-wrap">
                     <button
                         onClick={() => setSelectedCategory(null)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${!selectedCategory ? 'bg-cyan-600 text-white' : 'bg-slate-700/50 text-slate-400 hover:text-white'
@@ -80,7 +83,7 @@ export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen
                     >
                         All
                     </button>
-                    {['tutorial', 'challenge', 'experiment'].map(cat => (
+                    {['tutorial', 'challenge', 'experiment', 'mission'].map(cat => (
                         <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
@@ -88,7 +91,7 @@ export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen
                                 }`}
                         >
                             {getCategoryIcon(cat)}
-                            {cat.charAt(0).toUpperCase() + cat.slice(1)}s
+                            {cat === 'mission' ? 'Missions' : cat.charAt(0).toUpperCase() + cat.slice(1) + 's'}
                         </button>
                     ))}
                 </div>
@@ -109,6 +112,7 @@ export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen
                                     {scenario.thumbnail === 'flame' && <Flame className="w-5 h-5 text-orange-400" />}
                                     {scenario.thumbnail === 'droplet' && <Droplet className="w-5 h-5 text-blue-400" />}
                                     {scenario.thumbnail === 'zap' && <Zap className="w-5 h-5 text-amber-400" />}
+                                    {scenario.thumbnail === 'thermometer' && <Settings className="w-5 h-5 text-red-400" />}
                                     {!scenario.thumbnail && <Target className="w-5 h-5 text-slate-400" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -128,6 +132,57 @@ export const ScenarioSelectModal: React.FC<ScenarioSelectModalProps> = ({ isOpen
                                             <span className="text-[10px] text-slate-500 flex items-center gap-1">
                                                 <Clock className="w-3 h-3" />
                                                 {Math.floor(scenario.timeLimitSeconds / 60)}min
+                                            </span>
+                                        )}
+                                        {'events' in scenario && (scenario as any).events?.length > 0 && (
+                                            <span className="text-[10px] text-cyan-400 flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                {(scenario as any).events.length} events
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    {missions.map(mission => (
+                        <div
+                            key={mission.id}
+                            onClick={() => setSelectedScenario(mission)}
+                            className={`p-4 rounded-lg border cursor-pointer transition-all hover:border-cyan-500/50 ${selectedScenario?.id === mission.id
+                                ? 'border-cyan-500 bg-cyan-950/30 shadow-lg shadow-cyan-500/10'
+                                : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
+                                }`}
+                        >
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 rounded-lg bg-slate-700/50">
+                                    {mission.thumbnail === 'thermometer' && <Settings className="w-5 h-5 text-red-400" />}
+                                    {mission.thumbnail === 'zap' && <Zap className="w-5 h-5 text-amber-400" />}
+                                    {!mission.thumbnail && <Star className="w-5 h-5 text-cyan-400" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="font-semibold text-white truncate">{mission.title}</h3>
+                                    </div>
+                                    <p className="text-xs text-slate-400 line-clamp-2 mb-2">{mission.description}</p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${getDifficultyColor(mission.difficulty)}`}>
+                                            {mission.difficulty}
+                                        </span>
+                                        <span className="text-[10px] text-cyan-400 flex items-center gap-1">
+                                            <Star className="w-3 h-3" />
+                                            Mission
+                                        </span>
+                                        {mission.events && mission.events.length > 0 && (
+                                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                {mission.events.length} events
+                                            </span>
+                                        )}
+                                        {mission.constraints && mission.constraints.length > 0 && (
+                                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                <Target className="w-3 h-3" />
+                                                {mission.constraints.length} constraints
                                             </span>
                                         )}
                                     </div>
