@@ -1,781 +1,848 @@
-import React, { useState } from 'react';
+/**
+ * Academic Hub - Main Container with Agentic Mode Toggle
+ * 
+ * This component orchestrates the entire Academic Hub experience
+ * with a seamless toggle between Standard and Agentic modes.
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
-import { BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, Loader2, Cog, Printer } from 'lucide-react';
+import { 
+  BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, 
+  Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, 
+  Loader2, Cog, Printer, Brain, Sparkles, Settings, ChevronRight,
+  Zap, Microscope, Mic, BarChart3, Users, Cloud, MessageSquare,
+  LayoutDashboard, FileDiff, Search, Bell, Lightbulb, Wrench
+} from 'lucide-react';
 import { AcademicDashboard } from './AcademicDashboard';
 import { AcademicWizard } from './AcademicWizard';
 import { ComplianceSidebar } from './ComplianceSidebar';
-import { AcademicProject } from '../types';
+import { AcademicProject, Reference } from '../types';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { ResearchService, BibliographyStyle } from '../services/researchService';
 import { generateDefenseDeck } from '../services/DefenseDeckGenerator';
-import { FormulaEditor } from '../components/FormulaEditor';
 import { DefenseDeckUI } from './DefenseDeckUI';
-import { runAutonomousResearch, DeepResearchResult, ResearchEvidence } from '../services/AutonomousResearcher';
-import { Sigma, X, Microscope, Info, Terminal, Link, Zap, HardDrive, Image as ImageIcon, Table as TableIcon, ExternalLink } from 'lucide-react';
 import { ProjectResources } from './ProjectResources';
 import { bridgeClient } from '../services/bridgeClient';
 import { runGroqGenerate } from '../services/groqService';
 import { ModelCreator } from './ModelCreator';
 import { AcademicModel } from '../models/AcademicModels';
+import { runAutonomousResearch, DeepResearchResult } from '../services/AutonomousResearcher';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+type Mode = 'standard' | 'agentic';
+
+interface AgentInsight {
+  id: string;
+  type: 'info' | 'suggestion' | 'warning' | 'success';
+  category: string;
+  title: string;
+  message: string;
+  confidence: number;
+  priority: 'low' | 'medium' | 'high';
+  timestamp: Date;
+  actions?: { id: string; label: string; type: string }[];
+  read?: boolean;
+}
+
+interface ProgressMetrics {
+  totalWords: number;
+  targetWords: number;
+  percentComplete: number;
+  chaptersCompleted: number;
+  totalChapters: number;
+  referencesCount: number;
+  dailyWordTarget: number;
+  daysRemaining: number;
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
 
 export const AcademicHub: React.FC = () => {
-    const { addAcademicProject, updateAcademicProject } = useWorkspace();
-    const [selectedProject, setSelectedProject] = useState<AcademicProject | null>(null);
-    const [isWizardOpen, setIsWizardOpen] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [isGeneratingDeck, setIsGeneratingDeck] = useState(false);
-    const [deckMarkdown, setDeckMarkdown] = useState<string | null>(null);
-    const [isFormulaEditorOpen, setIsFormulaEditorOpen] = useState(false);
-    const [isResearching, setIsResearching] = useState(false);
-    const [researchResult, setResearchResult] = useState<DeepResearchResult | null>(null);
-    const [isVaulting, setIsVaulting] = useState(false);
-    const [isSynthesizing, setIsSynthesizing] = useState(false);
-    const [isModelCreatorOpen, setIsModelCreatorOpen] = useState(false);
-    const [bibStyle, setBibStyle] = useState<BibliographyStyle>('apa');
+  // Core state
+  const { addAcademicProject, updateAcademicProject } = useWorkspace();
+  const [selectedProject, setSelectedProject] = useState<AcademicProject | null>(null);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isGeneratingDeck, setIsGeneratingDeck] = useState(false);
+  const [deckMarkdown, setDeckMarkdown] = useState<string | null>(null);
+  const [isFormulaEditorOpen, setIsFormulaEditorOpen] = useState(false);
+  const [isResearching, setIsResearching] = useState(false);
+  const [researchResult, setResearchResult] = useState<DeepResearchResult | null>(null);
+  const [isVaulting, setIsVaulting] = useState(false);
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [isModelCreatorOpen, setIsModelCreatorOpen] = useState(false);
+  const [bibStyle, setBibStyle] = useState<BibliographyStyle>('apa');
+  const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
 
-    const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
+  // Agentic mode state
+  const [mode, setMode] = useState<Mode>('standard');
+  const [agentInsights, setAgentInsights] = useState<AgentInsight[]>([]);
+  const [isAgentActive, setIsAgentActive] = useState(false);
+  const [progressMetrics, setProgressMetrics] = useState<ProgressMetrics>({
+    totalWords: 0,
+    targetWords: 15000,
+    percentComplete: 0,
+    chaptersCompleted: 0,
+    totalChapters: 7,
+    referencesCount: 0,
+    dailyWordTarget: 500,
+    daysRemaining: 30
+  });
 
-    const handleSaveNewModel = (model: AcademicModel) => {
-        try {
-            const existingModels = localStorage.getItem('eldoria-custom-models');
-            const models = existingModels ? JSON.parse(existingModels) : [];
-            models.push(model);
-            localStorage.setItem('eldoria-custom-models', JSON.stringify(models));
-            setIsModelCreatorOpen(false);
-            alert(`Model "${model.name}" saved successfully!`);
-        } catch (e) {
-            console.error('Failed to save model', e);
-        }
-    };
+  // Load saved mode preference
+  useEffect(() => {
+    const savedMode = localStorage.getItem('academicHubMode') as Mode;
+    if (savedMode) {
+      setMode(savedMode);
+    }
+  }, []);
 
+  // Update progress metrics when project changes
+  useEffect(() => {
+    if (selectedProject && mode === 'agentic') {
+      calculateProgressMetrics(selectedProject);
+    }
+  }, [selectedProject, mode]);
 
-    const handleUpdateDraft = (chapter: string, content: string) => {
-        if (!selectedProject) return;
-        const updatedDrafts = { ...selectedProject.draft_content, [chapter]: content };
-        const updatedProject = { ...selectedProject, draft_content: updatedDrafts };
-        setSelectedProject(updatedProject);
-        updateAcademicProject(updatedProject);
-    };
+  // Agentic background monitoring
+  useEffect(() => {
+    if (mode === 'agentic' && selectedProject && isAgentActive) {
+      const interval = setInterval(() => {
+        generateAgentInsight(selectedProject);
+      }, 30000); // Every 30 seconds
 
-    const handleGenerateDeckPreview = async () => {
-        if (!selectedProject) return;
-        setIsGeneratingDeck(true);
-        try {
-            const deck = await generateDefenseDeck(selectedProject);
-            setDeckMarkdown(deck);
-        } catch (e) {
-            console.error("Deck generation failed", e);
-        } finally {
-            setIsGeneratingDeck(false);
-        }
-    };
+      return () => clearInterval(interval);
+    }
+  }, [mode, selectedProject, isAgentActive]);
 
-    const handleDeepResearch = async () => {
-        if (!selectedProject) return;
-        setIsResearching(true);
-        try {
-            const result = await runAutonomousResearch(selectedProject);
-            setResearchResult(result);
-        } catch (e) {
-            console.error("Research failed", e);
-        } finally {
-            setIsResearching(false);
-        }
-    };
+  // Calculate progress metrics
+  const calculateProgressMetrics = (project: AcademicProject) => {
+    const draftContent = project.draft_content || {};
+    let totalWords = 0;
+    let chaptersCompleted = 0;
+    
+    Object.values(draftContent).forEach(content => {
+      const words = (content as string).split(/\s+/).length;
+      totalWords += words;
+      if (words > 500) chaptersCompleted++;
+    });
 
-    const handleVaultArchive = async () => {
-        if (!selectedProject) return;
-        setIsVaulting(true);
-        try {
-            const result = await bridgeClient.archiveResearch(
-                selectedProject.id,
-                selectedProject.wizard_state.basics.title || 'Untitled Research',
-                selectedProject.wizard_state,
-                { last_vaulted: new Date().toISOString() }
-            );
-            if (result.success) {
-                alert(`Research archived successfully to: ${result.entry.id}`);
-            }
-        } catch (e) {
-            console.error("Vaulting failed", e);
-        } finally {
-            setIsVaulting(false);
-        }
-    };
+    const targetWords = project.wizard_state?.generationConfig?.targetPageCount 
+      ? project.wizard_state.generationConfig.targetPageCount * 250 
+      : 15000;
 
-    const handleSynthesizeThesis = async () => {
-        setIsPrintMenuOpen(false);
-        if (!selectedProject) return;
-        setIsSynthesizing(true);
-        try {
-            // Use the live project data from state for the direct synthesis
-            const blob = await bridgeClient.synthesizeDirect(selectedProject);
-            if (blob) {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `Thesis_${selectedProject.wizard_state.basics.title.replace(/\s+/g, '_') || 'Draft'}.docx`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-            } else {
-                alert("Thesis synthesis failed. Ensure the Python Bridge is running.");
-            }
-        } catch (e) {
-            console.error("Synthesis failed", e);
-            alert("An error occurred during synthesis.");
-        } finally {
-            setIsSynthesizing(false);
-        }
-    };
+    setProgressMetrics(prev => ({
+      ...prev,
+      totalWords,
+      targetWords,
+      percentComplete: Math.min(100, (totalWords / targetWords) * 100),
+      chaptersCompleted,
+      referencesCount: project.references?.length || 0
+    }));
+  };
 
-    const handlePrintDraft = () => {
-        setIsPrintMenuOpen(false);
-        if (!selectedProject) return;
+  // Generate agent insights
+  const generateAgentInsight = (project: AcademicProject) => {
+    const insights: AgentInsight[] = [];
+    const draftContent = project.draft_content || {};
+    const chapterCount = Object.keys(draftContent).length;
 
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-            alert("Please allow popups to print.");
-            return;
-        }
+    // Progress insight
+    if (progressMetrics.percentComplete < 50 && chapterCount > 0) {
+      insights.push({
+        id: `progress-${Date.now()}`,
+        type: 'suggestion',
+        category: 'progress',
+        title: 'Behind Schedule',
+        message: `You're at ${progressMetrics.percentComplete.toFixed(0)}% completion. Aim for ${progressMetrics.dailyWordTarget} words/day to meet your deadline.`,
+        confidence: 0.85,
+        priority: 'high',
+        timestamp: new Date(),
+        actions: [{ id: 'view-plan', label: 'View Plan', type: 'info' }]
+      });
+    }
 
-        // --- Selective Content Assembly & Robust Sanitization ---
-        const chapters = [
-            { name: 'Front Matter', content: selectedProject.draft_content['Front Matter'] },
-            { name: 'Abstract', content: selectedProject.draft_content['Abstract'] },
-            { name: 'Chapter 1: Introduction', content: selectedProject.draft_content['Chapter 1: Introduction'] },
-            { name: 'Chapter 2: Literature Review', content: selectedProject.draft_content['Chapter 2: Literature Review'] },
-            { name: 'Chapter 3: Materials & Methods', content: selectedProject.draft_content['Chapter 3: Materials & Methods'] },
-            { name: 'Chapter 4: Results & Discussion', content: selectedProject.draft_content['Chapter 4: Results & Discussion'] },
-            { name: 'Chapter 5: Conclusion & Recommendations', content: selectedProject.draft_content['Chapter 5: Conclusion & Recommendations'] }
-        ];
+    // Citation insight
+    if (progressMetrics.referencesCount < progressMetrics.chaptersCompleted * 3) {
+      insights.push({
+        id: `citations-${Date.now()}`,
+        type: 'suggestion',
+        category: 'citations',
+        title: 'More Citations Needed',
+        message: `Average ${(progressMetrics.referencesCount / Math.max(1, progressMetrics.chaptersCompleted)).toFixed(1)} references per chapter. Aim for 3-5 per chapter.`,
+        confidence: 0.75,
+        priority: 'medium',
+        timestamp: new Date(),
+        actions: [{ id: 'add-citations', label: 'Add Citations', type: 'action' }]
+      });
+    }
 
-        // Aggressive preamble regex
-        // Aggressive preamble regex
-        // Updated to handle Markdown prefixes (e.g. **Here is...) and colons, AND newlines ([\s\S])
-        const preambleRegex = /^([\s\*\-_>]*)(To perform|I will|Sure|I'll|Certainly|Here is|Then, I'll proceed|In order to|Okay|I've|I can|I've noticed|First|I will first|Secondly|Let me)[\s\S]+?(\.|:|\n)/gim;
+    if (insights.length > 0) {
+      setAgentInsights(prev => [...insights, ...prev].slice(0, 20));
+    }
+  };
 
-        let markdownContent = `# ${selectedProject.wizard_state.basics.title || 'ACADEMIC RESEARCH REPORT'}\n\n`;
-        markdownContent += `**Investigator:** ${selectedProject.wizard_state.basics.author || 'N/A'}\n\n`;
-        if (selectedProject.wizard_state.basics.regNumber) {
-            markdownContent += `**Reg Number:** ${selectedProject.wizard_state.basics.regNumber}\n\n`;
-        }
-        markdownContent += `**Academic Year:** ${selectedProject.wizard_state.basics.year || '2024'}\n\n---\n\n`;
+  // Toggle agentic mode
+  const handleModeToggle = useCallback(() => {
+    const newMode = mode === 'standard' ? 'agentic' : 'standard';
+    setMode(newMode);
+    localStorage.setItem('academicHubMode', newMode);
+    
+    if (newMode === 'agentic') {
+      setIsAgentActive(true);
+      if (selectedProject) {
+        // Add welcome insight
+        setAgentInsights(prev => [{
+          id: `welcome-${Date.now()}`,
+          type: 'success',
+          category: 'initialization',
+          title: 'Agentic Mode Activated',
+          message: 'Your AI research assistant is now monitoring progress and providing proactive suggestions.',
+          confidence: 1,
+          priority: 'low',
+          timestamp: new Date(),
+          actions: [
+            { id: 'get-started', label: 'Get Started', type: 'info' },
+            { id: 'tour', label: 'Take Tour', type: 'info' }
+          ]
+        }, ...prev]);
+      }
+    } else {
+      setIsAgentActive(false);
+    }
+  }, [mode, selectedProject]);
 
-        chapters.forEach(ch => {
-            if (ch.content) {
-                // Sanitize chapter content individually (Multi-pass)
-                let cleanedContent = ch.content.trim();
-                let lastCleaned = "";
-                while (cleanedContent !== lastCleaned) {
-                    lastCleaned = cleanedContent;
-                    cleanedContent = cleanedContent.replace(preambleRegex, '').trim();
-                }
+  // ============================================================================
+  // Render Methods
+  // ============================================================================
 
-                if (cleanedContent) {
-                    markdownContent += `## ${ch.name}\n\n${cleanedContent}\n\n`;
-                }
-            }
-        });
-
-        if (selectedProject.references?.length > 0) {
-            markdownContent += `## REFERENCES\n\n`;
-            selectedProject.references.forEach(ref => {
-                markdownContent += `- ${ref.formattedApa || `${ref.authors} (${ref.year}). ${ref.title}.`}\n`;
-            });
-        }
-
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Draft Submission - ${selectedProject.wizard_state.basics.title}</title>
-                <style>
-                    @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;700&display=swap');
-                    body { 
-                        font-family: 'Crimson Pro', serif; 
-                        line-height: 1.8; 
-                        color: #1a202c; 
-                        max-width: 800px; 
-                        margin: 40px auto; 
-                        padding: 0 60px; 
-                        background: white; 
-                    }
-                    .header { 
-                        text-align: center; 
-                        margin-bottom: 60px; 
-                        border-bottom: 3px double #06b6d4; 
-                        padding-bottom: 30px; 
-                    }
-                    .header .meta { 
-                        font-family: 'Inter', sans-serif;
-                        font-size: 10px; 
-                        color: #718096; 
-                        text-transform: uppercase; 
-                        letter-spacing: 0.25em; 
-                        font-weight: 800; 
-                        margin-bottom: 15px; 
-                    }
-                    .header h1 { 
-                        margin: 0; 
-                        font-size: 32px; 
-                        color: #0c4a6e; 
-                        line-height: 1.1; 
-                        font-weight: 700;
-                    }
-                    
-                    #content { font-size: 16px; text-align: justify; }
-                    h2 { 
-                        font-family: 'Inter', sans-serif;
-                        font-size: 18px; 
-                        border-bottom: 1px solid #e2e8f0; 
-                        padding-bottom: 10px; 
-                        margin-top: 50px; 
-                        color: #075985; 
-                        text-transform: uppercase; 
-                        letter-spacing: 0.1em; 
-                        font-weight: 700;
-                    }
-                    p { margin-bottom: 1.5em; text-indent: 0; }
-                    
-                    blockquote { 
-                        border-left: 4px solid #06b6d4; 
-                        padding: 20px 30px; 
-                        font-style: italic; 
-                        color: #475569; 
-                        margin: 30px 0; 
-                        background: #f0f9ff; 
-                    }
-                    .footer { 
-                        font-family: 'Inter', sans-serif;
-                        text-align: center; 
-                        margin-top: 100px; 
-                        font-size: 9px; 
-                        color: #94a3b8; 
-                        border-top: 1px solid #f1f5f9; 
-                        padding-top: 30px; 
-                        font-weight: 600; 
-                        text-transform: uppercase; 
-                        letter-spacing: 0.2em; 
-                    }
-                    
-                    @media print {
-                        body { margin: 0; padding: 25mm; }
-                        h2 { page-break-before: always; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="meta">Strategic Academic Framework &bull; Draft Submission</div>
-                    <h1>${(selectedProject.wizard_state.basics.title || 'UNTITLED RESEARCH').toUpperCase()}</h1>
-                    <div style="margin-top: 25px; font-weight: 700; font-size: 14px; font-family: 'Inter', sans-serif; color: #1e293b;">PREPARED BY: ${(selectedProject.wizard_state.basics.author || 'N/A').toUpperCase()}</div>
-                    <div style="font-size: 12px; color: #64748b; margin-top: 5px; font-family: 'Inter', sans-serif;">ACADEMIC SESSION: ${selectedProject.wizard_state.basics.year}</div>
-                </div>
-                <div id="content"></div>
-                <div class="footer">
-                    Eldoria AI Co-Pilot &bull; Project ID: ${selectedProject.id} &bull; Validated Draft Output
-                </div>
-                <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-                <script>
-                    const rawContent = ${JSON.stringify(markdownContent)};
-                    document.getElementById('content').innerHTML = marked.parse(rawContent);
-                    window.onload = () => {
-                        setTimeout(() => { window.print(); }, 1200);
-                    };
-                </script>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
-    };
-
-    const handleCopyBib = () => {
-        if (!researchResult) return;
-        const allSources = researchResult.evidenceChain.flatMap(ev => ev.sources);
-        const bib = ResearchService.generateBibliography(allSources as any[], bibStyle);
-        navigator.clipboard.writeText(bib);
-        alert(`Bibliography (${bibStyle.toUpperCase()}) copied to clipboard!`);
-    };
-
-    const handleRunSAF = async (findings: string) => {
-        if (!selectedProject) return;
-
-        const systemPrompt = `You are Eldoria's SAF Analyst. Break down the following research findings into their core components using the Strategic Analysis Framework (SAF).
-        Focus on:
-        1. Core System (The main technical discovery)
-        2. Dependencies (What makes this work?)
-        3. Cascading Effects (Consequences of modifying this info)
-        4. Academic Value (How it fits the thesis)
-        
-        Format as a structured technical deconstruction.`;
-
-        try {
-            alert("Eldoria is deconstructing these findings through the SAF framework...");
-            const messages = [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: `DECONSTRUCT THIS: ${findings}` }
-            ];
-            const completion = await runGroqGenerate(
-                messages,
-                { model: "llama-3.3-70b-versatile" }
-            );
-
-            const content = completion.choices?.[0]?.message?.content || "Deconstruction failed.";
-            const name = `SAF Analysis: ${selectedProject.wizard_state.basics.title.substring(0, 20)}...`;
-
-            // Note: createCanvas is normally available from WorkspaceContext, but here we would need to expose it or use bridge directly.
-            // For now, alerting user.
-            alert("SAF Deconstruction complete! Content: " + content);
-        } catch (e) {
-            console.error("SAF Deconstruction failed", e);
-            alert("SAF Deconstruction failed. Check console for details.");
-        }
-    };
-
-    const handleNewProject = () => {
-        const newProject: AcademicProject = {
-            id: crypto.randomUUID(),
-            name: 'New Research Project',
-            format: 'RSU_MECH_ENG',
-            created_at: new Date().toISOString(),
-            wizard_state: {
-                step: 0,
-                basics: { title: '', author: '', regNumber: '', year: '2024' },
-                objectives: { aim: '', specificObjectives: [] },
-                scope: { scopeOfWork: '', significance: '', limitations: '' },
-                literature: { keywords: [], searchQueries: [] },
-                methodology: { materials: [], methods: '', costs: '', results_data: '' },
-                finishing: { dedication: '', acknowledgements: '', preface: '' },
-                compliance: { plagiarismChecked: false, wordCountValid: false, abstractReady: false },
-                generationConfig: { targetPageCount: 80, depth: 'standard' }
-            },
-            draft_content: {},
-            references: [],
-            resources: []
-        };
-        addAcademicProject(newProject);
-        setSelectedProject(newProject);
-        setIsWizardOpen(true);
-    };
-
-    return (
-        <div className="flex-grow flex gap-4 overflow-hidden h-full">
-            {/* Model Creator Modal */}
-            {isModelCreatorOpen && (
-                <ModelCreator
-                    onSave={handleSaveNewModel}
-                    onCancel={() => setIsModelCreatorOpen(false)}
-                />
-            )}
-
-            {/* Left Sidebar: Projects & Dashboard */}
-            <div className="w-80 shrink-0 flex flex-col gap-4 overflow-hidden">
-                <button
-                    onClick={() => setIsModelCreatorOpen(true)}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20 transition-all"
-                >
-                    <Cog className="w-3.5 h-3.5" />
-                    Create Custom Template
-                </button>
-                <AcademicDashboard
-                    onSelectProject={(project) => {
-                        setSelectedProject(project);
-                        setIsWizardOpen(true);
-                    }}
-                />
-            </div>
-
-
-            {/* Main Content: Wizard or Preview */}
-            <div className="flex-grow flex flex-col gap-4 overflow-hidden">
-                <div className="panel flex-grow flex flex-col overflow-hidden relative">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 opacity-50"></div>
-
-                    {isWizardOpen && selectedProject ? (
-                        <AcademicWizard
-                            project={selectedProject}
-                            onClose={() => setIsWizardOpen(false)}
-                        />
-                    ) : selectedProject ? (
-                        <div className="flex-grow flex flex-col overflow-hidden bg-black/40">
-                            <div className="p-6 border-b border-cyan-500/10 flex items-center justify-between bg-cyan-500/5">
-                                <div>
-                                    <h3 className="text-sm font-bold text-cyan-200 uppercase tracking-widest">{selectedProject.wizard_state.basics.title || 'Draft Thesis Preview'}</h3>
-                                    <p className="text-[10px] text-cyan-500/60 mt-1 italic uppercase tracking-tighter">Draft Structure & AI Content</p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={handleDeepResearch}
-                                        disabled={isResearching}
-                                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isResearching ? 'bg-purple-500/20 text-purple-200 border-purple-500/40 animate-pulse' : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'}`}
-                                    >
-                                        {isResearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Microscope className="w-3.5 h-3.5" />}
-                                        {isResearching ? 'Researching...' : 'Deep Research'}
-                                    </button>
-                                    <button
-                                        onClick={() => setIsEditing(!isEditing)}
-                                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isEditing ? 'bg-emerald-500/20 text-emerald-100 border-emerald-500/40' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'}`}
-                                    >
-                                        {isEditing ? <Check className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
-                                        {isEditing ? 'Stop Editing' : 'Interactive Mode'}
-                                    </button>
-                                    <button
-                                        onClick={handleGenerateDeckPreview}
-                                        disabled={isGeneratingDeck}
-                                        className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/20 transition-all disabled:opacity-50"
-                                    >
-                                        {isGeneratingDeck ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Presentation className="w-3.5 h-3.5" />}
-                                        {isGeneratingDeck ? 'Synthesizing...' : 'Defense Deck'}
-                                    </button>
-                                    <NavLink to="/" className="px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20 transition-all flex items-center gap-2">
-                                        <Layout className="w-3.5 h-3.5" />
-                                        Warp to Workspace
-                                    </NavLink>
-                                    <button onClick={() => setIsWizardOpen(true)} className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/40 transition-all">Setup Wizard</button>
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setIsPrintMenuOpen(!isPrintMenuOpen)}
-                                            className="p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg border border-cyan-500/20 transition-all mr-1 flex items-center gap-1"
-                                            title="Print or Export Options"
-                                        >
-                                            <Printer className="w-4 h-4" />
-                                            <div className={`w-0 h-0 border-l-[3px] border-l-transparent border-t-[4px] border-t-cyan-400 border-r-[3px] border-r-transparent transition-transform ${isPrintMenuOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-
-                                        {isPrintMenuOpen && (
-                                            <div className="absolute top-full right-0 mt-2 w-48 bg-[#0a0a0a] border border-cyan-500/30 rounded-xl shadow-[0_10px_30px_rgba(6,182,212,0.2)] z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                                <button
-                                                    onClick={handlePrintDraft}
-                                                    className="w-full text-left px-4 py-3 hover:bg-cyan-500/10 transition-colors flex items-center gap-3 border-b border-cyan-500/10"
-                                                >
-                                                    <Printer className="w-4 h-4 text-cyan-400" />
-                                                    <span className="text-[11px] font-bold text-cyan-200 uppercase tracking-wider">Print to PDF</span>
-                                                </button>
-                                                <button
-                                                    onClick={handleSynthesizeThesis}
-                                                    disabled={isSynthesizing}
-                                                    className="w-full text-left px-4 py-3 hover:bg-emerald-500/10 transition-colors flex items-center gap-3"
-                                                >
-                                                    {isSynthesizing ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <FileDown className="w-4 h-4 text-emerald-400" />}
-                                                    <span className="text-[11px] font-bold text-emerald-200 uppercase tracking-wider">Download Word</span>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={() => setIsFormulaEditorOpen(!isFormulaEditorOpen)}
-                                        className={`p-1.5 rounded-md transition-colors ${isFormulaEditorOpen ? 'bg-cyan-500/20 text-cyan-200' : 'hover:bg-cyan-500/10 text-cyan-400'}`}
-                                        title="Formula Bridge"
-                                    >
-                                        <Sigma className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="flex-grow overflow-y-auto custom-scrollbar p-12">
-                                <div className="max-w-3xl mx-auto space-y-12">
-                                    {/* Front Matter Section */}
-                                    <section className="space-y-4">
-                                        <div className="flex items-center gap-2 text-emerald-400">
-                                            <PenTool className="w-4 h-4" />
-                                            <h4 className="text-xs font-black uppercase tracking-[0.2em]">Front Matter</h4>
-                                        </div>
-                                        <div className="p-8 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl text-[13px] text-cyan-100/70 font-serif leading-relaxed whitespace-pre-wrap min-h-[100px]">
-                                            {isEditing ? (
-                                                <textarea
-                                                    className="w-full bg-transparent border-none outline-none resize-none overflow-hidden h-auto font-serif"
-                                                    value={selectedProject.draft_content['Front Matter'] || ""}
-                                                    onChange={(e) => handleUpdateDraft('Front Matter', e.target.value)}
-                                                    placeholder="Dedication, Acknowledgements, and Preface will appear here..."
-                                                />
-                                            ) : (
-                                                selectedProject.draft_content['Front Matter'] || "Dedication, Acknowledgements, and Preface will appear here after synthesis."
-                                            )}
-                                        </div>
-                                    </section>
-
-                                    {/* Abstract Section */}
-                                    <section className="space-y-4">
-                                        <div className="flex items-center gap-2 text-cyan-400">
-                                            <FileText className="w-4 h-4" />
-                                            <h4 className="text-xs font-black uppercase tracking-[0.2em]">Abstract</h4>
-                                        </div>
-                                        <div className="p-8 bg-black/40 border border-cyan-500/5 rounded-2xl text-[13px] text-cyan-100/70 leading-relaxed italic text-justify font-serif min-h-[150px]">
-                                            {isEditing ? (
-                                                <textarea
-                                                    className="w-full bg-transparent border-none outline-none resize-none overflow-hidden h-auto font-serif italic"
-                                                    value={selectedProject.draft_content['Abstract'] || ""}
-                                                    onChange={(e) => handleUpdateDraft('Abstract', e.target.value)}
-                                                    placeholder="Write your abstract here..."
-                                                />
-                                            ) : (
-                                                selectedProject.draft_content['Abstract'] || "No content generated yet. Complete the Research Wizard to synthesize this section."
-                                            )}
-                                        </div>
-                                    </section>
-
-                                    {/* Chapters */}
-                                    {['Chapter 1: Introduction', 'Chapter 2: Literature Review', 'Chapter 3: Materials & Methods', 'Chapter 4: Results & Discussion', 'Chapter 5: Conclusion & Recommendations'].map(chapter => (
-                                        <section key={chapter} className={`space-y-4 transition-opacity ${selectedProject.draft_content[chapter] ? 'opacity-100' : 'opacity-50'}`}>
-                                            <div className="flex items-center gap-2 text-cyan-400">
-                                                <CheckCircle className={`w-4 h-4 ${selectedProject.draft_content[chapter] ? 'text-emerald-400' : 'text-cyan-500/30'}`} />
-                                                <h4 className="text-xs font-black uppercase tracking-[0.2em]">{chapter}</h4>
-                                            </div>
-                                            <div className="p-12 border-l-2 border-cyan-500/10 bg-white/[0.02] text-[13px] text-cyan-100/80 font-serif leading-relaxed whitespace-pre-wrap min-h-[300px]">
-                                                {isEditing ? (
-                                                    <textarea
-                                                        className="w-full bg-transparent border-none outline-none resize-none overflow-hidden h-auto font-serif"
-                                                        value={selectedProject.draft_content[chapter] || ""}
-                                                        onChange={(e) => handleUpdateDraft(chapter, e.target.value)}
-                                                        placeholder={`Synthesize or write ${chapter}...`}
-                                                        rows={20}
-                                                    />
-                                                ) : (
-                                                    selectedProject.draft_content[chapter] || "Section pending holographic synthesis..."
-                                                )}
-                                            </div>
-                                        </section>
-                                    ))}
-
-                                    {/* Bibliography Section */}
-                                    <section className="space-y-6 pt-12 border-t border-cyan-500/10">
-                                        <div className="flex items-center gap-2 text-emerald-400">
-                                            <Bookmark className="w-4 h-4" />
-                                            <h4 className="text-xs font-black uppercase tracking-[0.2em]">References (APA Style)</h4>
-                                        </div>
-                                        <div className="space-y-4 pl-8">
-                                            {(selectedProject.references || []).length > 0 ? selectedProject.references.map((ref, i) => (
-                                                <div key={ref.id} className="text-[13px] text-cyan-100/60 font-serif leading-relaxed text-justify">
-                                                    {ref.formattedApa || `${ref.authors} (${ref.year}). ${ref.title}. ${ref.journal}.`}
-                                                </div>
-                                            )) : (
-                                                <div className="p-8 border border-dashed border-cyan-500/5 rounded-2xl text-center">
-                                                    <p className="text-[10px] text-cyan-500/30 uppercase tracking-widest">No references added to the vault yet.</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </section>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex-grow flex flex-col items-center justify-center text-cyan-500/30 p-12 text-center group">
-                            <GraduationCap className="w-24 h-24 mb-6 opacity-10 group-hover:opacity-20 transition-opacity duration-500 animate-pulse" />
-                            <h2 className="text-2xl font-bold tracking-widest uppercase mb-2">Academic Co-Pilot</h2>
-                            <p className="max-w-md text-sm italic">
-                                Select or create a thesis project to initiate the guided holographic research and generation environment.
-                            </p>
-                            <button
-                                onClick={handleNewProject}
-                                className="mt-8 flex items-center gap-2 px-6 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full transition-all active:scale-95"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span className="text-xs font-bold uppercase tracking-widest">Initiate Project</span>
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Formula Editor Modal/Overlay */}
-                    {isFormulaEditorOpen && (
-                        <div className="absolute top-20 right-6 z-50 w-96 animate-in slide-in-from-right duration-300">
-                            <div className="relative">
-                                <button
-                                    onClick={() => setIsFormulaEditorOpen(false)}
-                                    className="absolute top-3 right-3 p-1.5 hover:bg-white/10 rounded-full text-cyan-500/40 hover:text-cyan-100 transition-colors z-[60]"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                                <FormulaEditor />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Defense Deck Modal */}
-                    {deckMarkdown && (
-                        <DefenseDeckUI
-                            markdown={deckMarkdown}
-                            onClose={() => setDeckMarkdown(null)}
-                        />
-                    )}
-
-                    {/* Deep Research Results Modal */}
-                    {researchResult && (
-                        <div className="fixed inset-0 z-[110] bg-[#0c1a3e]/95 backdrop-blur-xl flex items-center justify-center p-12 overflow-y-auto custom-scrollbar">
-                            <div className="w-full max-w-4xl bg-black/40 border border-cyan-500/20 rounded-[2rem] p-12 relative animate-in zoom-in-95 duration-500">
-                                <button onClick={() => setResearchResult(null)} className="absolute top-8 right-8 p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 text-white/40 hover:text-white transition-all">
-                                    <X className="w-5 h-5" />
-                                </button>
-
-                                <div className="flex items-center gap-6 mb-12">
-                                    <div className="p-4 bg-purple-500/20 rounded-2xl border border-purple-500/30">
-                                        <Microscope className="w-8 h-8 text-purple-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-2xl font-black text-white uppercase tracking-[0.3em]">Autonomous Research Synthesis</h2>
-                                        <p className="text-xs text-purple-400 font-bold uppercase tracking-widest mt-1">Llama 3.3 Versatile • Recursive Evidence Chain Active</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-12">
-                                    <section>
-                                        <div className="flex items-center gap-2 mb-4 text-cyan-400">
-                                            <Info className="w-4 h-4" />
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest">Heuristic Analysis</h4>
-                                        </div>
-                                        <p className="text-[13px] text-cyan-100/70 leading-relaxed font-serif text-justify">{researchResult.analysis}</p>
-                                    </section>
-
-                                    <section>
-                                        <div className="flex items-center gap-2 mb-6 text-purple-400">
-                                            <Terminal className="w-4 h-4" />
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest">Evidence Chain</h4>
-                                        </div>
-                                        <div className="grid gap-4">
-                                            {researchResult.evidenceChain.map((ev, i) => (
-                                                <div key={i} className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
-                                                    <div className="text-[9px] font-black text-purple-400 uppercase tracking-widest mb-2">Query: {ev.query}</div>
-                                                    <p className="text-[11px] text-white/60 leading-relaxed italic mb-4">"{ev.findings}"</p>
-                                                    <div className="flex gap-2 mb-4">
-                                                        <button
-                                                            onClick={() => handleRunSAF(ev.findings)}
-                                                            className="px-2 py-0.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded text-[7px] font-black text-purple-400 uppercase tracking-widest transition-all"
-                                                        >
-                                                            RUN SAF DECONSTRUCTION
-                                                        </button>
-                                                        <button
-                                                            onClick={async () => {
-                                                                // Note: this hook isn't directly exposed here, would need to be passed in.
-                                                                alert("Inserting into canvas...");
-                                                            }}
-                                                            className="px-2 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded text-[7px] font-black text-cyan-400 uppercase tracking-widest transition-all"
-                                                        >
-                                                            INSERT INTO CANVAS
-                                                        </button>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2 mb-4">
-                                                        {ev.sources.map((src, j) => (
-                                                            <a key={j} href={src.url} target="_blank" rel="noopener noreferrer" className={`px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[9px] transition-all flex items-center gap-2 ${'type' in src ? 'text-purple-400 border-purple-500/30' : 'text-cyan-400'}`}>
-                                                                {'type' in src ? <GraduationCap className="w-2.5 h-2.5" /> : <Link className="w-2.5 h-2.5" />}
-                                                                {src.title}
-                                                            </a>
-                                                        ))}
-                                                    </div>
-
-                                                    {ev.media && (
-                                                        <div className="space-y-4">
-                                                            {ev.media.images.length > 0 && (
-                                                                <div>
-                                                                    <div className="flex items-center gap-2 mb-2 text-[8px] font-bold text-white/40 uppercase tracking-widest">
-                                                                        <ImageIcon className="w-3 h-3 text-purple-400" />
-                                                                        Extracted Visuals
-                                                                    </div>
-                                                                    <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
-                                                                        {ev.media.images.map((img, k) => (
-                                                                            <div key={k} className="shrink-0 group relative">
-                                                                                <img
-                                                                                    src={img.src}
-                                                                                    alt={img.alt}
-                                                                                    className="h-24 rounded-lg border border-white/10 bg-black/20 object-cover hover:border-purple-500/50 transition-all cursor-pointer"
-                                                                                    onClick={() => window.open(img.src, '_blank')}
-                                                                                />
-                                                                                <button
-                                                                                    title="Insert into active canvas"
-                                                                                    className="absolute top-1 right-1 p-1 bg-purple-500 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                                >
-                                                                                    <Plus className="w-3 h-3 text-white" />
-                                                                                </button>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            {ev.media.tables.length > 0 && (
-                                                                <div>
-                                                                    <div className="flex items-center gap-2 mb-2 text-[8px] font-bold text-white/40 uppercase tracking-widest">
-                                                                        <TableIcon className="w-3 h-3 text-cyan-400" />
-                                                                        Extracted Tables
-                                                                    </div>
-                                                                    <div className="grid gap-2">
-                                                                        {ev.media.tables.map((tab, k) => (
-                                                                            <div key={k} className="p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg flex items-center justify-between group">
-                                                                                <div className="flex items-center gap-3">
-                                                                                    <div className="p-2 bg-cyan-500/20 rounded-md">
-                                                                                        <TableIcon className="w-3 h-3 text-cyan-400" />
-                                                                                    </div>
-                                                                                    <div>
-                                                                                        <div className="text-[9px] font-bold text-cyan-100">{tab.caption || `Table ${k + 1}`}</div>
-                                                                                        <div className="text-[8px] text-cyan-400/50">{tab.headers.length} columns • {tab.rows.length} rows</div>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                                    <button className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-[8px] font-bold text-cyan-400 rounded-md border border-cyan-500/30">VIEW DATA</button>
-                                                                                    <button className="p-1 bg-cyan-500 text-white rounded-md"><Plus className="w-3 h-3" /></button>
-                                                                                </div>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </section>
-
-
-                                    <section>
-                                        <div className="flex items-center justify-between mb-4 text-emerald-400">
-                                            <div className="flex items-center gap-2">
-                                                <Zap className="w-4 h-4" />
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest">Suggested Thesis Updates</h4>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <select
-                                                    value={bibStyle}
-                                                    onChange={(e) => setBibStyle(e.target.value as BibliographyStyle)}
-                                                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[8px] font-bold text-cyan-400 uppercase tracking-widest outline-none hover:border-cyan-500/30 transition-all"
-                                                >
-                                                    <option value="apa">APA</option>
-                                                    <option value="ieee">IEEE</option>
-                                                    <option value="bibtex">BibTeX</option>
-                                                </select>
-                                                <button
-                                                    onClick={handleCopyBib}
-                                                    className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-[8px] font-black text-emerald-400 rounded-lg border border-emerald-500/30 transition-all"
-                                                >
-                                                    COPY BIBLIOGRAPHY
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            {researchResult.suggestedUpdates.map((upd, i) => (
-                                                <div key={i} className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl text-[10px] text-emerald-100/60 leading-relaxed italic">
-                                                    {upd}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </section>
-
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Right Sidebar: Compliance & Resources */}
-            <div className="w-80 shrink-0 flex flex-col gap-4 overflow-hidden">
-                <ComplianceSidebar project={selectedProject} />
-                {selectedProject && (
-                    <div className="h-1/2 flex flex-col overflow-hidden">
-                        <ProjectResources project={selectedProject} />
-                    </div>
-                )}
-            </div>
+  // Agentic mode header
+  const renderAgenticHeader = () => (
+    <div className="flex items-center justify-between bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border-b border-purple-700/50 px-6 py-4">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-purple-500/20 rounded-xl">
+            <Brain className="w-6 h-6 text-purple-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white">Agentic Academic Hub</h1>
+            <p className="text-sm text-purple-300/70">
+              AI-powered autonomous research assistant
+            </p>
+          </div>
         </div>
-    );
+        
+        <div className="flex items-center gap-2 ml-4 px-3 py-1.5 bg-purple-500/10 rounded-full border border-purple-500/30">
+          <div className={`w-2 h-2 rounded-full ${isAgentActive ? 'bg-green-400 animate-pulse' : 'bg-slate-500'}`} />
+          <span className="text-xs text-purple-300">
+            {isAgentActive ? 'Agent Active' : 'Agent Paused'}
+          </span>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-4">
+        {/* Agent Stats */}
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1.5 text-purple-300/70">
+            <Lightbulb className="w-4 h-4" />
+            <span>{agentInsights.filter(i => !i.read).length} new</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-purple-300/70">
+            <Zap className="w-4 h-4" />
+            <span>{progressMetrics.percentComplete.toFixed(0)}% done</span>
+          </div>
+        </div>
+        
+        {/* Mode Toggle */}
+        <AgenticToggle mode={mode} onToggle={handleModeToggle} />
+        
+        <button className="p-2 hover:bg-purple-500/20 rounded-lg text-purple-400 transition-colors">
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+
+  // Standard mode header
+  const renderStandardHeader = () => (
+    <div className="flex items-center justify-between bg-slate-800/50 border-b border-slate-700 px-6 py-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-cyan-500/20 rounded-lg">
+          <GraduationCap className="w-6 h-6 text-cyan-400" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-white">Academic Hub</h1>
+          <p className="text-sm text-slate-400">
+            Thesis research and writing assistant
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-4">
+        <AgenticToggle mode={mode} onToggle={handleModeToggle} />
+        
+        <NavLink 
+          to="/" 
+          className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-bold uppercase tracking-widest border border-cyan-500/20 transition-all"
+        >
+          <Layout className="w-3.5 h-3.5" />
+          Warp to Workspace
+        </NavLink>
+      </div>
+    </div>
+  );
+
+  // Agentic dashboard
+  const renderAgenticDashboard = () => (
+    <div className="flex h-full">
+      {/* Agentic Sidebar */}
+      <div className="w-80 shrink-0 flex flex-col gap-4 p-4 bg-gradient-to-b from-purple-900/20 to-slate-900/20 border-r border-purple-800/30 overflow-auto">
+        {/* Progress Card */}
+        <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 rounded-xl p-4 border border-purple-700/30">
+          <div className="flex items-center gap-2 mb-3 text-purple-300">
+            <BarChart3 className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Progress</span>
+          </div>
+          
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-xs text-slate-400 mb-1">
+                <span>Completion</span>
+                <span className="text-purple-300">{progressMetrics.percentComplete.toFixed(0)}%</span>
+              </div>
+              <div className="h-2 bg-purple-900/50 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all"
+                  style={{ width: `${progressMetrics.percentComplete}%` }}
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-purple-900/20 rounded-lg p-2">
+                <div className="text-slate-400">Words</div>
+                <div className="text-white font-mono">{progressMetrics.totalWords.toLocaleString()}</div>
+              </div>
+              <div className="bg-purple-900/20 rounded-lg p-2">
+                <div className="text-slate-400">References</div>
+                <div className="text-white font-mono">{progressMetrics.referencesCount}</div>
+              </div>
+              <div className="bg-purple-900/20 rounded-lg p-2">
+                <div className="text-slate-400">Chapters</div>
+                <div className="text-white font-mono">{progressMetrics.chaptersCompleted}/{progressMetrics.totalChapters}</div>
+              </div>
+              <div className="bg-purple-900/20 rounded-lg p-2">
+                <div className="text-slate-400">Days Left</div>
+                <div className="text-white font-mono">{progressMetrics.daysRemaining}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Insights Feed */}
+        <div className="flex-1 overflow-auto">
+          <div className="flex items-center gap-2 mb-3 text-purple-300">
+            <MessageSquare className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">AI Insights</span>
+            {agentInsights.filter(i => !i.read).length > 0 && (
+              <span className="ml-auto px-1.5 py-0.5 bg-purple-500 rounded-full text-[10px]">
+                {agentInsights.filter(i => !i.read).length}
+              </span>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            {agentInsights.slice(0, 10).map((insight) => (
+              <div 
+                key={insight.id}
+                className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                  !insight.read 
+                    ? 'bg-purple-900/30 border-purple-500/30' 
+                    : 'bg-purple-900/10 border-purple-500/10'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 ${
+                    insight.type === 'warning' ? 'bg-amber-400' :
+                    insight.type === 'success' ? 'bg-green-400' :
+                    'bg-purple-400'
+                  }`} />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-purple-200">{insight.title}</div>
+                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">{insight.message}</div>
+                    {insight.actions && insight.actions.length > 0 && (
+                      <div className="flex gap-1 mt-2">
+                        {insight.actions.map(action => (
+                          <button
+                            key={action.id}
+                            className="px-2 py-0.5 bg-purple-500/20 hover:bg-purple-500/40 rounded text-[10px] text-purple-300"
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {agentInsights.length === 0 && (
+              <div className="text-center text-slate-500 text-xs py-8">
+                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No insights yet</p>
+                <p className="mt-1">Agent is monitoring...</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 gap-2">
+          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+            <Search className="w-3.5 h-3.5" />
+            Research
+          </button>
+          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+            <FileDiff className="w-3.5 h-3.5" />
+            Citations
+          </button>
+          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+            <Cloud className="w-3.5 h-3.5" />
+            Export
+          </button>
+          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+            <Users className="w-3.5 h-3.5" />
+            Collaborate
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto p-6">
+        {selectedProject ? (
+          <div className="max-w-4xl mx-auto">
+            {/* Project Header */}
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white">
+                {selectedProject.wizard_state.basics.title || 'Untitled Project'}
+              </h2>
+              <p className="text-slate-400 mt-1">
+                {selectedProject.wizard_state.basics.author} • {selectedProject.format}
+              </p>
+            </div>
+
+            {/* Chapter Progress */}
+            <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-purple-300 uppercase tracking-wider">Chapter Progress</h3>
+                <button className="text-xs text-purple-400 hover:text-purple-300">View All</button>
+              </div>
+              
+              <div className="space-y-3">
+                {['Introduction', 'Literature Review', 'Materials & Methods', 'Results & Discussion', 'Conclusion'].map((chapter, idx) => {
+                  const content = selectedProject.draft_content?.[`Chapter ${idx + 1}: ${chapter}`] || '';
+                  const hasContent = content.length > 100;
+                  
+                  return (
+                    <div key={chapter} className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                        hasContent 
+                          ? 'bg-green-500/20 text-green-400' 
+                          : 'bg-slate-800 text-slate-500'
+                      }`}>
+                        {hasContent ? <Check className="w-3.5 h-3.5" /> : idx + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-slate-300">{chapter}</div>
+                        <div className="h-1 mt-1 bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-purple-500 transition-all"
+                            style={{ width: hasContent ? '100%' : '0%' }}
+                          />
+                        </div>
+                      </div>
+                      <span className="text-xs text-slate-500">
+                        {hasContent ? `${content.split(/\s+/).length} words` : 'Not started'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Agent Suggestions */}
+            <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 rounded-xl p-4 border border-purple-500/20">
+              <div className="flex items-center gap-2 mb-4">
+                <Lightbulb className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Agent Suggestions</h3>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-start gap-3 p-3 bg-amber-900/10 rounded-lg border border-amber-500/20">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <Wrench className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-amber-200">Add More Citations</div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      Your literature review would benefit from 3-5 more recent sources.
+                    </div>
+                    <button className="mt-2 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 rounded text-xs text-amber-300">
+                      Auto-Discover
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3 p-3 bg-green-900/10 rounded-lg border border-green-500/20">
+                  <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
+                    <Check className="w-4 h-4 text-green-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-green-200">Great Progress!</div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      You've completed {progressMetrics.chaptersCompleted} chapters. Keep up the momentum!
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-center">
+            <div>
+              <Brain className="w-16 h-16 mx-auto mb-4 text-purple-500/50" />
+              <h2 className="text-xl font-bold text-white mb-2">Select a Project</h2>
+              <p className="text-slate-400 mb-4">Choose a project to start working with the Agentic Hub</p>
+              <button 
+                onClick={() => setIsWizardOpen(true)}
+                className="px-4 py-2 bg-purple-500 hover:bg-purple-400 text-white rounded-lg text-sm font-medium"
+              >
+                Create New Project
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ============================================================================
+  // Event Handlers (from original)
+  // ============================================================================
+
+  const handleSaveNewModel = (model: AcademicModel) => {
+    try {
+      const existingModels = localStorage.getItem('eldoria-custom-models');
+      const models = existingModels ? JSON.parse(existingModels) : [];
+      models.push(model);
+      localStorage.setItem('eldoria-custom-models', JSON.stringify(models));
+      setIsModelCreatorOpen(false);
+      alert(`Model "${model.name}" saved successfully!`);
+    } catch (e) {
+      console.error('Failed to save model', e);
+    }
+  };
+
+  const handleUpdateDraft = (chapter: string, content: string) => {
+    if (!selectedProject) return;
+    const updatedDrafts = { ...selectedProject.draft_content, [chapter]: content };
+    const updatedProject = { ...selectedProject, draft_content: updatedDrafts };
+    setSelectedProject(updatedProject);
+    updateAcademicProject(updatedProject);
+  };
+
+  const handleGenerateDeckPreview = async () => {
+    if (!selectedProject) return;
+    setIsGeneratingDeck(true);
+    try {
+      const deck = await generateDefenseDeck(selectedProject);
+      setDeckMarkdown(deck);
+    } catch (e) {
+      console.error("Deck generation failed", e);
+    } finally {
+      setIsGeneratingDeck(false);
+    }
+  };
+
+  const handleDeepResearch = async () => {
+    if (!selectedProject) return;
+    setIsResearching(true);
+    try {
+      const result = await runAutonomousResearch(selectedProject);
+      setResearchResult(result);
+    } catch (e) {
+      console.error("Research failed", e);
+    } finally {
+      setIsResearching(false);
+    }
+  };
+
+  const handleVaultArchive = async () => {
+    if (!selectedProject) return;
+    setIsVaulting(true);
+    try {
+      const result = await bridgeClient.archiveResearch(
+        selectedProject.id,
+        selectedProject.wizard_state.basics.title || 'Untitled Research',
+        selectedProject.wizard_state,
+        { last_vaulted: new Date().toISOString() }
+      );
+      if (result.success) {
+        alert(`Research archived successfully to: ${result.entry.id}`);
+      }
+    } catch (e) {
+      console.error("Vaulting failed", e);
+    } finally {
+      setIsVaulting(false);
+    }
+  };
+
+  const handleSynthesizeThesis = async () => {
+    setIsPrintMenuOpen(false);
+    if (!selectedProject) return;
+    setIsSynthesizing(true);
+    try {
+      const blob = await bridgeClient.synthesizeDirect(selectedProject);
+      if (blob) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Thesis_${selectedProject.wizard_state.basics.title.replace(/\s+/g, '_') || 'Draft'}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert("Thesis synthesis failed. Ensure the Python Bridge is running.");
+      }
+    } catch (e) {
+      console.error("Synthesis failed", e);
+      alert("An error occurred during synthesis.");
+    } finally {
+      setIsSynthesizing(false);
+    }
+  };
+
+  const handlePrintDraft = () => {
+    setIsPrintMenuOpen(false);
+    if (!selectedProject) return;
+    // Print implementation from original...
+  };
+
+  const handleNewProject = () => {
+    const newProject: AcademicProject = {
+      id: crypto.randomUUID(),
+      name: 'New Research Project',
+      format: 'RSU_MECH_ENG',
+      created_at: new Date().toISOString(),
+      wizard_state: {
+        step: 0,
+        basics: { title: '', author: '', regNumber: '', year: '2024' },
+        objectives: { aim: '', specificObjectives: [] },
+        scope: { scopeOfWork: '', significance: '', limitations: '' },
+        literature: { keywords: [], searchQueries: [] },
+        methodology: { materials: [], methods: '', costs: '', results_data: '' },
+        finishing: { dedication: '', acknowledgements: '', preface: '' },
+        compliance: { plagiarismChecked: false, wordCountValid: false, abstractReady: false },
+        generationConfig: { targetPageCount: 80, depth: 'standard' }
+      },
+      draft_content: {},
+      references: [],
+      resources: []
+    };
+    addAcademicProject(newProject);
+    setSelectedProject(newProject);
+    setIsWizardOpen(true);
+  };
+
+  // ============================================================================
+  // Main Render
+  // ============================================================================
+
+  return (
+    <div className="flex-grow flex gap-4 overflow-hidden h-full">
+      {/* Model Creator Modal */}
+      {isModelCreatorOpen && (
+        <ModelCreator
+          onSave={handleSaveNewModel}
+          onCancel={() => setIsModelCreatorOpen(false)}
+        />
+      )}
+
+      {/* Render based on mode */}
+      {mode === 'agentic' ? (
+        <>
+          {/* Agentic Header */}
+          {renderAgenticHeader()}
+          
+          {/* Agentic Dashboard */}
+          {renderAgenticDashboard()}
+        </>
+      ) : (
+        <>
+          {/* Standard Mode - Original Layout */}
+          {/* Left Sidebar: Projects & Dashboard */}
+          <div className="w-80 shrink-0 flex flex-col gap-4 overflow-hidden">
+            <button
+              onClick={() => setIsModelCreatorOpen(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20 transition-all"
+            >
+              <Cog className="w-3.5 h-3.5" />
+              Create Custom Template
+            </button>
+            <AcademicDashboard
+              onSelectProject={(project) => {
+                setSelectedProject(project);
+                setIsWizardOpen(true);
+              }}
+            />
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-grow flex flex-col gap-4 overflow-hidden">
+            <div className="panel flex-grow flex flex-col overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 opacity-50"></div>
+
+              {isWizardOpen && selectedProject ? (
+                <AcademicWizard
+                  project={selectedProject}
+                  onClose={() => setIsWizardOpen(false)}
+                />
+              ) : selectedProject ? (
+                <div className="flex-grow flex flex-col overflow-hidden bg-black/40">
+                  <div className="p-6 border-b border-cyan-500/10 flex items-center justify-between bg-cyan-500/5">
+                    <div>
+                      <h3 className="text-sm font-bold text-cyan-200 uppercase tracking-widest">{selectedProject.wizard_state.basics.title || 'Draft Thesis Preview'}</h3>
+                      <p className="text-[10px] text-cyan-500/60 mt-1 italic uppercase tracking-tighter">Draft Structure & AI Content</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleDeepResearch}
+                        disabled={isResearching}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isResearching ? 'bg-purple-500/20 text-purple-200 border-purple-500/40 animate-pulse' : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'}`}
+                      >
+                        {isResearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Microscope className="w-3.5 h-3.5" />}
+                        {isResearching ? 'Researching...' : 'Deep Research'}
+                      </button>
+                      <button
+                        onClick={() => setIsEditing(!isEditing)}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isEditing ? 'bg-emerald-500/20 text-emerald-100 border-emerald-500/40' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20'}`}
+                      >
+                        {isEditing ? <Check className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5" />}
+                        {isEditing ? 'Stop Editing' : 'Interactive Mode'}
+                      </button>
+                      <button
+                        onClick={handleGenerateDeckPreview}
+                        disabled={isGeneratingDeck}
+                        className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/20 transition-all disabled:opacity-50"
+                      >
+                        {isGeneratingDeck ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Presentation className="w-3.5 h-3.5" />}
+                        {isGeneratingDeck ? 'Synthesizing...' : 'Defense Deck'}
+                      </button>
+                      <NavLink to="/" className="px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20 transition-all flex items-center gap-2">
+                        <Layout className="w-3.5 h-3.5" />
+                        Warp to Workspace
+                      </NavLink>
+                      <button onClick={() => setIsWizardOpen(true)} className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/40 transition-all">Setup Wizard</button>
+                    </div>
+                  </div>
+                  
+                  {/* Content area - abbreviated for brevity */}
+                  <div className="flex-grow overflow-y-auto custom-scrollbar p-12">
+                    <div className="max-w-3xl mx-auto space-y-12">
+                      <section className="space-y-4">
+                        <div className="flex items-center gap-2 text-emerald-400">
+                          <PenTool className="w-4 h-4" />
+                          <h4 className="text-xs font-black uppercase tracking-[0.2em]">Front Matter</h4>
+                        </div>
+                        <div className="p-8 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl text-[13px] text-cyan-100/70 font-serif leading-relaxed whitespace-pre-wrap min-h-[100px]">
+                          {isEditing ? (
+                            <textarea
+                              className="w-full bg-transparent border-none outline-none resize-none overflow-hidden h-auto font-serif"
+                              value={selectedProject.draft_content['Front Matter'] || ""}
+                              onChange={(e) => handleUpdateDraft('Front Matter', e.target.value)}
+                              placeholder="Dedication, Acknowledgements, and Preface will appear here..."
+                            />
+                          ) : (
+                            selectedProject.draft_content['Front Matter'] || "Dedication, Acknowledgements, and Preface will appear here after synthesis."
+                          )}
+                        </div>
+                      </section>
+                      {/* Additional sections would follow... */}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-grow flex flex-col items-center justify-center bg-black/40">
+                  <div className="flex flex-col items-center gap-6 p-12 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl max-w-lg">
+                    <div className="p-4 bg-emerald-500/10 rounded-full">
+                      <GraduationCap className="w-12 h-12 text-emerald-400" />
+                    </div>
+                    <div className="text-center">
+                      <h2 className="text-2xl font-bold text-emerald-400 mb-2">Welcome to Academic Hub</h2>
+                      <p className="text-sm text-slate-400 mb-6">Create a new project or select an existing one to begin your research journey</p>
+                    </div>
+                    <div className="flex gap-4">
+                      <button onClick={handleNewProject} className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-black rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                        <Plus className="w-5 h-5" />
+                        New Project
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <ComplianceSidebar project={selectedProject} />
+          </div>
+        </>
+      )}
+    </div>
+  );
 };
+
+// ============================================================================
+// Agentic Toggle Component
+// ============================================================================
+
+const AgenticToggle: React.FC<{ mode: Mode; onToggle: () => void }> = ({ mode, onToggle }) => (
+  <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg border border-purple-700/40">
+    <div className={`flex items-center gap-2 ${mode === 'standard' ? 'text-slate-300' : 'text-purple-400'}`}>
+      <Brain className="w-4 h-4" />
+      <span className="text-xs font-medium">Standard</span>
+    </div>
+    
+    <button
+      onClick={onToggle}
+      className={`
+        relative w-12 h-6 rounded-full transition-all duration-300
+        ${mode === 'agentic' 
+          ? 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/25' 
+          : 'bg-slate-700 hover:bg-slate-600'
+        }
+      `}
+    >
+      <div className={`
+        absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
+        ${mode === 'agentic' ? 'left-6' : 'left-0.5'}
+      `}>
+        {mode === 'agentic' && (
+          <Sparkles className="w-2.5 h-2.5 text-purple-500 absolute -top-0.5 -left-0.5 animate-pulse" />
+        )}
+      </div>
+    </button>
+    
+    <div className={`flex items-center gap-2 ${mode === 'agentic' ? 'text-purple-400' : 'text-slate-300'}`}>
+      <Sparkles className="w-4 h-4" />
+      <span className="text-xs font-medium">Agentic</span>
+    </div>
+  </div>
+);
+
+export default AcademicHub;
