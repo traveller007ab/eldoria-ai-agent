@@ -3,16 +3,19 @@
  * 
  * This component orchestrates the entire Academic Hub experience
  * with a seamless toggle between Standard and Agentic modes.
+ * 
+ * Enhanced with Agentic Orchestrator, Export Panel, Prompt Customization
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
-import { 
-  BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight, 
-  Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation, 
+import {
+  BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight,
+  Save, Layout, FileDown, Bookmark, PenTool, Edit3, Check, Presentation,
   Loader2, Cog, Printer, Brain, Sparkles, Settings, ChevronRight,
   Zap, Microscope, Mic, BarChart3, Users, Cloud, MessageSquare,
-  LayoutDashboard, FileDiff, Search, Bell, Lightbulb, Wrench
+  LayoutDashboard, FileDiff, Search, Bell, Lightbulb, Wrench,
+  Download, WifiOff, Wifi, Target, TrendingUp, Clock, AlertTriangle
 } from 'lucide-react';
 import { AcademicDashboard } from './AcademicDashboard';
 import { AcademicWizard } from './AcademicWizard';
@@ -26,8 +29,12 @@ import { ProjectResources } from './ProjectResources';
 import { bridgeClient } from '../services/bridgeClient';
 import { runGroqGenerate } from '../services/groqService';
 import { ModelCreator } from './ModelCreator';
-import { AcademicModel } from '../models/AcademicModels';
+import { AcademicModel, getModelById } from '../models/AcademicModels';
 import { runAutonomousResearch, DeepResearchResult } from '../services/AutonomousResearcher';
+import { ExportPanel } from './ExportPanel';
+import { PromptCustomizer } from './PromptCustomizer';
+import './AcademicHub.css';
+
 
 // ============================================================================
 // Types
@@ -80,6 +87,13 @@ export const AcademicHub: React.FC = () => {
   const [bibStyle, setBibStyle] = useState<BibliographyStyle>('apa');
   const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
 
+  // New enhanced state
+  const [isExportPanelOpen, setIsExportPanelOpen] = useState(false);
+  const [isPromptCustomizerOpen, setIsPromptCustomizerOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [writingAnalysis, setWritingAnalysis] = useState<WritingAnalysis | null>(null);
+  const [paceRecommendation, setPaceRecommendation] = useState<PaceRecommendation | null>(null);
+
   // Agentic mode state
   const [mode, setMode] = useState<Mode>('standard');
   const [agentInsights, setAgentInsights] = useState<AgentInsight[]>([]);
@@ -126,15 +140,15 @@ export const AcademicHub: React.FC = () => {
     const draftContent = project.draft_content || {};
     let totalWords = 0;
     let chaptersCompleted = 0;
-    
+
     Object.values(draftContent).forEach(content => {
       const words = (content as string).split(/\s+/).length;
       totalWords += words;
       if (words > 500) chaptersCompleted++;
     });
 
-    const targetWords = project.wizard_state?.generationConfig?.targetPageCount 
-      ? project.wizard_state.generationConfig.targetPageCount * 250 
+    const targetWords = project.wizard_state?.generationConfig?.targetPageCount
+      ? project.wizard_state.generationConfig.targetPageCount * 250
       : 15000;
 
     setProgressMetrics(prev => ({
@@ -193,7 +207,7 @@ export const AcademicHub: React.FC = () => {
     const newMode = mode === 'standard' ? 'agentic' : 'standard';
     setMode(newMode);
     localStorage.setItem('academicHubMode', newMode);
-    
+
     if (newMode === 'agentic') {
       setIsAgentActive(true);
       if (selectedProject) {
@@ -237,7 +251,7 @@ export const AcademicHub: React.FC = () => {
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2 ml-4 px-3 py-1.5 bg-purple-500/10 rounded-full border border-purple-500/30">
           <div className={`w-2 h-2 rounded-full ${isAgentActive ? 'bg-green-400 animate-pulse' : 'bg-slate-500'}`} />
           <span className="text-xs text-purple-300">
@@ -245,7 +259,7 @@ export const AcademicHub: React.FC = () => {
           </span>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-4">
         {/* Agent Stats */}
         <div className="flex items-center gap-4 text-sm">
@@ -258,10 +272,10 @@ export const AcademicHub: React.FC = () => {
             <span>{progressMetrics.percentComplete.toFixed(0)}% done</span>
           </div>
         </div>
-        
+
         {/* Mode Toggle */}
         <AgenticToggle mode={mode} onToggle={handleModeToggle} />
-        
+
         <button className="p-2 hover:bg-purple-500/20 rounded-lg text-purple-400 transition-colors">
           <Settings className="w-5 h-5" />
         </button>
@@ -283,12 +297,12 @@ export const AcademicHub: React.FC = () => {
           </p>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-4">
         <AgenticToggle mode={mode} onToggle={handleModeToggle} />
-        
-        <NavLink 
-          to="/" 
+
+        <NavLink
+          to="/"
           className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-xs font-bold uppercase tracking-widest border border-cyan-500/20 transition-all"
         >
           <Layout className="w-3.5 h-3.5" />
@@ -309,7 +323,7 @@ export const AcademicHub: React.FC = () => {
             <BarChart3 className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Progress</span>
           </div>
-          
+
           <div className="space-y-3">
             <div>
               <div className="flex justify-between text-xs text-slate-400 mb-1">
@@ -317,13 +331,13 @@ export const AcademicHub: React.FC = () => {
                 <span className="text-purple-300">{progressMetrics.percentComplete.toFixed(0)}%</span>
               </div>
               <div className="h-2 bg-purple-900/50 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all"
                   style={{ width: `${progressMetrics.percentComplete}%` }}
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-purple-900/20 rounded-lg p-2">
                 <div className="text-slate-400">Words</div>
@@ -356,23 +370,21 @@ export const AcademicHub: React.FC = () => {
               </span>
             )}
           </div>
-          
+
           <div className="space-y-2">
             {agentInsights.slice(0, 10).map((insight) => (
-              <div 
+              <div
                 key={insight.id}
-                className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                  !insight.read 
-                    ? 'bg-purple-900/30 border-purple-500/30' 
-                    : 'bg-purple-900/10 border-purple-500/10'
-                }`}
+                className={`p-3 rounded-lg border cursor-pointer transition-all ${!insight.read
+                  ? 'bg-purple-900/30 border-purple-500/30'
+                  : 'bg-purple-900/10 border-purple-500/10'
+                  }`}
               >
                 <div className="flex items-start gap-2">
-                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 ${
-                    insight.type === 'warning' ? 'bg-amber-400' :
+                  <div className={`w-1.5 h-1.5 rounded-full mt-1.5 ${insight.type === 'warning' ? 'bg-amber-400' :
                     insight.type === 'success' ? 'bg-green-400' :
-                    'bg-purple-400'
-                  }`} />
+                      'bg-purple-400'
+                    }`} />
                   <div className="flex-1">
                     <div className="text-xs font-medium text-purple-200">{insight.title}</div>
                     <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">{insight.message}</div>
@@ -392,7 +404,7 @@ export const AcademicHub: React.FC = () => {
                 </div>
               </div>
             ))}
-            
+
             {agentInsights.length === 0 && (
               <div className="text-center text-slate-500 text-xs py-8">
                 <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -444,25 +456,24 @@ export const AcademicHub: React.FC = () => {
                 <h3 className="text-sm font-bold text-purple-300 uppercase tracking-wider">Chapter Progress</h3>
                 <button className="text-xs text-purple-400 hover:text-purple-300">View All</button>
               </div>
-              
+
               <div className="space-y-3">
                 {['Introduction', 'Literature Review', 'Materials & Methods', 'Results & Discussion', 'Conclusion'].map((chapter, idx) => {
                   const content = selectedProject.draft_content?.[`Chapter ${idx + 1}: ${chapter}`] || '';
                   const hasContent = content.length > 100;
-                  
+
                   return (
                     <div key={chapter} className="flex items-center gap-3">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                        hasContent 
-                          ? 'bg-green-500/20 text-green-400' 
-                          : 'bg-slate-800 text-slate-500'
-                      }`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${hasContent
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-slate-800 text-slate-500'
+                        }`}>
                         {hasContent ? <Check className="w-3.5 h-3.5" /> : idx + 1}
                       </div>
                       <div className="flex-1">
                         <div className="text-sm text-slate-300">{chapter}</div>
                         <div className="h-1 mt-1 bg-slate-800 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-purple-500 transition-all"
                             style={{ width: hasContent ? '100%' : '0%' }}
                           />
@@ -483,7 +494,7 @@ export const AcademicHub: React.FC = () => {
                 <Lightbulb className="w-4 h-4 text-amber-400" />
                 <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Agent Suggestions</h3>
               </div>
-              
+
               <div className="space-y-3">
                 <div className="flex items-start gap-3 p-3 bg-amber-900/10 rounded-lg border border-amber-500/20">
                   <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
@@ -499,7 +510,7 @@ export const AcademicHub: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-3 p-3 bg-green-900/10 rounded-lg border border-green-500/20">
                   <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
                     <Check className="w-4 h-4 text-green-400" />
@@ -520,7 +531,7 @@ export const AcademicHub: React.FC = () => {
               <Brain className="w-16 h-16 mx-auto mb-4 text-purple-500/50" />
               <h2 className="text-xl font-bold text-white mb-2">Select a Project</h2>
               <p className="text-slate-400 mb-4">Choose a project to start working with the Agentic Hub</p>
-              <button 
+              <button
                 onClick={() => setIsWizardOpen(true)}
                 className="px-4 py-2 bg-purple-500 hover:bg-purple-400 text-white rounded-lg text-sm font-medium"
               >
@@ -667,7 +678,7 @@ export const AcademicHub: React.FC = () => {
   // ============================================================================
 
   return (
-    <div className="flex-grow flex gap-4 overflow-hidden h-full">
+    <div className="academic-hub flex-grow flex flex-col overflow-hidden h-full">
       {/* Model Creator Modal */}
       {isModelCreatorOpen && (
         <ModelCreator
@@ -676,12 +687,47 @@ export const AcademicHub: React.FC = () => {
         />
       )}
 
+      {/* Export Panel Modal */}
+      {isExportPanelOpen && selectedProject && (
+        <ExportPanel
+          project={selectedProject}
+          onClose={() => setIsExportPanelOpen(false)}
+        />
+      )}
+
+      {/* Prompt Customizer Modal */}
+      {isPromptCustomizerOpen && selectedProject && (
+        <PromptCustomizer
+          model={getModelById(selectedProject.modelId || selectedProject.format || 'rsu-mech-eng') || {
+            id: 'default', name: 'Default', institution: '', department: '',
+            description: '', citationStyle: 'APA', version: '1.0', author: '',
+            createdAt: '', chapters: [], formatting: { fontFamily: 'Times New Roman', fontSize: 12, lineSpacing: 2, marginInches: 1 },
+            targets: { totalMinWords: 10000, totalMaxWords: 50000, minReferences: 10, abstractMaxWords: 300 },
+            wizardFields: { showRegNumber: true, showSupervisor: true, showCoSupervisor: false, customFields: [] },
+            aiConfig: { systemPrompt: 'You are an academic writing assistant.', temperature: 0.6, model: 'llama-3.3-70b-versatile' }
+          }}
+          onSave={(prompts) => {
+            console.log('Custom prompts saved:', prompts);
+            setIsPromptCustomizerOpen(false);
+          }}
+          onClose={() => setIsPromptCustomizerOpen(false)}
+        />
+      )}
+
+      {/* Defense Deck UI */}
+      {deckMarkdown && (
+        <DefenseDeckUI
+          markdown={deckMarkdown}
+          onClose={() => setDeckMarkdown(null)}
+        />
+      )}
+
       {/* Render based on mode */}
       {mode === 'agentic' ? (
         <>
           {/* Agentic Header */}
           {renderAgenticHeader()}
-          
+
           {/* Agentic Dashboard */}
           {renderAgenticDashboard()}
         </>
@@ -724,6 +770,20 @@ export const AcademicHub: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       <button
+                        onClick={() => setIsExportPanelOpen(true)}
+                        className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20 transition-all"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Export
+                      </button>
+                      <button
+                        onClick={() => setIsPromptCustomizerOpen(true)}
+                        className="flex items-center gap-2 px-4 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-purple-500/20 transition-all"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        Customize AI
+                      </button>
+                      <button
                         onClick={handleDeepResearch}
                         disabled={isResearching}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${isResearching ? 'bg-purple-500/20 text-purple-200 border-purple-500/40 animate-pulse' : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:bg-purple-500/20'}`}
@@ -753,7 +813,7 @@ export const AcademicHub: React.FC = () => {
                       <button onClick={() => setIsWizardOpen(true)} className="px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-100 rounded-lg text-[10px] font-bold uppercase tracking-widest border border-cyan-500/40 transition-all">Setup Wizard</button>
                     </div>
                   </div>
-                  
+
                   {/* Content area - abbreviated for brevity */}
                   <div className="flex-grow overflow-y-auto custom-scrollbar p-12">
                     <div className="max-w-3xl mx-auto space-y-12">
@@ -817,13 +877,13 @@ const AgenticToggle: React.FC<{ mode: Mode; onToggle: () => void }> = ({ mode, o
       <Brain className="w-4 h-4" />
       <span className="text-xs font-medium">Standard</span>
     </div>
-    
+
     <button
       onClick={onToggle}
       className={`
         relative w-12 h-6 rounded-full transition-all duration-300
-        ${mode === 'agentic' 
-          ? 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/25' 
+        ${mode === 'agentic'
+          ? 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/25'
           : 'bg-slate-700 hover:bg-slate-600'
         }
       `}
@@ -837,7 +897,7 @@ const AgenticToggle: React.FC<{ mode: Mode; onToggle: () => void }> = ({ mode, o
         )}
       </div>
     </button>
-    
+
     <div className={`flex items-center gap-2 ${mode === 'agentic' ? 'text-purple-400' : 'text-slate-300'}`}>
       <Sparkles className="w-4 h-4" />
       <span className="text-xs font-medium">Agentic</span>

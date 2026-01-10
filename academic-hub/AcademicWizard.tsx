@@ -102,15 +102,24 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
     };
 
     const handleAddReference = (res: any) => {
+        // Use ReferenceParser for smart parsing instead of placeholder data
+        const { ReferenceParser } = require('../services/ReferenceParser');
+        const parsed = ReferenceParser.parseSearchResult(res);
+
+        const authorString = parsed.authors.map((a: any) => a.fullName || a.lastName).join(', ') || 'Unknown Author';
+        const yearString = parsed.year?.toString() || new Date().getFullYear().toString();
+
         const newRef: any = {
-            id: crypto.randomUUID(),
-            title: res.title,
-            authors: "Research Team", // Placeholder for actual author parsing
-            year: new Date().getFullYear().toString(),
-            snippet: res.snippet,
-            link: res.link,
-            journal: "Scholarly Source",
-            formattedApa: `Research Team (${new Date().getFullYear()}). ${res.title}. Scholarly Source.`
+            id: parsed.id,
+            title: parsed.title,
+            authors: authorString,
+            year: yearString,
+            snippet: parsed.abstract || res.snippet,
+            link: parsed.url || res.link,
+            journal: parsed.journal || 'Scholarly Source',
+            doi: parsed.doi,
+            confidence: parsed.confidence,
+            formattedApa: ReferenceParser.formatAPA(parsed)
         };
 
         const updatedRefs = [...(project.references || []), newRef];
