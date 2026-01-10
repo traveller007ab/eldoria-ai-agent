@@ -601,7 +601,6 @@ export class FlowNetworkSolver implements ISolver {
     }
 
     private parseBlueprint(blueprint: MechBlueprint): { nodes: HydraulicNode[], links: HydraulicLink[], unknownsMap: any } {
-        // Industry Standard Graph Parsing using Union-Find for Node collapse
         const parent = new Map<string, string>();
         const find = (id: string): string => {
             if (!parent.has(id)) parent.set(id, id);
@@ -616,41 +615,43 @@ export class FlowNetworkSolver implements ISolver {
 
         const registry = ComponentRegistry.getInstance();
 
-        // Safety check for empty blueprint
         if (!blueprint.components || blueprint.components.length === 0) {
             return { nodes: [], links: [], unknownsMap: {} };
         }
 
-        // 1. Identify all fluid ports and unite connected ones
-        // Register all ports first
+        const normalizePort = (portName: string): string => {
+            const lower = String(portName).toLowerCase();
+            if (lower.includes('out') && !lower.includes('in')) return 'out';
+            if (lower.includes('in') && !lower.includes('out')) return 'in';
+            return lower;
+        };
+
         blueprint.components.forEach(comp => {
             const def = registry.getComponent(comp.componentDefinitionId);
             if (def && def.ports && def.ports.length > 0) {
                 def.ports.forEach((port: any) => {
                     if (port.domain === 'fluid') {
-                        find(`${comp.id}:${port.id}`); // Initialize set
+                        const portName = normalizePort(port.id);
+                        find(`${comp.id}:${portName}`);
                     }
                 });
             } else {
-                // Register fallback ports for components without proper definitions
                 find(`${comp.id}:in`);
                 find(`${comp.id}:out`);
             }
         });
 
-        // Union connected ports
         blueprint.connections.forEach(conn => {
-            if (conn.type === 'fluid' || !conn.type) {
-                union(`${conn.sourceComponentId}:${conn.sourcePortId}`, `${conn.targetComponentId}:${conn.targetPortId}`);
-            }
+            if (conn.type !== 'fluid') return;
+            const sourcePort = normalizePort(conn.sourcePortId);
+            const targetPort = normalizePort(conn.targetPortId);
+            union(`${conn.sourceComponentId}:${sourcePort}`, `${conn.targetComponentId}:${targetPort}`);
         });
 
-        // 2. Create HydraulicNodes from disjoint sets
         const rootToNodeIndex = new Map<string, number>();
         const nodes: HydraulicNode[] = [];
         let nodeCounter = 0;
 
-        // Iterate unique roots
         Array.from(parent.keys()).forEach(portKey => {
             const root = find(portKey);
             if (!rootToNodeIndex.has(root)) {
@@ -661,47 +662,37 @@ export class FlowNetworkSolver implements ISolver {
                     isFixed: false,
                     fixedHead: 0,
                     elevation: 0,
-                    initialHeadGuess: 50 // Better initial guess for pump systems
+                    initialHeadGuess: 50
                 });
             }
         });
 
-        // 3. Assign Node Properties (Check for Tanks/Boundaries)
         blueprint.components.forEach(comp => {
             const def = registry.getComponent(comp.componentDefinitionId);
-
-            // Use physics interface to check for fixed head components
-            const physics = getPhysicsForComponent(comp.componentDefinitionId, def?.id);
             const isFixed = isFixedHeadComponent(comp.componentDefinitionId, def?.id);
+            const params = comp.parameterValues || {};
 
-            // Check for pumps and estimate their discharge head for better initial guess
             if (comp.componentDefinitionId.toLowerCase().includes('pump')) {
-                const pumpHead = Number(comp.parameterValues?.design_head) || 
-                                Number(comp.parameterValues?.head) || 50;
+                const pumpHead = Number(params.design_head) || Number(params.head) || 50;
                 const port = def?.ports?.find((p: any) => p.domain === 'fluid' && p.type === 'output') ||
                             def?.ports?.find((p: any) => p.domain === 'fluid') ||
                             { id: 'outlet' };
-                const portKey = `${comp.id}:${port.id}`;
+                const portKey = `${comp.id}:${normalizePort(port.id)}`;
                 const root = find(portKey);
                 const nodeIdx = rootToNodeIndex.get(root);
                 if (nodeIdx !== undefined && nodes[nodeIdx]) {
-                    // Pump discharge should have higher pressure
                     nodes[nodeIdx].initialHeadGuess = pumpHead;
                 }
             }
 
             if (isFixed || (def && def.ports && def.ports.some((p: any) => p.type === 'bidirectional'))) {
-                // Fixed head component (tank, reservoir) - use first fluid port
                 const port = def?.ports?.find((p: any) => p.domain === 'fluid') || { id: 'out' };
-                const portKey = `${comp.id}:${port.id}`;
+                const portKey = `${comp.id}:${normalizePort(port.id)}`;
                 const root = find(portKey);
                 const nodeIdx = rootToNodeIndex.get(root);
 
                 if (nodeIdx !== undefined) {
-                    const head = Number(comp.parameterValues.head) ||
-                                 Number(comp.parameterValues.initial_level) ||
-                                 Number(comp.parameterValues.tank_level) ||
-                                 5; // Default 5m head for tanks
+                    const head = Number(params.head) || Number(params.initial_level) || Number(params.tank_level) || 5;
                     nodes[nodeIdx].isFixed = true;
                     nodes[nodeIdx].fixedHead = head;
                     nodes[nodeIdx].componentId = comp.id;
@@ -709,27 +700,16 @@ export class FlowNetworkSolver implements ISolver {
             }
         });
 
-        // 4. Create Links (Components connecting two nodes)
         const links: HydraulicLink[] = [];
         let linkCounter = 0;
 
         blueprint.components.forEach(comp => {
             const def = registry.getComponent(comp.componentDefinitionId);
-
             const fluidPorts = def?.ports?.filter((p: any) => p.domain === 'fluid') || [];
 
-            // Fallback: if no ports defined, assume component has inlet/outlet
             if (fluidPorts.length < 2) {
-                fluidPorts.push({
-                    id: 'in', type: 'input', domain: 'fluid' as const, name: 'Inlet',
-                    variables: [{ name: 'flow_rate', symbol: 'Q', unit: 'm³/s' }],
-                    state: 'specified', required: true
-                });
-                fluidPorts.push({
-                    id: 'out', type: 'output', domain: 'fluid' as const, name: 'Outlet',
-                    variables: [{ name: 'flow_rate', symbol: 'Q', unit: 'm³/s' }],
-                    state: 'specified', required: true
-                });
+                fluidPorts.push({ id: 'in', type: 'input', domain: 'fluid' as const, name: 'Inlet' });
+                fluidPorts.push({ id: 'out', type: 'output', domain: 'fluid' as const, name: 'Outlet' });
             }
 
             if (fluidPorts.length >= 2) {
@@ -737,39 +717,25 @@ export class FlowNetworkSolver implements ISolver {
                 const outPort = fluidPorts.find((p: any) => p.type === 'output' || p.id?.toLowerCase().includes('out'));
 
                 if (inPort && outPort) {
-                    const rootIn = find(`${comp.id}:${inPort.id}`);
-                    const rootOut = find(`${comp.id}:${outPort.id}`);
+                    const rootIn = find(`${comp.id}:${normalizePort(inPort.id)}`);
+                    const rootOut = find(`${comp.id}:${normalizePort(outPort.id)}`);
 
                     const n1 = rootToNodeIndex.get(rootIn);
                     const n2 = rootToNodeIndex.get(rootOut);
 
                     if (n1 !== undefined && n2 !== undefined) {
-                        // Determine component type
                         let type: 'pipe' | 'valve' | 'pump' = 'pipe';
-
-                        try {
-                            const componentType = getComponentType(comp.componentDefinitionId, def?.id || '');
-                            if (componentType === 'valve' || comp.componentDefinitionId.toLowerCase().includes('valve')) {
-                                type = 'valve';
-                            } else if (componentType === 'pump' || comp.componentDefinitionId.toLowerCase().includes('pump')) {
-                                type = 'pump';
-                            } else if (componentType === 'motor' || componentType === 'engine') {
-                                type = 'pump';
-                            }
-                        } catch {
-                            // Fallback to string matching
-                            const lowerId = comp.componentDefinitionId.toLowerCase();
-                            if (lowerId.includes('valve')) type = 'valve';
-                            else if (lowerId.includes('pump')) type = 'pump';
-                            else if (lowerId.includes('motor') || lowerId.includes('engine')) type = 'pump';
-                        }
+                        const lowerId = comp.componentDefinitionId.toLowerCase();
+                        if (lowerId.includes('valve')) type = 'valve';
+                        else if (lowerId.includes('pump')) type = 'pump';
+                        else if (lowerId.includes('motor') || lowerId.includes('engine')) type = 'pump';
 
                         links.push({
                             id: linkCounter++,
                             componentId: comp.id,
                             startNode: n1,
                             endNode: n2,
-                            type: type,
+                            type,
                             params: comp.parameterValues
                         });
                     }
@@ -777,7 +743,6 @@ export class FlowNetworkSolver implements ISolver {
             }
         });
 
-        // If no links created, create default pipe links between nodes
         if (links.length === 0 && nodes.length >= 2) {
             for (let i = 0; i < nodes.length - 1; i++) {
                 links.push({

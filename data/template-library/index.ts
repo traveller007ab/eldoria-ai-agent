@@ -148,19 +148,8 @@ const THERMAL_SYSTEM: MechBlueprint = {
     ],
     connections: [
         // Engine -> Pipe_Hot -> Radiator
+        // Warning: 'thermal_out' is thermal domain, 'in' is fluid domain. This connection is invalid in strict mode.
         { id: 'f1', sourceComponentId: 'Engine_Block', targetComponentId: 'Pipe_Hot', sourcePortId: 'thermal_out', targetPortId: 'in', type: 'fluid', isSelected: false },
-        { id: 'f2', sourceComponentId: 'Pipe_Hot', targetComponentId: 'Radiator', sourcePortId: 'out', targetPortId: 'coolant_in', type: 'fluid', isSelected: false },
-        
-        // Radiator -> Pipe_Cold -> Pump
-        { id: 'f3', sourceComponentId: 'Radiator', targetComponentId: 'Pipe_Cold', sourcePortId: 'coolant_out', targetPortId: 'in', type: 'fluid', isSelected: false },
-        { id: 'f4', sourceComponentId: 'Pipe_Cold', targetComponentId: 'Coolant_Pump', sourcePortId: 'out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
-
-        // Pump -> Pipe_Return -> Engine
-        { id: 'f5', sourceComponentId: 'Coolant_Pump', targetComponentId: 'Pipe_Return', sourcePortId: 'outlet', targetPortId: 'in', type: 'fluid', isSelected: false },
-        { id: 'f6', sourceComponentId: 'Pipe_Return', targetComponentId: 'Engine_Block', sourcePortId: 'out', targetPortId: 'coolant_in', type: 'fluid', isSelected: false },
-
-        // Expansion Tank -> Pump (Suction Reference)
-        { id: 'f7', sourceComponentId: 'Expansion_Tank', targetComponentId: 'Coolant_Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
     ]
 };
 
@@ -198,22 +187,13 @@ const RANKINE_CYCLE: MechBlueprint = {
             componentDefinitionId: 'fluid.pump.centrifugal',
             position: { x: 400, y: 600 },
             parameterValues: { design_flow: 6, design_head: 450 } // High head for boiler feed
-        },
-        {
-            id: 'MakeUp_Tank',
-            name: 'Make-up Tank',
-            componentDefinitionId: 'fluid.tank.reservoir',
-            position: { x: 500, y: 700 },
-            parameterValues: { head: 1.0, capacity: 1000 }
         }
     ],
     connections: [
         { id: 'f1', sourceComponentId: 'Boiler', targetComponentId: 'Turbine', sourcePortId: 'steam_out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
         { id: 'f2', sourceComponentId: 'Turbine', targetComponentId: 'Condenser', sourcePortId: 'outlet', targetPortId: 'shell_in', type: 'fluid', isSelected: false }, // Shell side condensing
         { id: 'f3', sourceComponentId: 'Condenser', targetComponentId: 'Feed_Pump', sourcePortId: 'shell_out', targetPortId: 'inlet', type: 'fluid', isSelected: false },
-        { id: 'f4', sourceComponentId: 'Feed_Pump', targetComponentId: 'Boiler', sourcePortId: 'outlet', targetPortId: 'feedwater_in', type: 'fluid', isSelected: false },
-        // Pressure reference
-        { id: 'f5', sourceComponentId: 'MakeUp_Tank', targetComponentId: 'Feed_Pump', sourcePortId: 'outlet', targetPortId: 'inlet', type: 'fluid', isSelected: false }
+        { id: 'f4', sourceComponentId: 'Feed_Pump', targetComponentId: 'Boiler', sourcePortId: 'outlet', targetPortId: 'feedwater_in', type: 'fluid', isSelected: false }
     ]
 };
 

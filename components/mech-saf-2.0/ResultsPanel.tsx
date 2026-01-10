@@ -251,42 +251,27 @@ export const ResultsPanel: React.FC = () => {
             </div>
 
             {/* Dynamic Charts */}
-            {(lastSimulationResult as any).isDynamic && (lastSimulationResult as MechDynamicSimulationResult).timeSeries && (
+            {(lastSimulationResult as any).isDynamic && (
                 <div className="p-4 border-t border-slate-700">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                         <LineChart className="w-3 h-3" /> Dynamic Response
                     </h3>
                     <div className="space-y-4">
                         {/* Only show "interesting" variables that change over time (e.g. Tank Levels, Temps) */}
-                        {(() => {
-                            const timeSeries = (lastSimulationResult as MechDynamicSimulationResult).timeSeries || {};
-                            const entries = Object.entries(timeSeries);
-                            // Filter for dynamic state variables (with underscore prefix patterns)
-                            let filtered = entries.filter(([key]) =>
-                                key.includes('_level') ||
-                                key.includes('_temperature') ||
-                                key.includes('_temp') ||
-                                key.includes('_pressure') ||
-                                key.includes('_flow') ||
-                                key.includes('_flow_rate') ||
-                                key.includes('_head')
-                            );
-                            // Fallback: if no matches, show any numeric arrays
-                            if (filtered.length === 0 && entries.length > 0) {
-                                filtered = entries.filter(([_, data]) => Array.isArray(data) && data.length > 0);
-                            }
-                            return filtered.slice(0, 5);
-                        })().map(([key, data]) => (
-                            <TimePlot
-                                key={key}
-                                timePoints={(lastSimulationResult as MechDynamicSimulationResult).timePoints || []}
-                                data={data}
-                                label={key.replace(/_/g, ' ')}
-                                unit={key.includes('level') ? 'm' : key.includes('temp') ? '°C' : key.includes('flow') ? 'm³/h' : ''}
-                                height={80}
-                                color={key.includes('level') ? '#22d3ee' : key.includes('temp') ? '#fb923c' : '#94a3b8'}
-                            />
-                        ))
+                        {Object.entries((lastSimulationResult as MechDynamicSimulationResult).timeSeries)
+                            .filter(([key]) => key.includes('level') || key.includes('temperature') || key.includes('pressure') || key.includes('flow'))
+                            .slice(0, 5) // Limit to top 5 to avoid clutter
+                            .map(([key, data]) => (
+                                <TimePlot
+                                    key={key}
+                                    timePoints={(lastSimulationResult as MechDynamicSimulationResult).timePoints}
+                                    data={data}
+                                    label={key.replace(/_/g, ' ')}
+                                    unit={key.includes('level') ? 'm' : key.includes('temp') ? '°C' : key.includes('flow') ? 'm³/h' : ''}
+                                    height={80}
+                                    color={key.includes('level') ? '#22d3ee' : key.includes('temp') ? '#fb923c' : '#94a3b8'}
+                                />
+                            ))
                         }
                     </div>
                 </div>

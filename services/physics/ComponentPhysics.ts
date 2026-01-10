@@ -371,6 +371,9 @@ export class ComponentPhysicsRegistry {
         if (lowerId.includes('gear')) {
             return this.getOrCreateTemplate('gear');
         }
+        if (lowerId.includes('engine')) {
+            return this.getOrCreateTemplate('engine');
+        }
         
         // Generic pipe fallback
         return this.getOrCreateTemplate('pipe');

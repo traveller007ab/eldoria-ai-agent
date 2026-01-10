@@ -572,7 +572,6 @@ export class SimulationKernel {
             const id = comp.id;
             const name = comp.name.replace(/\s+/g, '_');
             
-            // Try ID-based first, then Name-based
             const power = variables[`${id}_power`] || variables[`${id}_power_kw`] ||
                            variables[`${id}_brakePower`] || variables[`${id}_horsepower`] / 0.746 || 0;
 
@@ -584,17 +583,24 @@ export class SimulationKernel {
                           variables[`${name}_heat`] || variables[`${name}_heat_rejection`] || 0;
 
             if (comp.componentDefinitionId.includes('pump')) {
-                if (power > 0) totalPowerOutput += power;
-                else totalPowerInput += Math.abs(power);
+                let pumpPower = power;
+                const pumpFlow = variables[`${name}_flow_rate`] || variables[`${name}_flowRate`] || 0;
+                const pumpHead = variables[`${name}_head`] || 0;
+                
+                if (pumpPower === 0 && pumpFlow > 0 && pumpHead > 0) {
+                    const Q_m3s = pumpFlow / 3600;
+                    pumpPower = (1000 * 9.81 * Q_m3s * pumpHead) / 1000;
+                }
+                if (pumpPower > 0) totalPowerOutput += pumpPower;
+                else totalPowerInput += Math.abs(pumpPower);
+                if (pumpFlow > 0) totalFlowRate += pumpFlow;
             } else if (comp.componentDefinitionId.includes('engine') || comp.componentDefinitionId.includes('motor')) {
-                if (power > 0) totalPowerOutput += power;
-                else totalPowerInput += Math.abs(power);
+                totalPowerInput += Math.abs(power);
             }
             
-            if (flow > 0) totalFlowRate += flow;
             if (heat > 0) totalHeatOutput += heat;
 
-            componentMetrics[id] = { power, flow, heat };
+            componentMetrics[id] = { power: power || 0, flow, heat };
         });
 
         return {
@@ -602,7 +608,7 @@ export class SimulationKernel {
             totalPowerOutput,
             overallEfficiency: totalPowerInput > 0 ? (totalPowerOutput / totalPowerInput) * 100 : 0,
             totalFlowRate,
-            maxPressure: 0, // Todo: scan pressures
+            maxPressure: 0,
             pressureDrop: 0,
             totalHeatInput,
             totalHeatOutput,
