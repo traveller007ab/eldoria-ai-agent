@@ -238,15 +238,15 @@ export const AcademicHub: React.FC = () => {
 
   // Agentic mode header
   const renderAgenticHeader = () => (
-    <div className="flex items-center justify-between bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border-b border-purple-700/50 px-6 py-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-purple-500/20 rounded-xl">
-            <Brain className="w-6 h-6 text-purple-400" />
+    <div className="ah-header ah-header--agentic">
+      <div className="ah-header__brand">
+        <div className="ah-header__brand">
+          <div className="ah-header__icon">
+            <Brain className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">Agentic Academic Hub</h1>
-            <p className="text-sm text-purple-300/70">
+            <h1 className="ah-header__title">Agentic Academic Hub</h1>
+            <p className="ah-header__subtitle">
               AI-powered autonomous research assistant
             </p>
           </div>
@@ -285,14 +285,14 @@ export const AcademicHub: React.FC = () => {
 
   // Standard mode header
   const renderStandardHeader = () => (
-    <div className="flex items-center justify-between bg-slate-800/50 border-b border-slate-700 px-6 py-4">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-cyan-500/20 rounded-lg">
-          <GraduationCap className="w-6 h-6 text-cyan-400" />
+    <div className="ah-header ah-header--standard">
+      <div className="ah-header__brand">
+        <div className="ah-header__icon">
+          <GraduationCap className="w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-white">Academic Hub</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="ah-header__title">Academic Hub</h1>
+          <p className="ah-header__subtitle">
             Thesis research and writing assistant
           </p>
         </div>
@@ -736,9 +736,9 @@ export const AcademicHub: React.FC = () => {
           {/* Standard Mode Header */}
           {renderStandardHeader()}
 
-          {/* Main Layout Area - Horizontal */}
-          <div className="flex-grow flex gap-4 overflow-hidden p-4">
-            {/* Left Sidebar: Projects & Dashboard */}
+          {/* Main Layout Area - Horizontal 3-Column */}
+          <div className="ah-content gap-4 p-4">
+            {/* Left Column: Projects & Dashboard */}
             <div className="w-80 shrink-0 flex flex-col gap-4 overflow-hidden">
               <button
                 onClick={() => setIsModelCreatorOpen(true)}
@@ -755,8 +755,8 @@ export const AcademicHub: React.FC = () => {
               />
             </div>
 
-            {/* Main Content */}
-            <div className="flex-grow flex flex-col gap-4 overflow-hidden">
+            {/* Center Column: Main Content (Wizard or Draft) */}
+            <div className="flex-grow flex flex-col gap-4 overflow-hidden relative">
               <div className="panel flex-grow flex flex-col overflow-hidden relative">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 opacity-50"></div>
 
@@ -860,54 +860,57 @@ export const AcademicHub: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                  </div>
                 )}
+                  </div>
+            </div>
+
+              {/* Right Column: Compliance & Auditor */}
+              <div className="w-80 shrink-0 flex flex-col overflow-hidden">
+                <ComplianceSidebar project={selectedProject} />
               </div>
-              <ComplianceSidebar project={selectedProject} />
             </div>
           </div>
-        </div>
       )}
-    </div>
-  );
+        </div>
+      );
 };
 
-// ============================================================================
-// Agentic Toggle Component
-// ============================================================================
+      // ============================================================================
+      // Agentic Toggle Component
+      // ============================================================================
 
-const AgenticToggle: React.FC<{ mode: Mode; onToggle: () => void }> = ({ mode, onToggle }) => (
-  <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg border border-purple-700/40">
-    <div className={`flex items-center gap-2 ${mode === 'standard' ? 'text-slate-300' : 'text-purple-400'}`}>
-      <Brain className="w-4 h-4" />
-      <span className="text-xs font-medium">Standard</span>
-    </div>
+      const AgenticToggle: React.FC<{ mode: Mode; onToggle: () => void }> = ({mode, onToggle}) => (
+      <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg border border-purple-700/40">
+        <div className={`flex items-center gap-2 ${mode === 'standard' ? 'text-slate-300' : 'text-purple-400'}`}>
+          <Brain className="w-4 h-4" />
+          <span className="text-xs font-medium">Standard</span>
+        </div>
 
-    <button
-      onClick={onToggle}
-      className={`
+        <button
+          onClick={onToggle}
+          className={`
         relative w-12 h-6 rounded-full transition-all duration-300
         ${mode === 'agentic'
-          ? 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/25'
-          : 'bg-slate-700 hover:bg-slate-600'
-        }
+              ? 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/25'
+              : 'bg-slate-700 hover:bg-slate-600'
+            }
       `}
-    >
-      <div className={`
+        >
+          <div className={`
         absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
         ${mode === 'agentic' ? 'left-6' : 'left-0.5'}
       `}>
-        {mode === 'agentic' && (
-          <Sparkles className="w-2.5 h-2.5 text-purple-500 absolute -top-0.5 -left-0.5 animate-pulse" />
-        )}
+            {mode === 'agentic' && (
+              <Sparkles className="w-2.5 h-2.5 text-purple-500 absolute -top-0.5 -left-0.5 animate-pulse" />
+            )}
+          </div>
+        </button>
+
+        <div className={`flex items-center gap-2 ${mode === 'agentic' ? 'text-purple-400' : 'text-slate-300'}`}>
+          <Sparkles className="w-4 h-4" />
+          <span className="text-xs font-medium">Agentic</span>
+        </div>
       </div>
-    </button>
+      );
 
-    <div className={`flex items-center gap-2 ${mode === 'agentic' ? 'text-purple-400' : 'text-slate-300'}`}>
-      <Sparkles className="w-4 h-4" />
-      <span className="text-xs font-medium">Agentic</span>
-    </div>
-  </div>
-);
-
-export default AcademicHub;
+      export default AcademicHub;
