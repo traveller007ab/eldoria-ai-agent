@@ -628,40 +628,83 @@ export const AcademicHub: React.FC = () => {
               </div>
             </div>
 
-            {/* Agent Suggestions */}
+            {/* Agent Suggestions - Dynamic from agentInsights */}
             <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 rounded-xl p-4 border border-purple-500/20">
-              <div className="flex items-center gap-2 mb-4">
-                <Lightbulb className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">Agent Suggestions</h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider">AI Insights</h3>
+                </div>
+                <span className="text-xs text-purple-400">{agentInsights.filter(i => !i.read).length} unread</span>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-start gap-3 p-3 bg-amber-900/10 rounded-lg border border-amber-500/20">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
-                    <Wrench className="w-4 h-4 text-amber-400" />
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {agentInsights.length === 0 ? (
+                  <div className="text-center py-6 text-slate-500">
+                    <Brain className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Your AI agents are analyzing your project...</p>
+                    <p className="text-xs mt-1">Insights will appear here as they're discovered.</p>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium text-amber-200">Add More Citations</div>
-                    <div className="text-xs text-slate-400 mt-1">
-                      Your literature review would benefit from 3-5 more recent sources.
-                    </div>
-                    <button className="mt-2 px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 rounded text-xs text-amber-300">
-                      Auto-Discover
-                    </button>
-                  </div>
-                </div>
+                ) : (
+                  agentInsights.slice(0, 5).map((insight) => {
+                    const bgColor = insight.type === 'warning' ? 'bg-amber-900/10 border-amber-500/20' :
+                      insight.type === 'suggestion' ? 'bg-blue-900/10 border-blue-500/20' :
+                        'bg-green-900/10 border-green-500/20';
+                    const iconBgColor = insight.type === 'warning' ? 'bg-amber-500/20' :
+                      insight.type === 'suggestion' ? 'bg-blue-500/20' : 'bg-green-500/20';
+                    const iconColor = insight.type === 'warning' ? 'text-amber-400' :
+                      insight.type === 'suggestion' ? 'text-blue-400' : 'text-green-400';
+                    const textColor = insight.type === 'warning' ? 'text-amber-200' :
+                      insight.type === 'suggestion' ? 'text-blue-200' : 'text-green-200';
 
-                <div className="flex items-start gap-3 p-3 bg-green-900/10 rounded-lg border border-green-500/20">
-                  <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
-                    <Check className="w-4 h-4 text-green-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-green-200">Great Progress!</div>
-                    <div className="text-xs text-slate-400 mt-1">
-                      You've completed {progressMetrics.chaptersCompleted} chapters. Keep up the momentum!
-                    </div>
-                  </div>
-                </div>
+                    return (
+                      <div
+                        key={insight.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${bgColor} ${!insight.read ? 'ring-1 ring-purple-500/30' : 'opacity-80'}`}
+                        onClick={() => markInsightRead(insight.id)}
+                      >
+                        <div className={`w-8 h-8 rounded-lg ${iconBgColor} flex items-center justify-center shrink-0`}>
+                          {insight.type === 'warning' ? <AlertTriangle className={`w-4 h-4 ${iconColor}`} /> :
+                            insight.type === 'suggestion' ? <Lightbulb className={`w-4 h-4 ${iconColor}`} /> :
+                              <Check className={`w-4 h-4 ${iconColor}`} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-medium ${textColor}`}>{insight.title}</div>
+                          <div className="text-xs text-slate-400 mt-1 line-clamp-2">{insight.message}</div>
+                          {insight.actions && insight.actions.length > 0 && (
+                            <div className="flex gap-2 mt-2">
+                              {insight.actions.slice(0, 2).map(action => (
+                                <button
+                                  key={action.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAgentAction(action.id, insight.data);
+                                    markInsightRead(insight.id);
+                                  }}
+                                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${action.type === 'dismiss'
+                                    ? 'bg-slate-700/50 hover:bg-slate-700 text-slate-300'
+                                    : `${iconBgColor} hover:opacity-80 ${iconColor}`
+                                    }`}
+                                >
+                                  {action.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 shrink-0">
+                          {new Date(insight.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+
+                {agentInsights.length > 5 && (
+                  <button className="w-full text-center text-xs text-purple-400 hover:text-purple-300 py-2">
+                    View all {agentInsights.length} insights...
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -672,7 +715,7 @@ export const AcademicHub: React.FC = () => {
               <h2 className="text-xl font-bold text-white mb-2">Select a Project</h2>
               <p className="text-slate-400 mb-4">Choose a project to start working with the Agentic Hub</p>
               <button
-                onClick={() => setIsWizardOpen(true)}
+                onClick={handleNewProject}
                 className="px-4 py-2 bg-purple-500 hover:bg-purple-400 text-white rounded-lg text-sm font-medium"
               >
                 Create New Project
@@ -879,6 +922,14 @@ export const AcademicHub: React.FC = () => {
         />
       )}
 
+      {/* Main Wizard Modal - Now global */}
+      {isWizardOpen && selectedProject && (
+        <AcademicWizard
+          project={selectedProject}
+          onClose={() => setIsWizardOpen(false)}
+        />
+      )}
+
       {/* Render based on mode */}
       {mode === 'agentic' ? (
         <div className="flex-grow flex flex-col overflow-hidden">
@@ -917,12 +968,7 @@ export const AcademicHub: React.FC = () => {
               <div className="panel flex-grow flex flex-col overflow-hidden relative">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500 opacity-50"></div>
 
-                {isWizardOpen && selectedProject ? (
-                  <AcademicWizard
-                    project={selectedProject}
-                    onClose={() => setIsWizardOpen(false)}
-                  />
-                ) : selectedProject ? (
+                {selectedProject ? (
                   <div className="flex-grow flex flex-col overflow-hidden bg-black/40">
                     <div className="p-6 border-b border-cyan-500/10 flex items-center justify-between bg-cyan-500/5">
                       <div>

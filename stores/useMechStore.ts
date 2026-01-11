@@ -152,7 +152,7 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     clearLogs: () => set({ logs: [] }),
 
     // UI State
-    isPropertiesPanelOpen: false,
+    isPropertiesPanelOpen: true, // Default open so users see panel with guidance
     isLeftPanelOpen: true,
     isBottomPanelOpen: true, // Default open for visibility
     activeDomain: 'mechanical',
@@ -170,25 +170,25 @@ export const useMechStore = create<MechLabState>((set, get) => ({
 
         // 1. Save current blueprint to registry
         const updatedBlueprints = [...blueprints.filter(b => b.id !== currentBlueprint.id), currentBlueprint];
-        
+
         // 2. Find target blueprint
         let targetBlueprint = updatedBlueprints.find(b => b.id === blueprintId);
-        
+
         // If not found, create empty (should rarely happen if convertToSubsystem works right)
         if (!targetBlueprint) {
-             targetBlueprint = {
+            targetBlueprint = {
                 ...createEmptyBlueprint(),
                 id: blueprintId,
                 name: 'Subsystem',
-             };
-             updatedBlueprints.push(targetBlueprint);
+            };
+            updatedBlueprints.push(targetBlueprint);
         }
 
         return {
             blueprints: updatedBlueprints,
             navigationStack: [...state.navigationStack, currentBlueprint.id],
             currentBlueprint: targetBlueprint,
-            history: [], 
+            history: [],
             historyIndex: -1,
             selectedComponentId: null,
             selectedComponentIds: []
@@ -197,9 +197,9 @@ export const useMechStore = create<MechLabState>((set, get) => ({
 
     popBlueprint: () => set((state) => {
         if (state.navigationStack.length === 0) return state;
-        
+
         const { currentBlueprint, blueprints } = state;
-        
+
         // 1. Save current child blueprint
         let updatedBlueprints = blueprints;
         if (currentBlueprint) {
@@ -209,7 +209,7 @@ export const useMechStore = create<MechLabState>((set, get) => ({
         // 2. Pop parent ID
         const newStack = [...state.navigationStack];
         const parentId = newStack.pop();
-        
+
         // 3. Load parent
         const parentBlueprint = updatedBlueprints.find(b => b.id === parentId);
         if (!parentBlueprint) return state;
@@ -227,7 +227,7 @@ export const useMechStore = create<MechLabState>((set, get) => ({
 
     convertToSubsystem: (componentId) => set((state) => {
         if (!state.currentBlueprint) return state;
-        
+
         const newBlueprintId = crypto.randomUUID();
         const component = state.currentBlueprint.components.find(c => c.id === componentId);
         if (!component) return state;
@@ -244,10 +244,10 @@ export const useMechStore = create<MechLabState>((set, get) => ({
             blueprints: [...state.blueprints, newBlueprint],
             currentBlueprint: {
                 ...state.currentBlueprint,
-                components: state.currentBlueprint.components.map(c => 
-                    c.id === componentId 
-                    ? { ...c, childBlueprintId: newBlueprintId }
-                    : c
+                components: state.currentBlueprint.components.map(c =>
+                    c.id === componentId
+                        ? { ...c, childBlueprintId: newBlueprintId }
+                        : c
                 ),
                 updatedAt: new Date()
             }

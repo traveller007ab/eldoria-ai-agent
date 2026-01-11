@@ -27,7 +27,7 @@ export const PropertiesPanel: React.FC = () => {
     const selectedComponent = currentBlueprint?.components.find(c => c.id === selectedComponentId);
     const componentDef = selectedComponent ? ComponentRegistry.getInstance().getComponent(selectedComponent.componentDefinitionId) : null;
 
-    const selectedConnection = selectedConnectionId 
+    const selectedConnection = selectedConnectionId
         ? currentBlueprint?.connections.find(c => c.id === selectedConnectionId)
         : null;
 
@@ -132,9 +132,31 @@ export const PropertiesPanel: React.FC = () => {
 
     if (!selectedComponent || !componentDef) {
         return (
-            <div className="flex flex-col h-full items-center justify-center text-slate-500 p-4 text-center">
-                <Sliders className="w-12 h-12 mb-3 opacity-50" />
-                <p className="text-sm">Select a component to view properties</p>
+            <div className="flex flex-col h-full items-center justify-center text-slate-500 p-6 text-center">
+                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
+                    <Sliders className="w-8 h-8 opacity-50" />
+                </div>
+                <h3 className="text-sm font-medium text-slate-300 mb-2">No Component Selected</h3>
+                <p className="text-xs max-w-xs leading-relaxed">
+                    Click on a component in the canvas to view and edit its properties, equations, and simulation results.
+                </p>
+                <div className="mt-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold mb-2">Quick Start</p>
+                    <ul className="text-xs text-slate-400 text-left space-y-1.5">
+                        <li className="flex items-start gap-2">
+                            <span className="text-emerald-400">1.</span>
+                            <span>Drag a component from the left palette</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-emerald-400">2.</span>
+                            <span>Click the component to select it</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <span className="text-emerald-400">3.</span>
+                            <span>Edit parameters here</span>
+                        </li>
+                    </ul>
+                </div>
             </div>
         );
     }

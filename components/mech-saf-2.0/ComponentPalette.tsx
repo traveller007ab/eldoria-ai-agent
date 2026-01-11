@@ -1,7 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronDown, ChevronRight, Hexagon, Droplets, Flame, Cpu, Cog } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Hexagon, Droplets, Flame, Cpu, Cog, Plus, Pencil, Beaker } from 'lucide-react';
 import { ComponentRegistry } from '../../services/ComponentRegistry';
+import { MaterialRegistry } from '../../services/physics/MaterialRegistry';
 import { MechComponentDefinition } from '../../types';
+import { useMechStore } from '../../stores/useMechStore';
+import { CustomFluidDialog } from './CustomFluidDialog';
 
 export const ComponentPalette: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -11,9 +14,20 @@ export const ComponentPalette: React.FC = () => {
         'mechanical': false,
         'control': false
     });
+    const [showFluidSettings, setShowFluidSettings] = useState(true);
+    const [showCustomFluidDialog, setShowCustomFluidDialog] = useState(false);
+    const [editFluidId, setEditFluidId] = useState<string | undefined>();
+
+    const { currentBlueprint, setFluidId } = useMechStore();
 
     const registry = ComponentRegistry.getInstance();
+    const materialRegistry = MaterialRegistry.getInstance();
     const allComponents = registry.getAllComponents();
+
+    const currentFluidId = currentBlueprint?.fluidId || 'water';
+    const currentFluid = materialRegistry.getFluid(currentFluidId);
+    const builtInFluids = materialRegistry.getBuiltInFluids();
+    const customFluids = materialRegistry.getCustomFluids();
 
     const filteredComponents = useMemo(() => {
         if (!searchQuery) return allComponents;
@@ -60,8 +74,27 @@ export const ComponentPalette: React.FC = () => {
         }
     };
 
+    const handleFluidChange = (fluidId: string) => {
+        setFluidId(fluidId);
+    };
+
+    const handleCreateCustomFluid = () => {
+        setEditFluidId(undefined);
+        setShowCustomFluidDialog(true);
+    };
+
+    const handleEditFluid = (fluidId: string) => {
+        setEditFluidId(fluidId);
+        setShowCustomFluidDialog(true);
+    };
+
+    const handleFluidCreated = (fluidId: string) => {
+        setFluidId(fluidId);
+    };
+
     return (
         <div className="flex flex-col h-full">
+            {/* Search */}
             <div className="p-3 border-b border-slate-700">
                 <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-500" />
@@ -75,6 +108,83 @@ export const ComponentPalette: React.FC = () => {
                 </div>
             </div>
 
+            {/* Fluid Settings Section */}
+            <div className="border-b border-slate-700">
+                <button
+                    onClick={() => setShowFluidSettings(!showFluidSettings)}
+                    className="w-full flex items-center justify-between p-3 bg-cyan-900/20 hover:bg-cyan-900/30 transition-colors"
+                >
+                    <div className="flex items-center gap-2 text-sm font-medium text-cyan-300">
+                        <Beaker className="w-4 h-4" />
+                        System Fluid
+                    </div>
+                    {showFluidSettings ? <ChevronDown className="w-4 h-4 text-cyan-400" /> : <ChevronRight className="w-4 h-4 text-cyan-400" />}
+                </button>
+
+                {showFluidSettings && (
+                    <div className="p-3 bg-slate-900/50 space-y-3">
+                        {/* Fluid Selector */}
+                        <select
+                            value={currentFluidId}
+                            onChange={(e) => handleFluidChange(e.target.value)}
+                            className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
+                        >
+                            <optgroup label="Built-in Fluids">
+                                {builtInFluids.map(f => (
+                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                ))}
+                            </optgroup>
+                            {customFluids.length > 0 && (
+                                <optgroup label="Custom Fluids">
+                                    {customFluids.map(f => (
+                                        <option key={f.id} value={f.id}>★ {f.name}</option>
+                                    ))}
+                                </optgroup>
+                            )}
+                        </select>
+
+                        {/* Current Fluid Properties */}
+                        {currentFluid && (
+                            <div className="bg-slate-800/50 rounded p-2 space-y-1 text-[10px]">
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500">Density</span>
+                                    <span className="text-slate-300 font-mono">{currentFluid.density} kg/m³</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500">Viscosity</span>
+                                    <span className="text-slate-300 font-mono">{currentFluid.viscosity.toExponential(2)} Pa·s</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500">Specific Heat</span>
+                                    <span className="text-slate-300 font-mono">{currentFluid.specificHeat} kJ/kg·K</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleCreateCustomFluid}
+                                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-600/30 rounded text-xs text-cyan-300 transition-colors"
+                            >
+                                <Plus className="w-3 h-3" />
+                                New Fluid
+                            </button>
+                            {materialRegistry.isCustomFluid(currentFluidId) && (
+                                <button
+                                    onClick={() => handleEditFluid(currentFluidId)}
+                                    className="flex items-center justify-center gap-1 px-2 py-1.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded text-xs text-slate-300 transition-colors"
+                                >
+                                    <Pencil className="w-3 h-3" />
+                                    Edit
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Component List */}
             <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
                 {Object.entries(groupedComponents).map(([domain, components]) => (
                     <div key={domain} className="rounded-lg overflow-hidden border border-slate-700/50 bg-slate-800/50">
@@ -119,6 +229,14 @@ export const ComponentPalette: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Custom Fluid Dialog */}
+            <CustomFluidDialog
+                isOpen={showCustomFluidDialog}
+                onClose={() => setShowCustomFluidDialog(false)}
+                onFluidCreated={handleFluidCreated}
+                editFluidId={editFluidId}
+            />
         </div>
     );
 };
