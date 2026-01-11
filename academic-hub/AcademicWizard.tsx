@@ -127,9 +127,9 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
     };
 
     return (
-        <div className="flex-grow flex flex-col overflow-hidden">
+        <div className="flex-grow flex flex-col overflow-hidden bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/5 shadow-2xl">
             {/* Wizard Header */}
-            <div className="p-6 bg-cyan-500/5 border-b border-cyan-500/20">
+            <div className="p-6 bg-gradient-to-r from-cyan-500/10 to-transparent border-b border-cyan-500/20">
                 <div className="flex items-center justify-between mb-8">
                     <div>
                         <h3 className="text-lg font-bold text-cyan-200 tracking-tight">Academic Research Wizard</h3>
