@@ -866,47 +866,48 @@ export const AcademicHub: React.FC = () => {
               <ComplianceSidebar project={selectedProject} />
             </div>
           </div>
-      )}
         </div>
-      );
+      )}
+    </div>
+  );
 };
 
-      // ============================================================================
-      // Agentic Toggle Component
-      // ============================================================================
+// ============================================================================
+// Agentic Toggle Component
+// ============================================================================
 
-      const AgenticToggle: React.FC<{ mode: Mode; onToggle: () => void }> = ({mode, onToggle}) => (
-      <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg border border-purple-700/40">
-        <div className={`flex items-center gap-2 ${mode === 'standard' ? 'text-slate-300' : 'text-purple-400'}`}>
-          <Brain className="w-4 h-4" />
-          <span className="text-xs font-medium">Standard</span>
-        </div>
+const AgenticToggle: React.FC<{ mode: Mode; onToggle: () => void }> = ({ mode, onToggle }) => (
+  <div className="flex items-center gap-3 px-3 py-2 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg border border-purple-700/40">
+    <div className={`flex items-center gap-2 ${mode === 'standard' ? 'text-slate-300' : 'text-purple-400'}`}>
+      <Brain className="w-4 h-4" />
+      <span className="text-xs font-medium">Standard</span>
+    </div>
 
-        <button
-          onClick={onToggle}
-          className={`
+    <button
+      onClick={onToggle}
+      className={`
         relative w-12 h-6 rounded-full transition-all duration-300
         ${mode === 'agentic'
-              ? 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/25'
-              : 'bg-slate-700 hover:bg-slate-600'
-            }
+          ? 'bg-gradient-to-r from-purple-500 to-indigo-500 shadow-lg shadow-purple-500/25'
+          : 'bg-slate-700 hover:bg-slate-600'
+        }
       `}
-        >
-          <div className={`
+    >
+      <div className={`
         absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300
         ${mode === 'agentic' ? 'left-6' : 'left-0.5'}
       `}>
-            {mode === 'agentic' && (
-              <Sparkles className="w-2.5 h-2.5 text-purple-500 absolute -top-0.5 -left-0.5 animate-pulse" />
-            )}
-          </div>
-        </button>
-
-        <div className={`flex items-center gap-2 ${mode === 'agentic' ? 'text-purple-400' : 'text-slate-300'}`}>
-          <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-medium">Agentic</span>
-        </div>
+        {mode === 'agentic' && (
+          <Sparkles className="w-2.5 h-2.5 text-purple-500 absolute -top-0.5 -left-0.5 animate-pulse" />
+        )}
       </div>
-      );
+    </button>
 
-      export default AcademicHub;
+    <div className={`flex items-center gap-2 ${mode === 'agentic' ? 'text-purple-400' : 'text-slate-300'}`}>
+      <Sparkles className="w-4 h-4" />
+      <span className="text-xs font-medium">Agentic</span>
+    </div>
+  </div>
+);
+
+export default AcademicHub;
