@@ -24,6 +24,7 @@ import { BottomPanel } from './BottomPanel';
 import { scenarioService } from '../../services/scenarios/ScenarioService';
 import { ExportService } from '../../services/export/ExportService';
 import { TEMPLATE_REGISTRY } from '../../data/template-library';
+import { AIDesignModal } from './AIDesignModal';
 
 type RightPanelTab = 'properties' | 'results' | 'analysis' | 'diagnostics';
 
@@ -57,6 +58,7 @@ export const MechLabLayout: React.FC = () => {
     const [showSavedToast, setShowSavedToast] = useState(false);
     const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
     const [isMissionsModalOpen, setIsMissionsModalOpen] = useState(false);
+    const [isAIDesignModalOpen, setIsAIDesignModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Keyboard shortcuts
@@ -314,6 +316,13 @@ export const MechLabLayout: React.FC = () => {
 
             <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
             <ScenarioSelectModal isOpen={isMissionsModalOpen} onClose={() => setIsMissionsModalOpen(false)} />
+            <AIDesignModal
+                isOpen={isAIDesignModalOpen}
+                onClose={() => setIsAIDesignModalOpen(false)}
+                onBlueprintGenerated={(bp) => {
+                    addLog(`AI Design loaded: ${bp.name}`, 'success');
+                }}
+            />
             <ScenarioHUD />
 
             {showSavedToast && (
@@ -330,6 +339,7 @@ export const MechLabLayout: React.FC = () => {
                         onLoadTemplate={handleLoadTemplate}
                         onSaveProject={handleSaveProject}
                         onOpenMissions={() => setIsMissionsModalOpen(true)}
+                        onOpenAIDesign={() => setIsAIDesignModalOpen(true)}
                         onExport={handleExport}
                     />
                 </div>

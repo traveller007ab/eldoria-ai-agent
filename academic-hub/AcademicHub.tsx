@@ -33,6 +33,8 @@ import { AcademicModel, getModelById } from '../models/AcademicModels';
 import { runAutonomousResearch, DeepResearchResult } from '../services/AutonomousResearcher';
 import { ExportPanel } from './ExportPanel';
 import { PromptCustomizer } from './PromptCustomizer';
+import { AgenticOrchestrator, AgentEvent } from './agentic/AgenticOrchestrator';
+import { CollaboratorPanel } from './CollaboratorPanel';
 import './AcademicHub.css';
 
 
@@ -90,6 +92,7 @@ export const AcademicHub: React.FC = () => {
   // New enhanced state
   const [isExportPanelOpen, setIsExportPanelOpen] = useState(false);
   const [isPromptCustomizerOpen, setIsPromptCustomizerOpen] = useState(false);
+  const [isCollaboratorOpen, setIsCollaboratorOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [writingAnalysis, setWritingAnalysis] = useState<WritingAnalysis | null>(null);
   const [paceRecommendation, setPaceRecommendation] = useState<PaceRecommendation | null>(null);
@@ -124,16 +127,66 @@ export const AcademicHub: React.FC = () => {
     }
   }, [selectedProject, mode]);
 
-  // Agentic background monitoring
-  useEffect(() => {
-    if (mode === 'agentic' && selectedProject && isAgentActive) {
-      const interval = setInterval(() => {
-        generateAgentInsight(selectedProject);
-      }, 30000); // Every 30 seconds
+  // ==========================================================================
+  // AGENTIC ORCHESTRATOR INTEGRATION
+  // ==========================================================================
 
-      return () => clearInterval(interval);
+  // Initialize Agentic Orchestrator when entering agentic mode with a project
+  useEffect(() => {
+    if (mode === 'agentic' && selectedProject) {
+      // Initialize the orchestrator with the current project
+      AgenticOrchestrator.initialize(selectedProject);
+      setIsAgentActive(true);
+
+      // Subscribe to orchestrator events and map to local state
+      const unsubscribe = AgenticOrchestrator.subscribe((event: AgentEvent) => {
+        const insight: AgentInsight = {
+          id: event.id,
+          type: event.type === 'warning' ? 'warning' :
+            event.type === 'deadline_alert' ? 'warning' :
+              event.type === 'suggestion' ? 'suggestion' : 'info',
+          category: event.source,
+          title: event.title,
+          message: event.message,
+          confidence: 0.8,
+          priority: event.priority,
+          timestamp: event.timestamp,
+          actions: event.actions?.map(a => ({ id: a.id, label: a.label, type: a.type })),
+          read: event.read
+        };
+        setAgentInsights(prev => [insight, ...prev].slice(0, 20));
+      });
+
+      // Load existing events from orchestrator
+      const existingEvents = AgenticOrchestrator.getEvents();
+      const mappedInsights = existingEvents.map((event: AgentEvent) => ({
+        id: event.id,
+        type: event.type === 'warning' ? 'warning' :
+          event.type === 'deadline_alert' ? 'warning' :
+            event.type === 'suggestion' ? 'suggestion' : 'info' as const,
+        category: event.source,
+        title: event.title,
+        message: event.message,
+        confidence: 0.8,
+        priority: event.priority,
+        timestamp: event.timestamp,
+        actions: event.actions?.map(a => ({ id: a.id, label: a.label, type: a.type })),
+        read: event.read
+      }));
+      setAgentInsights(mappedInsights);
+
+      return () => {
+        unsubscribe();
+        AgenticOrchestrator.stopAgents();
+      };
+    } else {
+      // Cleanup when leaving agentic mode
+      AgenticOrchestrator.stopAgents();
+      setIsAgentActive(false);
     }
-  }, [mode, selectedProject, isAgentActive]);
+  }, [mode, selectedProject]);
+
+  // Update progress metrics when project changes (in agentic mode)
 
   // Calculate progress metrics
   const calculateProgressMetrics = (project: AcademicProject) => {
@@ -201,6 +254,74 @@ export const AcademicHub: React.FC = () => {
       setAgentInsights(prev => [...insights, ...prev].slice(0, 20));
     }
   };
+
+  // ==========================================================================
+  // WRITING COACH INTEGRATION
+  // ==========================================================================
+
+  // Analyze writing quality when draft content changes (debounced)
+  const runWritingAnalysis = useCallback((content: string, chapterName: string) => {
+    if (mode !== 'agentic' || !content || content.length < 200) return;
+
+    const analysis = AgenticOrchestrator.analyzeWriting(content);
+
+    // Emit writing tips as agent events if score is below threshold
+    if (analysis.score < 80 && analysis.tips.length > 0) {
+      AgenticOrchestrator.emit({
+        id: `writing-tip-${Date.now()}`,
+        type: 'writing_tip',
+        source: 'writing',
+        priority: analysis.score < 60 ? 'high' : 'medium',
+        title: `Writing Quality: ${analysis.score}%`,
+        message: analysis.tips[0],
+        data: { allTips: analysis.tips, chapter: chapterName },
+        timestamp: new Date(),
+        read: false,
+        actions: [
+          { id: 'show-all-tips', label: 'View All Tips', type: 'custom' },
+          { id: 'dismiss', label: 'Dismiss', type: 'dismiss' }
+        ]
+      });
+    }
+  }, [mode]);
+
+  // Handle agent insight actions
+  const handleAgentAction = useCallback((actionId: string, payload?: any) => {
+    switch (actionId) {
+      case 'discover_citations':
+      case 'add-citations':
+        // Trigger auto-discovery of citations
+        if (selectedProject) {
+          handleDeepResearch();
+        }
+        break;
+      case 'show-all-tips':
+        // Could open a modal with all tips - for now just log
+        console.log('Writing tips:', payload);
+        break;
+      case 'view-plan':
+        setIsWizardOpen(true);
+        break;
+      case 'tour':
+        // Could trigger an onboarding tour
+        console.log('Tour requested');
+        break;
+      case 'dismiss':
+        // Mark as read handled separately
+        break;
+      default:
+        console.log('Unknown action:', actionId);
+    }
+  }, [selectedProject]);
+
+  // Mark insight as read
+  const markInsightRead = useCallback((insightId: string) => {
+    AgenticOrchestrator.markRead(insightId);
+    setAgentInsights(prev => prev.map(i =>
+      i.id === insightId ? { ...i, read: true } : i
+    ));
+  }, []);
+
 
   // Toggle agentic mode
   const handleModeToggle = useCallback(() => {
@@ -375,9 +496,10 @@ export const AcademicHub: React.FC = () => {
             {agentInsights.slice(0, 10).map((insight) => (
               <div
                 key={insight.id}
+                onClick={() => markInsightRead(insight.id)}
                 className={`p-3 rounded-lg border cursor-pointer transition-all ${!insight.read
-                  ? 'bg-purple-900/30 border-purple-500/30'
-                  : 'bg-purple-900/10 border-purple-500/10'
+                  ? 'bg-purple-900/30 border-purple-500/30 hover:border-purple-500/50'
+                  : 'bg-purple-900/10 border-purple-500/10 hover:border-purple-500/20'
                   }`}
               >
                 <div className="flex items-start gap-2">
@@ -393,7 +515,12 @@ export const AcademicHub: React.FC = () => {
                         {insight.actions.map(action => (
                           <button
                             key={action.id}
-                            className="px-2 py-0.5 bg-purple-500/20 hover:bg-purple-500/40 rounded text-[10px] text-purple-300"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAgentAction(action.id, (insight as any).data);
+                              markInsightRead(insight.id);
+                            }}
+                            className="px-2 py-0.5 bg-purple-500/20 hover:bg-purple-500/40 rounded text-[10px] text-purple-300 transition-colors"
                           >
                             {action.label}
                           </button>
@@ -417,19 +544,32 @@ export const AcademicHub: React.FC = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-2">
-          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+          <button
+            onClick={handleDeepResearch}
+            disabled={isResearching}
+            className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors disabled:opacity-50"
+          >
             <Search className="w-3.5 h-3.5" />
-            Research
+            {isResearching ? 'Researching...' : 'Research'}
           </button>
-          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+          <button
+            onClick={() => setIsWizardOpen(true)}
+            className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors"
+          >
             <FileDiff className="w-3.5 h-3.5" />
             Citations
           </button>
-          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+          <button
+            onClick={() => setIsExportPanelOpen(true)}
+            className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors"
+          >
             <Cloud className="w-3.5 h-3.5" />
             Export
           </button>
-          <button className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors">
+          <button
+            onClick={() => setIsCollaboratorOpen(true)}
+            className="flex items-center gap-2 p-2 bg-purple-900/20 hover:bg-purple-500/20 rounded-lg text-xs text-purple-300 transition-colors"
+          >
             <Users className="w-3.5 h-3.5" />
             Collaborate
           </button>
@@ -567,6 +707,11 @@ export const AcademicHub: React.FC = () => {
     const updatedProject = { ...selectedProject, draft_content: updatedDrafts };
     setSelectedProject(updatedProject);
     updateAcademicProject(updatedProject);
+
+    // Trigger Writing Coach analysis in agentic mode (debounced via content length check)
+    if (mode === 'agentic' && content.length > 200) {
+      runWritingAnalysis(content, chapter);
+    }
   };
 
   const handleGenerateDeckPreview = async () => {
@@ -711,6 +856,18 @@ export const AcademicHub: React.FC = () => {
             setIsPromptCustomizerOpen(false);
           }}
           onClose={() => setIsPromptCustomizerOpen(false)}
+        />
+      )}
+
+      {/* Collaborator Panel Modal */}
+      {isCollaboratorOpen && selectedProject && (
+        <CollaboratorPanel
+          project={selectedProject}
+          onClose={() => setIsCollaboratorOpen(false)}
+          onImport={(imported) => {
+            setSelectedProject(imported);
+            setIsCollaboratorOpen(false);
+          }}
         />
       )}
 

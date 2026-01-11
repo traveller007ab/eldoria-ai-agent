@@ -4,7 +4,7 @@ import {
     File, FolderOpen, Save, FileJson, LogOut,
     Edit, Undo2, Redo2, Settings,
     Eye, Layout, PanelLeft, PanelRight, Terminal,
-    ChevronDown, Play, Plus, Trophy, Target, Zap
+    ChevronDown, Play, Plus, Trophy, Target, Zap, Sparkles
 } from 'lucide-react';
 import { useMechStore } from '../../stores/useMechStore';
 import { TEMPLATE_REGISTRY } from '../../data/template-library';
@@ -13,10 +13,11 @@ interface TopMenuProps {
     onLoadTemplate: (templateId: string) => void;
     onSaveProject: () => void;
     onOpenMissions?: () => void;
+    onOpenAIDesign?: () => void;
     onExport?: () => void;
 }
 
-export const TopMenu: React.FC<TopMenuProps> = ({ onLoadTemplate, onSaveProject, onOpenMissions, onExport }) => {
+export const TopMenu: React.FC<TopMenuProps> = ({ onLoadTemplate, onSaveProject, onOpenMissions, onOpenAIDesign, onExport }) => {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const { undo, redo, canUndo, canRedo, togglePropertiesPanel, toggleLeftPanel, toggleBottomPanel } = useMechStore();
@@ -112,22 +113,22 @@ export const TopMenu: React.FC<TopMenuProps> = ({ onLoadTemplate, onSaveProject,
                 <MenuButton id="view" label="View" icon={Layout} />
                 {activeMenu === 'view' && (
                     <Dropdown>
-                        <MenuItem 
-                            icon={PanelLeft} 
-                            label="Left Panel" 
-                            shortcut="Ctrl+B" 
+                        <MenuItem
+                            icon={PanelLeft}
+                            label="Left Panel"
+                            shortcut="Ctrl+B"
                             onClick={toggleLeftPanel}
                         />
-                        <MenuItem 
-                            icon={PanelRight} 
-                            label="Right Panel" 
-                            shortcut="Ctrl+P" 
+                        <MenuItem
+                            icon={PanelRight}
+                            label="Right Panel"
+                            shortcut="Ctrl+P"
                             onClick={togglePropertiesPanel}
                         />
-                        <MenuItem 
-                            icon={Terminal} 
-                            label="Bottom Panel" 
-                            shortcut="Ctrl+J" 
+                        <MenuItem
+                            icon={Terminal}
+                            label="Bottom Panel"
+                            shortcut="Ctrl+J"
                             onClick={toggleBottomPanel}
                         />
                     </Dropdown>
@@ -142,6 +143,17 @@ export const TopMenu: React.FC<TopMenuProps> = ({ onLoadTemplate, onSaveProject,
                 >
                     <Trophy className="w-3.5 h-3.5" />
                     Missions
+                </button>
+            </div>
+
+            {/* AI DESIGN ASSISTANT */}
+            <div className="relative">
+                <button
+                    onClick={onOpenAIDesign}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded hover:bg-purple-500/20 transition-colors text-purple-400"
+                >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    AI Design
                 </button>
             </div>
 
