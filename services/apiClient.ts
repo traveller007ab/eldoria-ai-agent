@@ -240,3 +240,92 @@ export const createApiClient = (config: {
   timeout?: number;
   cacheTime?: number;
 }) => new ApiClient(config);
+
+// ============================================================================
+// Academic Hub API Methods
+// ============================================================================
+
+export const academicApi = {
+  baseUrl: '/api/v1/academic',
+  
+  async getProjects(): Promise<any[]> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any[]>('/projects');
+    return response.data || [];
+  },
+  
+  async getProject(id: string): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any>(`/projects/${id}`);
+    return response.data;
+  },
+  
+  async createProject(data: { name: string; format?: string }): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).post<any>('/projects', data);
+    return response.data;
+  },
+  
+  async updateProject(id: string, data: Partial<any>): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).put<any>(`/projects/${id}`, data);
+    return response.data;
+  },
+  
+  async deleteProject(id: string): Promise<void> {
+    await createApiClient({ baseUrl: '/api/v1' }).delete(`/projects/${id}`);
+  },
+  
+  async getWizardState(projectId: string): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any>(`/projects/${projectId}/wizard-state`);
+    return response.data;
+  },
+  
+  async advanceWizardStep(projectId: string, direction: number): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).post<any>(`/projects/${projectId}/wizard/advance`, { direction });
+    return response.data;
+  },
+  
+  async getDraftSection(projectId: string, sectionName: string): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any>(`/projects/${projectId}/drafts/${sectionName}`);
+    return response.data;
+  },
+  
+  async updateDraftSection(projectId: string, sectionName: string, content: string): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).put<any>(`/projects/${projectId}/drafts/${sectionName}`, { content });
+    return response.data;
+  },
+  
+  async getReferences(projectId: string): Promise<any[]> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any[]>(`/projects/${projectId}/references`);
+    return response.data || [];
+  },
+  
+  async addReference(projectId: string, reference: any): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).post<any>(`/projects/${projectId}/references`, reference);
+    return response.data;
+  },
+  
+  async getComplianceReport(projectId: string): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any>(`/projects/${projectId}/compliance`);
+    return response.data;
+  },
+  
+  async getAgentStatus(projectId: string): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any>(`/projects/${projectId}/agents/status`);
+    return response.data;
+  },
+  
+  async createAgentTask(projectId: string, task: any): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).post<any>(`/projects/${projectId}/agents/tasks`, task);
+    return response.data;
+  },
+  
+  async getAgentInsights(projectId: string): Promise<any[]> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).get<any[]>(`/projects/${projectId}/agents/insights`);
+    return response.data || [];
+  },
+  
+  async updateAgentConfig(projectId: string, config: any): Promise<any> {
+    const response = await createApiClient({ baseUrl: '/api/v1' }).post<any>(`/projects/${projectId}/agents/config`, config);
+    return response.data;
+  },
+};
+
+export default { academicApi };

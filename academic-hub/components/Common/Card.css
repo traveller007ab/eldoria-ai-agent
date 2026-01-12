@@ -1,0 +1,59 @@
+.ah-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.ah-card--padding-none {
+  padding: 0;
+}
+
+.ah-card--padding-sm {
+  padding: 12px;
+}
+
+.ah-card--padding-md {
+  padding: 16px;
+}
+
+.ah-card--padding-lg {
+  padding: 24px;
+}
+
+.ah-card--hover:hover {
+  border-color: rgba(34, 211, 238, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+.ah-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.2);
+  margin-bottom: 12px;
+}
+
+.ah-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.ah-card-content {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.ah-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(71, 85, 105, 0.2);
+  margin-top: 12px;
+}

@@ -1,0 +1,111 @@
+.ah-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  position: relative;
+}
+
+.ah-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Sizes */
+.ah-button--sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.ah-button--md {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.ah-button--lg {
+  height: 48px;
+  padding: 0 24px;
+  font-size: 15px;
+}
+
+/* Variants */
+.ah-button--primary {
+  background: #22d3ee;
+  color: #000;
+}
+
+.ah-button--primary:hover:not(:disabled) {
+  background: #06b6d4;
+}
+
+.ah-button--secondary {
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
+  border: 1px solid rgba(71, 85, 105, 0.5);
+}
+
+.ah-button--secondary:hover:not(:disabled) {
+  background: rgba(51, 65, 85, 0.8);
+  border-color: rgba(71, 85, 105, 0.8);
+}
+
+.ah-button--ghost {
+  background: transparent;
+  color: #94a3b8;
+}
+
+.ah-button--ghost:hover:not(:disabled) {
+  background: rgba(30, 41, 59, 0.5);
+  color: #e2e8f0;
+}
+
+.ah-button--danger {
+  background: #ef4444;
+  color: #fff;
+}
+
+.ah-button--danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+/* Full width */
+.ah-button--full-width {
+  width: 100%;
+}
+
+/* Loading */
+.ah-button__spinner {
+  width: 16px;
+  height: 16px;
+  animation: ah-button-spin 1s linear infinite;
+}
+
+@keyframes ah-button-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ah-button__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ah-button__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ah-button__label {
+  display: flex;
+  align-items: center;
+}

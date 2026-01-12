@@ -1,0 +1,151 @@
+.ah-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ah-input-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.ah-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ah-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.ah-input.has-left-icon {
+  padding-left: 40px;
+}
+
+.ah-input.has-right-icon {
+  padding-right: 40px;
+}
+
+.ah-input:focus {
+  outline: none;
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+}
+
+.ah-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ah-input.has-error {
+  border-color: #ef4444;
+}
+
+.ah-input.has-error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.ah-input-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.ah-input-icon--left {
+  left: 12px;
+}
+
+.ah-input-icon--right {
+  right: 12px;
+}
+
+.ah-input-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ah-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.ah-textarea:focus {
+  outline: none;
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+}
+
+.ah-textarea.has-error {
+  border-color: #ef4444;
+}
+
+.ah-select-container {
+  position: relative;
+}
+
+.ah-select {
+  width: 100%;
+  height: 40px;
+  padding: 0 36px 0 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 14px;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ah-select:focus {
+  outline: none;
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+}
+
+.ah-select-container::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-top-color: #64748b;
+  pointer-events: none;
+}
+
+.ah-select.has-error {
+  border-color: #ef4444;
+}
+
+.ah-input-error {
+  font-size: 12px;
+  color: #ef4444;
+}
+
+.ah-input-helper {
+  font-size: 12px;
+  color: #64748b;
+}
