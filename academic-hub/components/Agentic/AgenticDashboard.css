@@ -7,8 +7,7 @@
   overflow: hidden;
 }
 
-/  overflow* Header */
-.agentic-dashboard__header {
+/ overflow* Header */ .agentic-dashboard__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -36,9 +35,12 @@
 }
 
 @keyframes agentic-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4);
   }
+
   50% {
     box-shadow: 0 0 30px 10px rgba(168, 85, 247, 0.2);
   }
@@ -67,6 +69,26 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.agentic-dashboard__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.agentic-dashboard__actions button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agentic-dashboard__actions button span {
+  font-size: 12px;
+  font-weight: 500;
 }
 
 /* Connection Status */
@@ -524,11 +546,11 @@
   .agentic-overview-cards {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .agentic-dashboard__grid {
     grid-template-columns: 1fr;
   }
-  
+
   .agentic-dashboard__left,
   .agentic-dashboard__right {
     display: none;
@@ -541,11 +563,11 @@
     gap: 16px;
     align-items: flex-start;
   }
-  
+
   .agentic-overview-cards {
     grid-template-columns: 1fr;
   }
-  
+
   .agent-tabs {
     flex-wrap: wrap;
   }

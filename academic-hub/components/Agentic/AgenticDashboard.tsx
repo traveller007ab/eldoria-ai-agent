@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Brain, Play, Pause, Square, Settings, Wifi, WifiOff, 
+import {
+  Brain, Play, Pause, Square, Settings, Wifi, WifiOff,
   BookOpen, Edit3, CheckCircle, AlertTriangle, Lightbulb,
-  ChevronRight, Search, Download, RefreshCw
+  ChevronRight, Search, Download, RefreshCw, Plus, Wand2, FileDown
 } from 'lucide-react';
 import { Button } from '../Common/Button';
 import { Card, CardTitle } from '../Common/Card';
@@ -24,9 +24,22 @@ interface Project {
 interface AgenticDashboardProps {
   projectId: string;
   project?: Project;
+  onOpenWizard?: () => void;
+  onOpenExport?: () => void;
+  onOpenCustomizer?: () => void;
+  onNewProject?: () => void;
+  onSelectProject?: (project: any) => void;
 }
 
-export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({ projectId, project }) => {
+export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
+  projectId,
+  project,
+  onOpenWizard,
+  onOpenExport,
+  onOpenCustomizer,
+  onNewProject,
+  onSelectProject
+}) => {
   const [activeAgentTab, setActiveAgentTab] = useState<string>('literature');
   const {
     isConnected,
@@ -64,43 +77,65 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({ projectId, p
             </p>
           </div>
         </div>
-        
+
         <div className="agentic-dashboard__status">
           <ConnectionStatus isConnected={isConnected} />
           <div className="agentic-dashboard__controls">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => sendCommand('pause_all', {})}
               disabled={!isConnected}
             >
               <Pause size={14} />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => sendCommand('resume_all', {})}
               disabled={!isConnected}
             >
               <Play size={14} />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => sendCommand('stop_all', {})}
               disabled={!isConnected}
             >
               <Square size={14} />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => sendCommand('configure', {})}
               disabled={!isConnected}
             >
               <Settings size={14} />
             </Button>
           </div>
+        </div>
+
+        {/* Project Action Buttons */}
+        <div className="agentic-dashboard__actions">
+          {onOpenWizard && (
+            <Button variant="secondary" size="sm" onClick={onOpenWizard}>
+              <Wand2 size={14} />
+              <span>Setup Wizard</span>
+            </Button>
+          )}
+          {onOpenExport && (
+            <Button variant="secondary" size="sm" onClick={onOpenExport}>
+              <FileDown size={14} />
+              <span>Export</span>
+            </Button>
+          )}
+          {onOpenCustomizer && (
+            <Button variant="ghost" size="sm" onClick={onOpenCustomizer}>
+              <Settings size={14} />
+              <span>Customize AI</span>
+            </Button>
+          )}
         </div>
       </header>
 
@@ -179,7 +214,7 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({ projectId, p
               </button>
             ))}
           </div>
-          
+
           <div className="agent-panel">
             {activeTasks.filter(t => t.agent_type === activeAgentTab).map(task => (
               <ActiveTaskCard
@@ -191,13 +226,13 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({ projectId, p
                 }}
               />
             ))}
-            
+
             {activeTasks.filter(t => t.agent_type === activeAgentTab).length === 0 && (
               <div className="agent-panel__empty">
                 <AgentIcon type={activeAgentTab} size={48} />
                 <p>No active tasks</p>
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   size="sm"
                   onClick={() => sendCommand('start_task', { agent: activeAgentTab })}
                 >
@@ -205,7 +240,7 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({ projectId, p
                 </Button>
               </div>
             )}
-            
+
             {/* Quick Actions */}
             <div className="agent-quick-actions">
               <h4>Quick Actions</h4>
@@ -302,8 +337,8 @@ const InsightCard: React.FC<{
   };
 
   return (
-    <div 
-      className={`insight-card ${!insight.read ? 'is-unread' : ''}`} 
+    <div
+      className={`insight-card ${!insight.read ? 'is-unread' : ''}`}
       onClick={onMarkRead}
     >
       <div className={`insight-card__icon insight-card__icon--${insight.type}`}>
@@ -348,7 +383,7 @@ const ActiveTaskCard: React.FC<{
     </div>
     <div className="active-task-card__description">{task.description}</div>
     <div className="active-task-card__progress-bar">
-      <div 
+      <div
         className="active-task-card__progress-fill"
         style={{ width: `${task.progress}%` }}
       />
@@ -384,8 +419,8 @@ const StatusDot: React.FC<{ status?: string }> = ({ status }) => {
     initializing: '#f59e0b',
   };
   return (
-    <span 
-      className="status-dot" 
+    <span
+      className="status-dot"
       style={{ backgroundColor: colors[status || 'idle'] }}
     />
   );

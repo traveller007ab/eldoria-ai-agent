@@ -697,8 +697,53 @@
 }
 
 /* ============================================================================
-   Floating Actions
-   ============================================================================ */
+    Modal Overlay
+    ============================================================================ */
+
+.ah-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 24px;
+}
+
+.ah-modal-overlay__content {
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: modal-enter 0.3s ease;
+}
+
+@keyframes modal-enter {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.ah-modal-overlay__content--full {
+    max-width: none;
+    max-height: none;
+    width: calc(100% - 48px);
+    height: calc(100% - 48px);
+}
+
+/* ============================================================================
+    Floating Actions
+    ============================================================================ */
 
 .ah-fab {
     position: fixed;
