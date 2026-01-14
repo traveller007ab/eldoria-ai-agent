@@ -59,7 +59,15 @@ export function useAgentWebSocket(projectId: string) {
   const maxReconnectAttempts = 5;
 
   const connect = useCallback(() => {
+    // Don't connect if no projectId
+    if (!projectId || projectId.trim() === '') {
+      console.log('No projectId provided, skipping WebSocket connection');
+      setError('Select a project to enable agentic features');
+      return;
+    }
+
     const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:3001'}/ws/projects/${projectId}/agents`;
+    console.log('Connecting to WebSocket:', wsUrl);
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -216,11 +224,18 @@ export function useAgentWebSocket(projectId: string) {
     });
   }, [sendCommand]);
 
-  // Auto-connect on mount
+  // Auto-connect on mount, only if projectId exists
   useEffect(() => {
-    connect();
+    if (projectId && projectId.trim() !== '') {
+      connect();
+    } else {
+      // No project selected, don't connect
+      console.log('No project selected, agentic features disabled');
+      setIsConnected(false);
+      setError('Select a project to enable agentic features');
+    }
     return () => disconnect();
-  }, [connect, disconnect]);
+  }, [projectId, connect, disconnect]);
 
   return {
     isConnected,

@@ -46,6 +46,7 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
     agentStatus,
     insights,
     tasks,
+    error,
     sendCommand,
     markInsightRead,
     approveTask,
@@ -79,7 +80,7 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
         </div>
 
         <div className="agentic-dashboard__status">
-          <ConnectionStatus isConnected={isConnected} />
+          <ConnectionStatus isConnected={isConnected} error={error} />
           <div className="agentic-dashboard__controls">
             <Button
               variant="ghost"
@@ -294,12 +295,19 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
 };
 
 // Helper Components
-const ConnectionStatus: React.FC<{ isConnected: boolean }> = ({ isConnected }) => (
-  <div className={`connection-status ${isConnected ? 'is-connected' : 'is-disconnected'}`}>
-    {isConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
-    <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-  </div>
-);
+const ConnectionStatus: React.FC<{ isConnected: boolean; error?: string | null }> = ({ isConnected, error }) => {
+  // If there's an error about no project, show that instead
+  const statusText = error?.toLowerCase().includes('select a project') ? 'No Project Selected' : (isConnected ? 'Connected' : 'Disconnected');
+  const statusClass = error?.toLowerCase().includes('select a project') ? 'is-warning' : (isConnected ? 'is-connected' : 'is-disconnected');
+  const statusIcon = error?.toLowerCase().includes('select a project') ? <AlertTriangle size={14} /> : (isConnected ? <Wifi size={14} /> : <WifiOff size={14} />);
+
+  return (
+    <div className={`connection-status ${statusClass}`}>
+      {statusIcon}
+      <span>{statusText}</span>
+    </div>
+  );
+};
 
 const ProgressCard: React.FC<{
   title: string;
