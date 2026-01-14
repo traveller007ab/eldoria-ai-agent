@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     PanelLeft, Play, Loader2, CheckCircle2, AlertTriangle, Settings2, Activity,
-    Download, FileJson, Upload, Save, ChevronDown, FileCode, Table, BarChart3, Undo2, Redo2, HelpCircle, ArrowLeft, ChevronRight, Layers
+    Download, FileJson, Upload, Save, ChevronDown, FileCode, Table, BarChart3, Undo2, Redo2, HelpCircle, ArrowLeft, ChevronRight, Layers, MessageSquare, FlaskConical
 } from 'lucide-react';
 import { useMechStore } from '../../stores/useMechStore';
 import { ComponentPalette } from './ComponentPalette';
@@ -25,6 +25,8 @@ import { scenarioService } from '../../services/scenarios/ScenarioService';
 import { ExportService } from '../../services/export/ExportService';
 import { TEMPLATE_REGISTRY } from '../../data/template-library';
 import { AIDesignModal } from './AIDesignModal';
+import { AskSystemPanel } from './AskSystemPanel';
+import { FluidComposerDialog } from './FluidComposerDialog';
 
 type RightPanelTab = 'properties' | 'results' | 'analysis' | 'diagnostics';
 
@@ -59,6 +61,8 @@ export const MechLabLayout: React.FC = () => {
     const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
     const [isMissionsModalOpen, setIsMissionsModalOpen] = useState(false);
     const [isAIDesignModalOpen, setIsAIDesignModalOpen] = useState(false);
+    const [isAskSystemOpen, setIsAskSystemOpen] = useState(false);
+    const [isFluidComposerOpen, setIsFluidComposerOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Keyboard shortcuts
@@ -323,6 +327,42 @@ export const MechLabLayout: React.FC = () => {
                     addLog(`AI Design loaded: ${bp.name}`, 'success');
                 }}
             />
+            <AskSystemPanel
+                isOpen={isAskSystemOpen}
+                onClose={() => setIsAskSystemOpen(false)}
+                systemContext={{
+                    componentCount: currentBlueprint?.components.length || 0,
+                    hasSimulationResults: !!lastSimulationResult,
+                    lastError: lastSimulationResult?.issues?.[0]?.message
+                }}
+                onQuerySubmit={async (question) => {
+                    try {
+                        const bridgeUrl = (window as any).BRIDGE_URL || 'http://localhost:3001';
+                        const response = await fetch(`${bridgeUrl}/api/saf/ask`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                question,
+                                component_count: currentBlueprint?.components.length || 0,
+                                has_simulation_results: !!lastSimulationResult
+                            })
+                        });
+                        if (!response.ok) throw new Error('API request failed');
+                        return await response.json();
+                    } catch (error) {
+                        console.error('[SAF Ask] API error:', error);
+                        // Return undefined to trigger fallback demo response
+                        throw error;
+                    }
+                }}
+            />
+            <FluidComposerDialog
+                isOpen={isFluidComposerOpen}
+                onClose={() => setIsFluidComposerOpen(false)}
+                onFluidCreated={(fluid) => {
+                    addLog(`Created fluid: ${fluid.name}`, 'success');
+                }}
+            />
             <ScenarioHUD />
 
             {showSavedToast && (
@@ -577,11 +617,36 @@ export const MechLabLayout: React.FC = () => {
                     <span>Components: {currentBlueprint?.components.length || 0}</span>
                     <span>Connections: {currentBlueprint?.connections.length || 0}</span>
                 </div>
-                <div className="flex gap-4 text-slate-600">
-                    <span>Ctrl+Z/Y: Undo/Redo</span>
-                    <span>Ctrl+Enter: Run</span>
-                    <span>F1: Help</span>
-                    <span>Del: Delete</span>
+                <div className="flex items-center gap-2">
+                    {/* Ask System Button */}
+                    <button
+                        onClick={() => setIsAskSystemOpen(!isAskSystemOpen)}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${isAskSystemOpen
+                            ? 'bg-cyan-500/20 text-cyan-400'
+                            : 'hover:bg-slate-700 text-slate-400 hover:text-white'
+                            }`}
+                        title="Ask the System - Chat with your model"
+                    >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Ask</span>
+                    </button>
+
+                    {/* Fluid Composer Button */}
+                    <button
+                        onClick={() => setIsFluidComposerOpen(true)}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                        title="Fluid Composer - Create molecular fluids"
+                    >
+                        <FlaskConical className="w-3.5 h-3.5" />
+                        <span>Fluids</span>
+                    </button>
+
+                    <span className="text-slate-600">|</span>
+                    <div className="flex gap-3 text-slate-600">
+                        <span>Ctrl+Z/Y: Undo/Redo</span>
+                        <span>Ctrl+Enter: Run</span>
+                        <span>F1: Help</span>
+                    </div>
                 </div>
             </div>
         </div>

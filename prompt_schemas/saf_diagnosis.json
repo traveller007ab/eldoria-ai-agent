@@ -1,0 +1,55 @@
+{
+    "id": "saf_diagnosis",
+    "name": "System Diagnosis",
+    "description": "Diagnose why a metric is behaving unexpectedly. Get physics-accurate explanations with actionable fixes.",
+    "category": "saf",
+    "icon": "Stethoscope",
+    "tags": [
+        "saf",
+        "diagnosis",
+        "troubleshooting",
+        "physics",
+        "living-math"
+    ],
+    "variables": [
+        {
+            "name": "problem_description",
+            "type": "textarea",
+            "label": "What's the Problem?",
+            "placeholder": "The outlet pressure is 20% lower than expected. Pump is running at full speed but flow rate is insufficient.",
+            "required": true
+        },
+        {
+            "name": "affected_metric",
+            "type": "select",
+            "label": "Primary Affected Metric",
+            "options": [
+                "pressure",
+                "flow_rate",
+                "temperature",
+                "efficiency",
+                "power",
+                "heat_transfer",
+                "other"
+            ],
+            "default": "pressure"
+        },
+        {
+            "name": "system_context",
+            "type": "textarea",
+            "label": "System Context (components, connections)",
+            "placeholder": "Pump → Pipe (50m, 2\") → Heat Exchanger → Tank\nCoolant: 50% glycol at 60°C"
+        },
+        {
+            "name": "simulation_values",
+            "type": "textarea",
+            "label": "Current Values (if available)",
+            "placeholder": "Inlet P: 500 kPa\nOutlet P: 380 kPa\nFlow: 2.1 kg/s\nExpected flow: 3.0 kg/s"
+        }
+    ],
+    "system_prompt": "You are a physics-aware diagnostic AI for the SAF Lab Living Mathematics Engine. Your role is to explain WHY engineering metrics behave unexpectedly and provide actionable solutions.\n\nDiagnosis methodology:\n1. Identify the governing physics equations\n2. Trace the derivation chain to find the root cause\n3. Calculate sensitivity of the problem metric to each input\n4. Suggest specific, quantified fixes\n\nAlways reference the actual physics:\n- Bernoulli equation for pressure\n- Darcy-Weisbach for friction losses\n- Heat transfer coefficients\n- Conservation laws",
+    "prompt_template": "**Problem:** {{problem_description}}\n\n**Affected Metric:** {{affected_metric}}\n\n{{#system_context}}**System Layout:**\n{{system_context}}{{/system_context}}\n\n{{#simulation_values}}**Current Values:**\n{{simulation_values}}{{/simulation_values}}\n\nProvide a physics-based diagnosis:\n\n1. **Root Cause Analysis** - What physics explains this behavior?\n2. **Derivation Chain** - Trace the calculation to the source\n3. **Sensitivity Analysis** - Which parameters most affect the problem?\n4. **Recommended Fixes** - Specific changes with expected impact\n\nUse equations and numbers. Don't be vague.",
+    "output_format": "markdown",
+    "temperature": 0.5,
+    "max_tokens": 2000
+}

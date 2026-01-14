@@ -219,6 +219,134 @@ async def get_agent_insights_rest(project_id: str):
     insights = await active_orchestrators[project_id].generate_insights()
     return {"insights": [i.model_dump() for i in insights]}
 
+# ═══════════════════════════════════════════════════════════════
+# SAF LAB - ASK THE SYSTEM (Living Mathematics Engine)
+# ═══════════════════════════════════════════════════════════════
+
+class SAFAskRequest(BaseModel):
+    question: str
+    system_context: Optional[Dict[str, Any]] = None
+    component_count: Optional[int] = 0
+    has_simulation_results: Optional[bool] = False
+
+@app.post("/api/saf/ask")
+async def saf_ask_system(request: SAFAskRequest):
+    """
+    AI-powered endpoint for the SAF Lab 'Ask the System' feature.
+    Answers physics-aware questions about the user's engineering model.
+    """
+    groq_key = os.environ.get("GROQ_API_KEY")
+    
+    if not groq_key or groq_key.startswith("your_"):
+        # Fallback to demo responses if no API key
+        return generate_demo_saf_response(request.question)
+    
+    try:
+        # Build a context-aware system prompt
+        system_prompt = """You are an expert mechanical and chemical engineer AI assistant embedded in the SAF Lab simulation environment.
+Your role is to help users understand their engineering models, diagnose issues, and suggest improvements.
+
+When answering questions:
+1. Be specific and physics-accurate
+2. Reference actual equations and principles
+3. Suggest concrete solutions with numbers when possible
+4. Warn about safety issues if relevant
+5. Keep answers concise but informative
+
+Context about the user's system:
+- Components loaded: {component_count}
+- Has simulation results: {has_results}
+""".format(
+            component_count=request.component_count,
+            has_results="Yes" if request.has_simulation_results else "No"
+        )
+        
+        # Call Groq API
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": request.question}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 800
+            },
+            timeout=30.0
+        )
+        
+        if not response.ok:
+            print(f"[SAF ASK] Groq error: {response.status_code}")
+            return generate_demo_saf_response(request.question)
+        
+        data = response.json()
+        answer = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
+        return {
+            "answer": answer,
+            "source": "ai",
+            "suggestions": extract_suggestions(answer)
+        }
+        
+    except Exception as e:
+        print(f"[SAF ASK] Error: {e}")
+        return generate_demo_saf_response(request.question)
+
+def generate_demo_saf_response(question: str) -> Dict[str, Any]:
+    """Generate demo responses when AI is unavailable."""
+    q = question.lower()
+    
+    if "pressure" in q and ("drop" in q or "low" in q):
+        return {
+            "answer": "Pressure drops are typically caused by friction losses in piping. Check:\n1. Pipe diameter - undersized pipes cause high velocity and friction\n2. Pipe length - longer runs mean more losses\n3. Fittings - elbows, valves, tees add equivalent length\n\nFor a 50m, 2\" pipe at 50 GPM, expect ~12m friction head. Upsizing to 3\" reduces this to ~3m.",
+            "source": "demo",
+            "relevantComponents": ["Pipe_1", "Pump_1"],
+            "suggestions": ["Increase pipe diameter", "Check for obstructions", "Add booster pump"]
+        }
+    
+    if "cavitation" in q:
+        return {
+            "answer": "Cavitation occurs when NPSH available < NPSH required. To check:\n\nNPSHa = Ps/ρg + Vs²/2g - Pv/ρg + Zs\n\nWhere:\n- Ps = suction pressure\n- Pv = vapor pressure\n- Zs = suction head\n\nMaintain at least 1.5m margin above NPSH required.",
+            "source": "demo",
+            "suggestions": ["Lower fluid temperature", "Increase suction pressure", "Use larger impeller eye"]
+        }
+    
+    if "efficiency" in q or "improve" in q:
+        return {
+            "answer": "Common efficiency improvements:\n1. **Pump VFD** - Match speed to demand (10-30% savings)\n2. **Heat recovery** - Capture waste heat for preheating\n3. **Insulation** - Reduce heat losses in hot lines\n4. **Clean HX** - Fouled exchangers reduce effectiveness\n5. **Right-size equipment** - Oversized pumps waste energy",
+            "source": "demo",
+            "suggestions": ["Install VFD", "Add heat recovery", "Check fouling factors"]
+        }
+    
+    # Default
+    return {
+        "answer": f"I analyzed your question about '{question[:50]}...'. Your system appears to be operating within normal parameters. Would you like me to:\n- Check pressure balance\n- Analyze heat losses\n- Review component sizing",
+        "source": "demo",
+        "suggestions": ["Check pressure balance", "Analyze heat losses", "Review sizing"]
+    }
+
+def extract_suggestions(answer: str) -> List[str]:
+    """Extract actionable suggestions from AI response."""
+    suggestions = []
+    
+    # Look for numbered lists or bullet points
+    lines = answer.split('\n')
+    for line in lines:
+        line = line.strip()
+        if line.startswith(('1.', '2.', '3.', '-', '•', '*')):
+            # Clean up the suggestion
+            suggestion = line.lstrip('0123456789.-•* ').strip()
+            if len(suggestion) > 5 and len(suggestion) < 100:
+                suggestions.append(suggestion)
+    
+    return suggestions[:5]  # Max 5 suggestions
+
+
 security = HTTPBearer()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):

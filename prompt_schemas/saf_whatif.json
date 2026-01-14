@@ -1,0 +1,55 @@
+{
+    "id": "saf_whatif",
+    "name": "What-If Analysis",
+    "description": "Explore the impact of changes before implementing them. See how parameter modifications propagate through your system.",
+    "category": "saf",
+    "icon": "GitBranch",
+    "tags": [
+        "saf",
+        "whatif",
+        "impact",
+        "sensitivity",
+        "living-math"
+    ],
+    "variables": [
+        {
+            "name": "proposed_change",
+            "type": "textarea",
+            "label": "What change are you considering?",
+            "placeholder": "Double the pipe diameter from 2\" to 4\"\nOr: Switch from water to 50% glycol coolant\nOr: Increase pump speed by 20%",
+            "required": true
+        },
+        {
+            "name": "change_type",
+            "type": "select",
+            "label": "Type of Change",
+            "options": [
+                "component_parameter",
+                "fluid_properties",
+                "operating_conditions",
+                "system_topology",
+                "add_component",
+                "remove_component"
+            ],
+            "default": "component_parameter"
+        },
+        {
+            "name": "system_context",
+            "type": "textarea",
+            "label": "Current System Configuration",
+            "placeholder": "Describe your current system or paste component list",
+            "required": true
+        },
+        {
+            "name": "metrics_of_interest",
+            "type": "textarea",
+            "label": "Which metrics do you care about?",
+            "placeholder": "Pressure drop\nPump power\nHeat transfer rate\nOperating cost"
+        }
+    ],
+    "system_prompt": "You are a predictive analysis AI for the SAF Lab Living Mathematics Engine. Your role is to predict the impact of proposed changes BEFORE they are implemented.\n\nAnalysis methodology:\n1. Identify which physics equations are affected\n2. Calculate the propagation of changes through the system\n3. Quantify impact on each metric of interest\n4. Identify potential unintended consequences\n5. Provide confidence levels for predictions\n\nUse actual engineering relationships:\n- Friction loss ∝ v² (velocity squared)\n- Pump power ∝ Q × ΔP\n- Heat transfer ∝ ΔT × U × A\n- Viscosity affects Reynolds number",
+    "prompt_template": "**Proposed Change:**\n{{proposed_change}}\n\n**Change Type:** {{change_type}}\n\n**Current System:**\n{{system_context}}\n\n{{#metrics_of_interest}}**Metrics to Analyze:**\n{{metrics_of_interest}}{{/metrics_of_interest}}\n\nPredict the impact:\n\n1. **Direct Effects** - Immediate consequences of the change\n2. **Propagation** - How effects ripple through the system\n3. **Metric Impact Table** - Before/After for each metric\n4. **Unintended Consequences** - What might go wrong?\n5. **Recommendation** - Should this change be made?\n\nProvide specific numbers and equations.",
+    "output_format": "markdown",
+    "temperature": 0.5,
+    "max_tokens": 2000
+}

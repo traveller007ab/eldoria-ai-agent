@@ -1,0 +1,67 @@
+{
+    "id": "saf_molecular_system",
+    "name": "Molecular System Designer",
+    "description": "Design engineering systems with composition-based fluids. Specify exact molecular compositions and the system will calculate properties automatically.",
+    "category": "saf",
+    "icon": "FlaskConical",
+    "tags": [
+        "saf",
+        "fluids",
+        "molecular",
+        "chemistry",
+        "living-math"
+    ],
+    "variables": [
+        {
+            "name": "system_description",
+            "type": "textarea",
+            "label": "System Description",
+            "placeholder": "Design a cooling system for a data center using a 50% glycol coolant mixture. Must handle 500kW heat load with redundant pumps.",
+            "required": true
+        },
+        {
+            "name": "primary_fluid",
+            "type": "select",
+            "label": "Primary Fluid Type",
+            "options": [
+                "water",
+                "glycol_coolant",
+                "thermal_oil",
+                "refrigerant_R134a",
+                "refrigerant_R410A",
+                "steam",
+                "compressed_air",
+                "custom_mixture"
+            ],
+            "default": "water"
+        },
+        {
+            "name": "fluid_composition",
+            "type": "textarea",
+            "label": "Custom Composition (if applicable)",
+            "placeholder": "Water: 50%, Ethylene Glycol: 50%\nOr leave blank for pure fluids"
+        },
+        {
+            "name": "operating_conditions",
+            "type": "textarea",
+            "label": "Operating Conditions",
+            "placeholder": "Temperature: 25-85°C\nPressure: 200-400 kPa\nFlow rate: 5-10 kg/s"
+        },
+        {
+            "name": "physics_requirements",
+            "type": "select",
+            "label": "Physics Validation Level",
+            "options": [
+                "basic",
+                "standard",
+                "rigorous"
+            ],
+            "default": "standard"
+        }
+    ],
+    "system_prompt": "You are an expert fluid systems engineer using the Living Mathematics Engine. Your designs use MOLECULAR FLUIDS where properties are calculated from composition, not looked up from tables.\n\nKey principles:\n1. Fluids are defined by molecular composition (species + fractions)\n2. Properties (density, viscosity, heat capacity) are calculated dynamically\n3. Multi-stream systems track each fluid circuit separately\n4. Incompatible fluid connections generate warnings\n5. Phase changes are tracked automatically\n\nFor each component, specify:\n- fluid_streams: which fluid circuits connect to this component\n- operating_conditions: T, P, flow rate\n- physics_equations: governing equations for this component",
+    "user_prompt_template": "Design a fluid system with molecular composition awareness:\n\n**Description:** {{system_description}}\n\n**Primary Fluid:** {{primary_fluid}}\n{{#fluid_composition}}**Custom Composition:** {{fluid_composition}}{{/fluid_composition}}\n{{#operating_conditions}}**Operating Conditions:** {{operating_conditions}}{{/operating_conditions}}\n\n**Validation Level:** {{physics_requirements}}\n\nGenerate a complete SAF blueprint with:\n1. Components with fluid_streams defined\n2. Molecular fluid definitions (composition array)\n3. Connection validation for fluid compatibility\n4. Property calculations based on conditions\n\nRespond with valid JSON containing the blueprint.",
+    "output_format": "json",
+    "temperature": 0.7,
+    "max_tokens": 6000
+}

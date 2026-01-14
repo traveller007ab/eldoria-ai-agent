@@ -4,6 +4,7 @@ import { MaterialRegistry } from './MaterialRegistry.ts';
 import { DiagnosticService } from './DiagnosticService.ts';
 import { DynamicMetricsGenerator } from './DynamicMetricsGenerator.ts';
 import { getPhysicsForComponent, getComponentType } from './ComponentPhysics.ts';
+import { globalTracer } from './DerivationTracer.ts';
 
 /**
  * Calculate motor efficiency based on size, speed, and load
@@ -101,6 +102,30 @@ export class SimulationService {
             const totalPowerOutput = (mechResult.metrics?.totalPowerOutput || 0) + (fluidResult.metrics?.totalPowerOutput || 0);
             const overallEfficiency = totalPowerInput > 0 ? (totalPowerOutput / totalPowerInput) * 100 : 0;
             const totalHeatInput = thermalResult.metrics?.totalHeatInput || 0;
+
+            // ═══ DERIVATION TRACING (Living Mathematics Engine) ═══
+            // Record consolidated metrics for click-to-explain functionality
+            globalTracer.clear();
+
+            globalTracer.recordInput('sim_power_in', 'P_in', 'Total Power Input', totalPowerInput, 'kW');
+            globalTracer.recordInput('sim_power_out', 'P_out', 'Total Power Output', totalPowerOutput, 'kW');
+
+            globalTracer.recordCalculation(
+                'sim_efficiency',
+                'η_system',
+                'Overall System Efficiency',
+                overallEfficiency,
+                '%',
+                { latex: '\\eta = \\frac{P_{out}}{P_{in}} \\times 100', plain: 'η = P_out / P_in × 100' },
+                ['sim_power_in', 'sim_power_out'],
+                { explanation: 'System efficiency is the ratio of useful output power to total input power' }
+            );
+
+            globalTracer.recordInput('sim_flow', 'Q_total', 'Total Flow Rate', fluidResult.metrics?.totalFlowRate || 0, 'kg/s');
+            globalTracer.recordInput('sim_max_P', 'P_max', 'Maximum Pressure', fluidResult.metrics?.maxPressure || 0, 'Pa');
+            globalTracer.recordInput('sim_deltaP', 'ΔP', 'Pressure Drop', fluidResult.metrics?.pressureDrop || 0, 'Pa');
+            globalTracer.recordInput('sim_Q_thermal', 'Q_th', 'Total Heat Input', totalHeatInput, 'W');
+            // ═══ END DERIVATION TRACING ═══
 
             const resultId = crypto.randomUUID();
             const resultMetrics = {
@@ -205,7 +230,7 @@ export class SimulationService {
 
             // Use physics interface instead of hardcoded ID checks
             const componentType = getComponentType(comp.componentDefinitionId, def.id);
-            
+
             if (def.domain === 'mechanical' || componentType === 'gear') {
                 if (componentType === 'gear') {
                     const z1 = Number(params.z1) || 20;
@@ -219,7 +244,7 @@ export class SimulationService {
                     const T = (9550 * P_rated) / n_rated;
                     variables[`${prefix}_torque`] = T;
                     variables[`${prefix}_efficiency`] = calculateMotorEfficiency(P_rated, n_rated, loadFactor) * 100;
-                    
+
                     const efficiency = calculateMotorEfficiency(P_rated, n_rated, loadFactor);
                     totalPowerInput += P_rated;
                     totalPowerOutput += P_rated * efficiency;
@@ -245,10 +270,10 @@ export class SimulationService {
             diagnostics: {
                 convergence: { iterations: 1, residual: 0, converged: true },
                 massBalance: { status: 'ok', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
-                energyBalance: { 
-                    status: 'ok', 
-                    input: totalPowerInput, 
-                    output: totalPowerOutput, 
+                energyBalance: {
+                    status: 'ok',
+                    input: totalPowerInput,
+                    output: totalPowerOutput,
                     imbalance: totalPowerInput - totalPowerOutput,
                     imbalancePercent: totalPowerInput > 0 ? ((totalPowerInput - totalPowerOutput) / totalPowerInput) * 100 : 0
                 }
@@ -269,10 +294,10 @@ export class SimulationService {
                 diagnostics: {
                     convergence: { iterations: 1, residual: 0, converged: true },
                     massBalance: { status: 'ok', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
-                    energyBalance: { 
-                        status: 'ok', 
-                        input: totalPowerInput, 
-                        output: totalPowerOutput, 
+                    energyBalance: {
+                        status: 'ok',
+                        input: totalPowerInput,
+                        output: totalPowerOutput,
                         imbalance: totalPowerInput - totalPowerOutput,
                         imbalancePercent: totalPowerInput > 0 ? ((totalPowerInput - totalPowerOutput) / totalPowerInput) * 100 : 0
                     }

@@ -203,19 +203,33 @@ async def generate_architecture(req: ArchitectRequest):
     """
     try:
         # Build prompts
-        system_prompt = """You are Genesis, an elite AI system architect specialized in engineering design. Your task is to translate natural language descriptions into complete, physics-accurate SAF (System Architecture Framework) blueprints.
+        system_prompt = """You are Genesis, an elite AI system architect specialized in engineering design, powered by the Living Mathematics Engine.
 
-You MUST respond with valid JSON containing exactly 3 architecture variants, each with different trade-offs.
+Your task is to translate natural language descriptions into complete, physics-accurate SAF (System Architecture Framework) blueprints with MOLECULAR FLUID support.
 
 IMPORTANT RULES:
-1. Each component MUST have a unique ID (e.g., 'solar_panel_1', 'battery_bank_1')
+1. Each component MUST have a unique ID (e.g., 'pump_1', 'heat_exchanger_1')
 2. Each flow MUST connect valid component IDs using 'from' and 'to' fields
 3. Include realistic parameter values with units
 4. Add governing equations where applicable (sympy-compatible syntax)
 5. Consider energy balance, mass balance, and thermodynamic constraints
 6. Position components logically (you can use x: 0, y: 0 and they will be auto-arranged)
 7. Component types should be: 'core', 'subcore', or 'micro'
-8. Flow types should be: 'energy', 'material', 'data', 'control', or 'signal'"""
+8. Flow types should be: 'energy', 'material', 'fluid', 'data', 'control', or 'signal'
+
+LIVING MATHEMATICS ENGINE FEATURES:
+- Fluids are defined by MOLECULAR COMPOSITION, not property tables
+- Each fluid stream has: species, mole_fractions, phase
+- Multi-stream components track separate fluid circuits
+- Incompatible fluid connections are flagged
+- Phase changes are tracked automatically
+
+MOLECULAR FLUID EXAMPLES:
+- Pure water: {"species": ["H2O"], "mole_fractions": [1.0]}
+- 50% Glycol coolant: {"species": ["H2O", "C2H6O2"], "mole_fractions": [0.5, 0.5]}
+- E10 Gasoline: {"species": ["C8H18", "C2H5OH"], "mole_fractions": [0.9, 0.1]}
+
+You MUST respond with valid JSON containing exactly 3 architecture variants."""
 
         domain_hint = f"Domain: {req.domain}" if req.domain != "auto_detect" else "Auto-detect the engineering domain"
         
@@ -239,13 +253,19 @@ For each component, include:
 - label: short label for graph display
 - parameters: array of {{ name, value, unit, description }}
 - equations: array of physics equations (if applicable)
+- fluid_streams: (for fluid components) array of {{ stream_id, fluid_type, inlet/outlet }}
+
+For fluid-handling components, specify:
+- fluid_definition: {{ species: [...], mole_fractions: [...], phase: 'liquid'|'gas'|'two_phase' }}
+- operating_conditions: {{ temperature_C, pressure_kPa, flow_rate_kg_s }}
 
 For each flow, include:
 - id: unique identifier
 - from: source component id
 - to: target component id
-- type: 'energy' | 'material' | 'data' | 'control' | 'signal'
+- type: 'energy' | 'material' | 'fluid' | 'data' | 'control' | 'signal'
 - label: optional description
+- fluid_stream_id: (for fluid flows) which stream this belongs to
 
 Respond ONLY with valid JSON:
 {{
@@ -258,7 +278,10 @@ Respond ONLY with valid JSON:
       "blueprint": {{
         "project_name": "System Name",
         "components": [...],
-        "flows": [...]
+        "flows": [...],
+        "fluid_definitions": [
+          {{ "id": "coolant_1", "species": ["H2O"], "mole_fractions": [1.0], "phase": "liquid" }}
+        ]
       }}
     }},
     // ... 2 more variants

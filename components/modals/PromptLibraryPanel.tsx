@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronRight, Star, Cpu, BarChart3, GraduationCap, Shield, Play, Eye, X, BookOpen, Zap } from 'lucide-react';
+import { Search, ChevronRight, Star, Cpu, BarChart3, GraduationCap, Shield, Play, Eye, X, BookOpen, Zap, FlaskConical, Stethoscope, TrendingUp, GitBranch } from 'lucide-react';
 import { promptSchemas, searchSchemas, getCategories, composePrompt, PromptSchema, getSchemaById } from '../../prompt_schemas';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { PromptMemoryService } from '../../services/PromptMemoryService';
@@ -15,14 +15,21 @@ const iconMap: Record<string, React.FC<{ className?: string }>> = {
     BarChart3: BarChart3,
     GraduationCap: GraduationCap,
     Shield: Shield,
-    BookOpen: BookOpen
+    BookOpen: BookOpen,
+    // Living Mathematics Engine icons
+    FlaskConical: FlaskConical,
+    Stethoscope: Stethoscope,
+    TrendingUp: TrendingUp,
+    GitBranch: GitBranch,
+    Zap: Zap
 };
 
 const categoryColors: Record<string, string> = {
     engineering: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
     business: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     academic: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    development: 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+    development: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    saf: 'bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-cyan-400 border-cyan-500/30' // Living Math
 };
 
 export const PromptLibraryPanel: React.FC<PromptLibraryPanelProps> = ({ isOpen, onClose, onExecute }) => {

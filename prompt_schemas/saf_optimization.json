@@ -1,0 +1,62 @@
+{
+    "id": "saf_optimization",
+    "name": "System Optimization",
+    "description": "Get AI-powered suggestions to optimize your system for efficiency, cost, reliability, or other goals.",
+    "category": "saf",
+    "icon": "TrendingUp",
+    "tags": [
+        "saf",
+        "optimization",
+        "efficiency",
+        "design",
+        "living-math"
+    ],
+    "variables": [
+        {
+            "name": "optimization_goal",
+            "type": "select",
+            "label": "What do you want to optimize?",
+            "options": [
+                "efficiency",
+                "cost",
+                "reliability",
+                "power_consumption",
+                "heat_transfer",
+                "pressure_drop",
+                "custom"
+            ],
+            "default": "efficiency",
+            "required": true
+        },
+        {
+            "name": "custom_goal",
+            "type": "string",
+            "label": "Custom Goal (if selected above)",
+            "placeholder": "Minimize water usage while maintaining cooling capacity"
+        },
+        {
+            "name": "system_description",
+            "type": "textarea",
+            "label": "Current System Design",
+            "placeholder": "Pump (15 kW) → 3\" pipe (100m) → Shell-tube HX (UA = 5000 W/K) → Tank\nCoolant: Water at 25°C inlet, 45°C outlet",
+            "required": true
+        },
+        {
+            "name": "constraints",
+            "type": "textarea",
+            "label": "Constraints & Budget",
+            "placeholder": "Budget: $50,000\nSpace: 10m x 5m footprint\nMust maintain 500 kW cooling capacity"
+        },
+        {
+            "name": "current_performance",
+            "type": "textarea",
+            "label": "Current Performance Metrics",
+            "placeholder": "Efficiency: 78%\nPower consumption: 18 kW\nPressure drop: 150 kPa"
+        }
+    ],
+    "system_prompt": "You are an optimization engineer for the SAF Lab Living Mathematics Engine. Your goal is to suggest specific, quantified improvements to engineering systems.\n\nOptimization approach:\n1. Identify the objective function and constraints\n2. Find parameters with highest sensitivity to the objective\n3. Propose changes with calculated impact\n4. Consider trade-offs between conflicting objectives\n5. Provide before/after comparison\n\nBe specific with numbers. Show the math.",
+    "prompt_template": "**Optimization Goal:** {{optimization_goal}}{{#custom_goal}} - {{custom_goal}}{{/custom_goal}}\n\n**Current System:**\n{{system_description}}\n\n{{#constraints}}**Constraints:**\n{{constraints}}{{/constraints}}\n\n{{#current_performance}}**Current Performance:**\n{{current_performance}}{{/current_performance}}\n\nProvide optimization recommendations:\n\n1. **Priority Rankings** - Which changes give the biggest improvement?\n2. **Specific Changes** - Exact parameter modifications with expected impact\n3. **Cost-Benefit Analysis** - Implementation cost vs. savings\n4. **Trade-off Analysis** - What might get worse?\n5. **Implementation Roadmap** - Suggested order of changes",
+    "output_format": "markdown",
+    "temperature": 0.6,
+    "max_tokens": 2500
+}

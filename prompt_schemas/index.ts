@@ -12,13 +12,20 @@ import safTopology from './saf_topology.json';
 import safPhysicsModel from './saf_physics_model.json';
 import safInitialState from './saf_initial_state.json';
 import safScenarioInjector from './saf_scenario_injector.json';
+// Living Mathematics Engine schemas
+import safMolecularSystem from './saf_molecular_system.json';
+import safDiagnosis from './saf_diagnosis.json';
+import safOptimization from './saf_optimization.json';
+import safWhatif from './saf_whatif.json';
 
 export interface PromptVariable {
     name: string;
-    type: 'string' | 'number';
-    required: boolean;
+    type: 'string' | 'number' | 'textarea' | 'select';
+    required?: boolean;
     label: string;
-    placeholder: string;
+    placeholder?: string;
+    options?: string[];
+    default?: string;
 }
 
 export interface PromptSchema {
@@ -28,9 +35,13 @@ export interface PromptSchema {
     tags: string[];
     description: string;
     variables: PromptVariable[];
-    prompt_template: string;
+    prompt_template?: string;
+    user_prompt_template?: string;
+    system_prompt?: string;
     output_format: string;
     icon: string;
+    temperature?: number;
+    max_tokens?: number;
 }
 
 // All available schemas
@@ -43,7 +54,11 @@ export const promptSchemas: PromptSchema[] = [
     safPhysicsModel as PromptSchema,
     safInitialState as PromptSchema,
     safScenarioInjector as PromptSchema,
-    // Add more schemas here...
+    // Living Mathematics Engine schemas
+    safMolecularSystem as PromptSchema,
+    safDiagnosis as PromptSchema,
+    safOptimization as PromptSchema,
+    safWhatif as PromptSchema,
 ];
 
 // Get all unique categories

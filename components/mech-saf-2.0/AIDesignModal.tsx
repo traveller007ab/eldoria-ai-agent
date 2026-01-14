@@ -87,6 +87,11 @@ export const AIDesignModal: React.FC<AIDesignModalProps> = ({
     const [result, setResult] = useState<any>(null);
     const [bridgeStatus, setBridgeStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
 
+    // Living Mathematics Engine features
+    const [fluidType, setFluidType] = useState<'auto' | 'water' | 'glycol_coolant' | 'thermal_oil' | 'refrigerant'>('auto');
+    const [enableMolecularFluids, setEnableMolecularFluids] = useState(true);
+    const [validatePhysics, setValidatePhysics] = useState(true);
+
     const { loadBlueprint } = useMechStore();
 
     // Check bridge status on mount
@@ -179,12 +184,12 @@ export const AIDesignModal: React.FC<AIDesignModalProps> = ({
                         <div className="flex items-center gap-3">
                             {/* Bridge Status */}
                             <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full ${bridgeStatus === 'online' ? 'bg-green-500/20 text-green-400' :
-                                    bridgeStatus === 'offline' ? 'bg-red-500/20 text-red-400' :
-                                        'bg-gray-500/20 text-gray-400'
+                                bridgeStatus === 'offline' ? 'bg-red-500/20 text-red-400' :
+                                    'bg-gray-500/20 text-gray-400'
                                 }`}>
                                 <div className={`w-1.5 h-1.5 rounded-full ${bridgeStatus === 'online' ? 'bg-green-400' :
-                                        bridgeStatus === 'offline' ? 'bg-red-400' :
-                                            'bg-gray-400'
+                                    bridgeStatus === 'offline' ? 'bg-red-400' :
+                                        'bg-gray-400'
                                     }`} />
                                 {bridgeStatus === 'online' ? 'Bridge Online' :
                                     bridgeStatus === 'offline' ? 'Bridge Offline' : 'Checking...'}
@@ -215,8 +220,8 @@ export const AIDesignModal: React.FC<AIDesignModalProps> = ({
                                         key={preset.id}
                                         onClick={() => setSelectedDomain(isSelected ? null : preset.id)}
                                         className={`flex flex-col items-center p-3 rounded-xl border transition-all ${isSelected
-                                                ? 'bg-purple-500/20 border-purple-500/40'
-                                                : 'bg-black/20 border-white/5 hover:border-white/20'
+                                            ? 'bg-purple-500/20 border-purple-500/40'
+                                            : 'bg-black/20 border-white/5 hover:border-white/20'
                                             }`}
                                     >
                                         <Icon className={`w-5 h-5 mb-1.5 ${isSelected ? preset.color : 'text-slate-500'}`} />
@@ -269,13 +274,68 @@ export const AIDesignModal: React.FC<AIDesignModalProps> = ({
                                     key={level}
                                     onClick={() => setComplexity(level)}
                                     className={`flex-1 py-2 px-4 rounded-lg text-xs font-medium transition-all ${complexity === level
-                                            ? 'bg-purple-500/30 text-purple-300 border border-purple-500/40'
-                                            : 'bg-black/20 text-slate-400 border border-white/5 hover:border-white/20'
+                                        ? 'bg-purple-500/30 text-purple-300 border border-purple-500/40'
+                                        : 'bg-black/20 text-slate-400 border border-white/5 hover:border-white/20'
                                         }`}
                                 >
                                     {level.charAt(0).toUpperCase() + level.slice(1)}
                                 </button>
                             ))}
+                        </div>
+                    </div>
+
+                    {/* Living Mathematics Engine Section */}
+                    <div className="p-4 bg-gradient-to-r from-cyan-900/20 to-purple-900/20 border border-cyan-500/20 rounded-xl">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="text-cyan-400 text-sm font-bold">⚗️ Living Mathematics Engine</span>
+                            <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full">NEW</span>
+                        </div>
+
+                        {/* Fluid Type Selector */}
+                        <div className="mb-3">
+                            <label className="block text-xs text-slate-400 mb-1.5">Primary Fluid Type</label>
+                            <div className="flex gap-1.5 flex-wrap">
+                                {[
+                                    { id: 'auto', label: 'Auto', color: 'purple' },
+                                    { id: 'water', label: 'Water', color: 'blue' },
+                                    { id: 'glycol_coolant', label: '50% Glycol', color: 'cyan' },
+                                    { id: 'thermal_oil', label: 'Thermal Oil', color: 'amber' },
+                                    { id: 'refrigerant', label: 'Refrigerant', color: 'green' }
+                                ].map(fluid => (
+                                    <button
+                                        key={fluid.id}
+                                        onClick={() => setFluidType(fluid.id as any)}
+                                        className={`px-2.5 py-1 text-xs rounded-lg transition-all ${fluidType === fluid.id
+                                                ? `bg-${fluid.color}-500/30 text-${fluid.color}-300 border border-${fluid.color}-500/40`
+                                                : 'bg-black/20 text-slate-400 border border-white/5 hover:border-white/20'
+                                            }`}
+                                    >
+                                        {fluid.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Feature Toggles */}
+                        <div className="flex gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={enableMolecularFluids}
+                                    onChange={(e) => setEnableMolecularFluids(e.target.checked)}
+                                    className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+                                />
+                                <span className="text-xs text-slate-300">Molecular Fluids</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={validatePhysics}
+                                    onChange={(e) => setValidatePhysics(e.target.checked)}
+                                    className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500/50"
+                                />
+                                <span className="text-xs text-slate-300">Physics Validation</span>
+                            </label>
                         </div>
                     </div>
 
