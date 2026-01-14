@@ -5,23 +5,13 @@ import json
 import uvicorn
 import asyncio
 import socket
-import socket
 import time
 import requests
-from fastapi import FastAPI, HTTPException, Body, BackgroundTasks, Depends, Header
+from fastapi import FastAPI, HTTPException, Body, BackgroundTasks, Depends, Header, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Any
 from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-try:
-    import services.db as db
-except ImportError:
-    try:
-        import db as db
-    except ImportError:
-        db = None
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 try:
@@ -95,6 +85,127 @@ except ImportError as e1:
         from architect import router as architect_router
     except ImportError as e2:
         print(f"[BRIDGE] WARNING: Genesis Architect not available: {e2}")
+
+# 4. Agentic Mode Orchestrator
+AgentOrchestrator = None
+AgentType = None
+try:
+    from services.agent_orchestrator import AgentOrchestrator, AgentType, AgentConfiguration
+except ImportError as e1:
+    print(f"[BRIDGE] Primary import error (Agent Orchestrator): {e1}")
+    try:
+        from agent_orchestrator import AgentOrchestrator, AgentType, AgentConfiguration
+    except ImportError as e2:
+        print(f"[BRIDGE] WARNING: Agent Orchestrator not available: {e2}")
+
+# Active orchestrator instances (per project)
+active_orchestrators: dict = {}
+
+@app.websocket("/ws/projects/{project_id}/agents")
+async def websocket_endpoint(websocket: WebSocket, project_id: str):
+    await websocket.accept()
+    
+    if not AgentOrchestrator:
+        print("[BRIDGE] Error: AgentOrchestrator not loaded")
+        await websocket.close(code=1011)
+        return
+
+    # Initialize orchestrator for this project if not exists
+    if project_id not in active_orchestrators:
+        active_orchestrators[project_id] = AgentOrchestrator(project_id, "user_default")
+    
+    orchestrator = active_orchestrators[project_id]
+    await orchestrator.register_websocket(websocket)
+    
+    try:
+        # Send initial status
+        status = await orchestrator.get_agent_status()
+        await websocket.send_json({"type": "agent_status", "payload": status, "timestamp": str(datetime.now())})
+        
+        # Send active tasks
+        active_tasks = await orchestrator.get_active_tasks()
+        for task in active_tasks:
+            await websocket.send_json({"type": "task_update", "payload": task.dict(), "timestamp": str(datetime.now())})
+
+        # Send initial insights
+        insights = await orchestrator.generate_insights()
+        for insight in insights:
+            await websocket.send_json({"type": "insight", "payload": insight.dict(), "timestamp": str(datetime.now())})
+
+        while True:
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            command = message.get("command")
+            payload = message.get("payload", {})
+            
+            if command == "start_task":
+                agent_type_str = payload.get("agent_type")
+                task_type = payload.get("task_type")
+                description = payload.get("description", "")
+                
+                if agent_type_str and task_type:
+                    try:
+                        agent_type = AgentType(agent_type_str)
+                        await orchestrator.create_task(
+                            agent_type=agent_type,
+                            task_type=task_type,
+                            description=description,
+                            payload=payload
+                        )
+                    except ValueError:
+                        await websocket.send_json({"type": "error", "payload": {"message": f"Invalid agent type: {agent_type_str}"}})
+            
+            elif command == "approve_task":
+                # Approval logic could be added here
+                pass
+                
+            elif command == "cancel_task":
+                # Cancel logic could be added here
+                pass
+                
+            elif command == "mark_insight_read":
+                # Mark read logic could be added here
+                pass
+
+    except WebSocketDisconnect:
+        await orchestrator.unregister_websocket(websocket)
+    except Exception as e:
+        print(f"[BRIDGE] WebSocket error: {e}")
+        try:
+            await orchestrator.unregister_websocket(websocket)
+        except:
+            pass
+
+@app.post("/api/projects/{project_id}/agents/tasks")
+async def create_agent_task(project_id: str, payload: Dict = Body(...)):
+    if project_id not in active_orchestrators:
+        active_orchestrators[project_id] = AgentOrchestrator(project_id, "user_default")
+    orchestrator = active_orchestrators[project_id]
+    
+    try:
+        agent_type = AgentType(payload.get("agent_type"))
+        task = await orchestrator.create_task(
+            agent_type=agent_type,
+            task_type=payload.get("task_type"),
+            description=payload.get("description", ""),
+            payload=payload
+        )
+        return {"status": "queued", "task": task.model_dump()}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/projects/{project_id}/agents/status")
+async def get_agent_status_rest(project_id: str):
+    if project_id not in active_orchestrators:
+        active_orchestrators[project_id] = AgentOrchestrator(project_id, "user_default")
+    return await active_orchestrators[project_id].get_agent_status()
+
+@app.get("/api/projects/{project_id}/agents/insights")
+async def get_agent_insights_rest(project_id: str):
+    if project_id not in active_orchestrators:
+        active_orchestrators[project_id] = AgentOrchestrator(project_id, "user_default")
+    insights = await active_orchestrators[project_id].generate_insights()
+    return {"insights": [i.model_dump() for i in insights]}
 
 app = FastAPI(title="Eldoria Neural Bridge")
 security = HTTPBearer()

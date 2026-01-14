@@ -59,27 +59,27 @@ export function useAgentWebSocket(projectId: string) {
   const maxReconnectAttempts = 5;
 
   const connect = useCallback(() => {
-    const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:8000'}/ws/projects/${projectId}/agents`;
-    
+    const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:3001'}/ws/projects/${projectId}/agents`;
+
     try {
       const ws = new WebSocket(wsUrl);
-      
+
       ws.onopen = () => {
         setIsConnected(true);
         setError(null);
         reconnectAttemptsRef.current = 0;
         console.log('Agent WebSocket connected');
       };
-      
+
       ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          
+
           switch (message.type) {
             case 'connected':
               console.log('WebSocket connection confirmed');
               break;
-              
+
             case 'task_update': {
               const task = message.payload as AgentTask;
               setTasks(prev => ({
@@ -88,7 +88,7 @@ export function useAgentWebSocket(projectId: string) {
               }));
               break;
             }
-              
+
             case 'task_started': {
               const data = message.payload as { task: AgentTask };
               setTasks(prev => ({
@@ -97,7 +97,7 @@ export function useAgentWebSocket(projectId: string) {
               }));
               break;
             }
-              
+
             case 'task_completed': {
               const data = message.payload as { task: AgentTask };
               setTasks(prev => ({
@@ -106,7 +106,7 @@ export function useAgentWebSocket(projectId: string) {
               }));
               break;
             }
-              
+
             case 'task_failed': {
               const data = message.payload as { task: AgentTask; error: string };
               setTasks(prev => ({
@@ -115,19 +115,19 @@ export function useAgentWebSocket(projectId: string) {
               }));
               break;
             }
-              
+
             case 'insight': {
               const insight = message.payload as AgentInsight;
               setInsights(prev => [insight, ...prev].slice(0, 50));
               break;
             }
-              
+
             case 'agent_status': {
               const status = message.payload as Record<string, AgentStatus>;
               setAgentStatus(status);
               break;
             }
-              
+
             case 'error': {
               const err = message.payload as { message: string };
               setError(err.message);
@@ -139,11 +139,11 @@ export function useAgentWebSocket(projectId: string) {
           console.error('Failed to parse WebSocket message:', e);
         }
       };
-      
+
       ws.onclose = () => {
         setIsConnected(false);
         console.log('WebSocket disconnected');
-        
+
         // Attempt reconnect
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
@@ -154,12 +154,12 @@ export function useAgentWebSocket(projectId: string) {
           setError('Max reconnection attempts reached');
         }
       };
-      
+
       ws.onerror = (event) => {
         console.error('WebSocket error:', event);
         setError('WebSocket connection error');
       };
-      
+
       wsRef.current = ws;
     } catch (e) {
       console.error('Failed to create WebSocket:', e);
@@ -171,12 +171,12 @@ export function useAgentWebSocket(projectId: string) {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
-    
+
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-    
+
     setIsConnected(false);
   }, []);
 
@@ -190,7 +190,7 @@ export function useAgentWebSocket(projectId: string) {
   }, []);
 
   const markInsightRead = useCallback((insightId: string) => {
-    setInsights(prev => prev.map(i => 
+    setInsights(prev => prev.map(i =>
       i.id === insightId ? { ...i, read: true } : i
     ));
     sendCommand('mark_insight_read', { insightId });
