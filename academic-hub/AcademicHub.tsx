@@ -37,6 +37,7 @@ import { CollaboratorPanel } from './CollaboratorPanel';
 
 // NEW: Import Agentic Dashboard
 import { AgenticDashboard } from './components/Agentic/AgenticDashboard';
+import { useAgentWebSocket, AgentTask, AgentInsight as HookAgentInsight } from '../hooks/useAgentWebSocket';
 import { Button, Card, CardTitle } from './components/Common';
 import './AcademicHub.css';
 
@@ -90,6 +91,8 @@ export const AcademicHub: React.FC = () => {
   const [mode, setMode] = useState<Mode>('standard');
   const [agentInsights, setAgentInsights] = useState<AgentInsight[]>([]);
   const [isAgentActive, setIsAgentActive] = useState(false);
+  const [agentConnected, setAgentConnected] = useState(false);
+  const [activeTasks, setActiveTasks] = useState<Record<string, AgentTask>>({});
   const [progressMetrics, setProgressMetrics] = useState<ProgressMetrics>({
     totalWords: 0,
     targetWords: 15000,
@@ -109,30 +112,31 @@ export const AcademicHub: React.FC = () => {
     }
   }, []);
 
-  // Update progress metrics when project changes
+  // Update progress metrics when project changes (always)
   useEffect(() => {
-    if (selectedProject && mode === 'agentic') {
+    if (selectedProject) {
       calculateProgressMetrics(selectedProject);
     }
-  }, [selectedProject, mode]);
+  }, [selectedProject]);
 
-  // Initialize Agentic Orchestrator
+  // Initialize Agentic Orchestrator (always - not just in agentic mode)
   useEffect(() => {
-    if (mode === 'agentic' && selectedProject) {
+    if (selectedProject) {
       AgenticOrchestrator.initialize(selectedProject);
       setIsAgentActive(true);
+      setAgentConnected(true);
 
       const unsubscribe = AgenticOrchestrator.subscribe((event: AgentEvent) => {
         const insight: AgentInsight = {
           id: event.id,
-          type: event.type === 'warning' ? 'warning' :
+          type: (event.type === 'warning' ? 'warning' :
             event.type === 'deadline_alert' ? 'warning' :
-              event.type === 'suggestion' ? 'suggestion' : 'info',
+              event.type === 'suggestion' ? 'suggestion' : 'info') as 'info' | 'suggestion' | 'warning' | 'success',
           category: event.source,
           title: event.title,
           message: event.message,
           confidence: 0.8,
-          priority: event.priority,
+          priority: event.priority as 'low' | 'medium' | 'high' | 'critical',
           timestamp: event.timestamp,
           actions: event.actions?.map(a => ({ id: a.id, label: a.label, type: a.type })),
           read: event.read
@@ -159,13 +163,9 @@ export const AcademicHub: React.FC = () => {
 
       return () => {
         unsubscribe();
-        AgenticOrchestrator.stopAgents();
       };
-    } else {
-      AgenticOrchestrator.stopAgents();
-      setIsAgentActive(false);
     }
-  }, [mode, selectedProject]);
+  }, [selectedProject]);
 
   const calculateProgressMetrics = (project: AcademicProject) => {
     const draftContent = project.draft_content || {};
@@ -401,6 +401,16 @@ export const AcademicHub: React.FC = () => {
             {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
             {isOnline ? 'Online' : 'Offline'}
           </div>
+
+          {/* Agent Connection Status - Always Visible */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest border ${agentConnected && selectedProject
+            ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+            : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+            }`}>
+            {agentConnected && selectedProject ? <Brain className="w-3.5 h-3.5" /> : <Brain className="w-3.5 h-3.5" />}
+            {agentConnected && selectedProject ? 'Agents Active' : 'No Project'}
+          </div>
+
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-lg text-cyan-400 text-xs font-bold uppercase tracking-widest border border-cyan-500/20">
             <Cog className="w-3.5 h-3.5" />
             v2.0
