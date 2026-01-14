@@ -46,6 +46,18 @@ project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+# Create FastAPI app early (before decorators that use it)
+app = FastAPI(title="Eldoria Neural Bridge")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Internal Service Imports
 # Internal Service Imports
 
@@ -207,7 +219,6 @@ async def get_agent_insights_rest(project_id: str):
     insights = await active_orchestrators[project_id].generate_insights()
     return {"insights": [i.model_dump() for i in insights]}
 
-app = FastAPI(title="Eldoria Neural Bridge")
 security = HTTPBearer()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -215,14 +226,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         raise HTTPException(status_code=500, detail="Database module not loaded")
     token = credentials.credentials
     payload = db.decode_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return payload
-security = HTTPBearer()
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    payload = db.decode_token(token) if db else None
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return payload
