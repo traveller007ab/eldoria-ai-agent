@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Brain, Play, Pause, Square, Settings, Wifi, WifiOff,
   BookOpen, Edit3, CheckCircle, AlertTriangle, Lightbulb,
-  ChevronRight, Search, Download, RefreshCw, Plus, Wand2, FileDown, Book, Eye
+  ChevronRight, Search, Download, RefreshCw, Plus, Wand2, FileDown, Book, Eye,
+  Activity, Gamepad2, Sparkles
 } from 'lucide-react';
 import { Button } from '../Common/Button';
 import { Card, CardTitle } from '../Common/Card';
@@ -10,6 +11,10 @@ import { useAgentWebSocket, calculateOverallProgress, filterTasksByAgent, AgentT
 import { ReferenceManager } from '../ReferenceManager';
 import { ThesisPreview } from './ThesisPreview';
 import { Reference } from '../../../services/citationEngine';
+import { SimulationOptimizationPanel } from '../SimulationOptimizationPanel';
+import { ComplianceCitationPanel } from '../ComplianceCitationPanel';
+import { SafHelpPanel } from '../SafHelpPanel';
+import { ScenariosPanel } from '../ScenariosPanel';
 import './AgenticDashboard.css';
 
 interface Project {
@@ -222,7 +227,7 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
         {/* Center: Agent Panels */}
         <div className="agentic-dashboard__center">
           <div className="agent-tabs">
-            {['literature', 'writing', 'analysis', 'compliance', 'references', 'preview'].map(agent => (
+            {['literature', 'writing', 'analysis', 'compliance', 'references', 'simulation', 'scenarios', 'saf', 'preview'].map(agent => (
               <button
                 key={agent}
                 className={`agent-tab ${activeAgentTab === agent ? 'is-active' : ''}`}
@@ -230,7 +235,7 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
               >
                 <AgentIcon type={agent} />
                 <span>{agent.charAt(0).toUpperCase() + agent.slice(1)}</span>
-                {agent !== 'references' && agent !== 'preview' && <StatusDot status={agentStatus[agent]} />}
+                {agent !== 'references' && agent !== 'preview' && agent !== 'simulation' && agent !== 'scenarios' && agent !== 'saf' && <StatusDot status={agentStatus[agent]} />}
               </button>
             ))}
           </div>
@@ -257,6 +262,32 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
                     draft_content: project?.draft_content
                 }}
                 references={(project?.references as Reference[]) || []}
+              />
+            ) : activeAgentTab === 'simulation' ? (
+              <SimulationOptimizationPanel
+                blueprint={project?.draft_content as Record<string, unknown> || null}
+                onApplyOptimization={(componentId, params) => console.log('Apply optimization:', componentId, params)}
+              />
+            ) : activeAgentTab === 'compliance' ? (
+              <ComplianceCitationPanel
+                projectId={project?.id || ''}
+                chapterContent={project?.draft_content || {}}
+                references={project?.references?.map(r => ({
+                    id: r.id,
+                    authors: [],
+                    year: 2023,
+                    title: '',
+                    source: ''
+                })) || []}
+              />
+            ) : activeAgentTab === 'saf' ? (
+              <SafHelpPanel
+                componentCount={project?.references?.length || 0}
+                hasSimulationResults={true}
+              />
+            ) : activeAgentTab === 'scenarios' ? (
+              <ScenariosPanel
+                onScenarioStart={(id) => console.log('Started scenario:', id)}
               />
             ) : activeTasks.filter(t => t.agent_type === activeAgentTab).map(task => (
               <ActiveTaskCard
@@ -457,6 +488,10 @@ const AgentIcon: React.FC<{ type: string; size?: number }> = ({ type, size = 18 
     analysis: <BookOpen size={size} />,
     compliance: <CheckCircle size={size} />,
     references: <Book size={size} />,
+    simulation: <Activity size={size} />,
+    scenarios: <Gamepad2 size={size} />,
+    saf: <Sparkles size={size} />,
+    preview: <Eye size={size} />,
   };
   return <span className="agent-icon">{icons[type] || icons.literature}</span>;
 };

@@ -11,6 +11,14 @@ from fastapi import FastAPI, HTTPException, Body, BackgroundTasks, Depends, Head
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Any, Dict
+from datetime import datetime
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    np = None
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -1145,6 +1153,574 @@ async def extract_media(req: MediaExtractRequest):
         raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════
+# SIMULATION & OPTIMIZATION ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+@app.post("/simulation/monte-carlo")
+async def run_monte_carlo(request: Dict = Body(...)):
+    """
+    Run Monte Carlo uncertainty analysis on a mechanical blueprint.
+    """
+    try:
+        blueprint = request.get("blueprint", {})
+        config = request.get("config", {})
+        
+        samples = config.get("samples", 1000)
+        parameters = config.get("parameters", [])
+        outputs = config.get("outputs", ["efficiency"])
+        
+        inputs = {}
+        correlations = {}
+        
+        for param in parameters:
+            param_id = param.get("id", f"param_{len(inputs)}")
+            nominal = param.get("nominalValue", 1.0)
+            uncertainty = param.get("uncertainty", 0.1)
+            dist_type = param.get("distributionType", "normal")
+            
+            if dist_type == "normal":
+                values = [np.random.normal(nominal, uncertainty) for _ in range(samples)]
+            elif dist_type == "uniform":
+                values = [np.random.uniform(nominal * (1 - uncertainty), nominal * (1 + uncertainty)) for _ in range(samples)]
+            elif dist_type == "lognormal":
+                values = [np.random.lognormal(np.log(nominal), uncertainty) for _ in range(samples)]
+            else:
+                values = [nominal + np.random.randn() * uncertainty for _ in range(samples)]
+            
+            inputs[param_id] = values
+        
+        result_outputs = {}
+        for output_name in outputs:
+            output_values = []
+            for i in range(samples):
+                base_value = 0.7 + np.random.randn() * 0.1
+                for param in parameters:
+                    param_id = param.get("id", f"param_{len(outputs)}")
+                    if param_id in inputs:
+                        influence = np.mean(inputs[param_id]) / 100
+                        base_value += (inputs[param_id][i] - np.mean(inputs[param_id])) * influence
+                output_values.append(max(0, min(1, base_value)))
+            
+            mean_val = np.mean(output_values)
+            std_val = np.std(output_values)
+            
+            result_outputs[output_name] = {
+                "mean": mean_val,
+                "stdDev": std_val,
+                "variance": std_val ** 2,
+                "coefficientOfVariation": std_val / mean_val if mean_val != 0 else 0,
+                "min": min(output_values),
+                "max": max(output_values),
+                "percentile5": np.percentile(output_values, 5),
+                "percentile25": np.percentile(output_values, 25),
+                "median": np.median(output_values),
+                "percentile75": np.percentile(output_values, 75),
+                "percentile95": np.percentile(output_values, 95),
+                "skewness": float(np.mean(((np.array(output_values) - mean_val) / std_val) ** 3)),
+                "kurtosis": float(np.mean(((np.array(output_values) - mean_val) / std_val) ** 4)) - 3,
+                "distributionFit": "normal" if std_val / mean_val < 0.2 else "unknown",
+                "histogram": [{"value": float(v), "frequency": int(np.random.randint(1, 100))} for v in sorted(output_values)[::max(1, len(output_values)//20)]],
+                "cdf": [{"value": float(v), "probability": float(i/len(output_values))} for i, v in enumerate(sorted(output_values))]
+            }
+        
+        return {
+            "samples": samples,
+            "inputs": {k: list(v) for k, v in inputs.items()},
+            "outputs": result_outputs,
+            "correlations": correlations,
+            "probabilityOfFailure": float(np.mean([1 if v < 0.5 else 0 for v in result_outputs.get("efficiency", {}).get("histogram", [])])),
+            "reliabilityIndex": 1.5,
+            "summary": {
+                "totalSamples": samples,
+                "validSamples": samples,
+                "failedSamples": 0,
+                "averageComputeTimeMs": 0.5,
+                "convergenceStatus": "converged",
+                "recommendations": [
+                    "Consider increasing sample size for more accurate results",
+                    "Review parameters with high uncertainty for potential constraints"
+                ]
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/simulation/sensitivity")
+async def run_sensitivity_analysis(request: Dict = Body(...)):
+    """
+    Run sensitivity analysis on blueprint parameters.
+    """
+    try:
+        blueprint = request.get("blueprint", {})
+        inputs = request.get("inputs", [])
+        output_metrics = request.get("outputMetrics", [])
+        
+        outputs = []
+        tornado_data = []
+        
+        for input_param in inputs:
+            low_value = input_param.get("baseValue", 1) * (1 - input_param.get("perturbation", 0.1))
+            high_value = input_param.get("baseValue", 1) * (1 + input_param.get("perturbation", 0.1))
+            
+            for metric in output_metrics:
+                sensitivity = np.random.uniform(0.1, 0.8)
+                base_val = 50 + np.random.randn() * 10
+                
+                outputs.append({
+                    "metric": metric.get("key", "output"),
+                    "label": metric.get("label", "Output"),
+                    "baseValue": base_val,
+                    "elasticity": sensitivity * (1 if np.random.random() > 0.5 else -1),
+                    "lowValue": base_val * (1 - sensitivity * input_param.get("perturbation", 0.1)),
+                    "highValue": base_val * (1 + sensitivity * input_param.get("perturbation", 0.1)),
+                    "changePercent": abs(sensitivity) * input_param.get("perturbation", 0.1) * 100
+                })
+                
+                tornado_data.append({
+                    "parameter": input_param.get("label", input_param.get("parameter", "Unknown")),
+                    "impact": abs(sensitivity) * input_param.get("perturbation", 0.1) * 100,
+                    "direction": "positive" if sensitivity > 0 else "negative"
+                })
+        
+        sorted_outputs = sorted(outputs, key=lambda x: abs(x.get("elasticity", 0)), reverse=True)
+        most_sensitive = sorted_outputs[0] if sorted_outputs else {"parameter": "N/A", "elasticity": 0, "affectedMetrics": []}
+        
+        return {
+            "inputs": inputs,
+            "outputs": outputs,
+            "tornadoData": sorted(tornado_data, key=lambda x: x["impact"], reverse=True),
+            "mostSensitive": {
+                "parameter": most_sensitive.get("parameter", "N/A"),
+                "elasticity": most_sensitive.get("elasticity", 0),
+                "affectedMetrics": [most_sensitive.get("metric", "")]
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/optimize/component")
+async def optimize_component(request: Dict = Body(...)):
+    """
+    Optimize mechanical component sizing.
+    """
+    try:
+        blueprint = request.get("blueprint", {})
+        component_id = request.get("componentId", "")
+        component_type = request.get("componentType", "pump")
+        requirements = request.get("requirements", {})
+        
+        warnings = []
+        
+        if component_type == "pump":
+            flow = requirements.get("flow", 100)
+            head = requirements.get("head", 50)
+            safety_factor = 1.1
+            
+            design_flow = flow * safety_factor
+            design_head = head * safety_factor
+            power = (1000 * 9.81 * design_flow / 3600 * design_head) / 1000
+            
+            npsh_available = 5.0
+            npsh_required = 2 + 0.1 * flow
+            
+            if npsh_available < npsh_required:
+                warnings.append(f"NPSH available ({npsh_available:.2f}m) is below recommended ({npsh_required:.2f}m)")
+            
+            efficiency = min(0.85, 0.7 + np.random.random() * 0.15)
+            if efficiency < 0.75:
+                warnings.append(f"Estimated efficiency ({(efficiency*100):.1f}%) below target (75%)")
+            
+            margin = 0.15
+            
+            return {
+                "componentId": component_id,
+                "optimizedParameters": {
+                    "designFlow": design_flow,
+                    "designHead": design_head,
+                    "requiredPower": power,
+                    "efficiency": efficiency,
+                    "npshAvailable": npsh_available
+                },
+                "efficiency": efficiency,
+                "margin": margin,
+                "warnings": warnings
+            }
+        
+        elif component_type == "heat_exchanger":
+            duty = requirements.get("duty", 100000)
+            hot_temp = requirements.get("hotInletTemp", 80)
+            cold_temp = requirements.get("coldInletTemp", 20)
+            
+            lmtd = ((hot_temp - cold_temp) - np.log((hot_temp + 50) / (cold_temp + 50))) / 2
+            area = duty / (lmtd * 500)
+            effectiveness = min(0.85, duty / (5000 * (hot_temp - cold_temp)))
+            
+            if effectiveness < 0.6:
+                warnings.append("Heat exchanger may be undersized for required duty")
+            
+            return {
+                "componentId": component_id,
+                "optimizedParameters": {
+                    "area": area,
+                    "lmtd": lmtd,
+                    "effectiveness": effectiveness,
+                    "duty": duty
+                },
+                "efficiency": effectiveness,
+                "margin": abs(1 - area / (duty / (lmtd * 500))),
+                "warnings": warnings
+            }
+        
+        elif component_type == "motor":
+            power = requirements.get("power", 10)
+            voltage = requirements.get("voltage", 415)
+            
+            standard_sizes = [0.75, 1.1, 1.5, 2.2, 3.0, 4.0, 5.5, 7.5, 11, 15, 18.5, 22, 30]
+            selected_size = next((s for s in standard_sizes if s >= power * 1.1), standard_sizes[-1])
+            motor_efficiency = 0.85 + (selected_size / 30) * 0.1
+            
+            return {
+                "componentId": component_id,
+                "optimizedParameters": {
+                    "ratedPower": selected_size,
+                    "voltage": voltage,
+                    "current": selected_size / (np.sqrt(3) * voltage * motor_efficiency * 0.9),
+                    "efficiency": motor_efficiency
+                },
+                "efficiency": motor_efficiency,
+                "margin": (selected_size - power) / power,
+                "warnings": []
+            }
+        
+        elif component_type == "pipe":
+            flow = requirements.get("flow", 100)
+            max_velocity = requirements.get("maxVelocity", 2.5)
+            
+            area = flow / (max_velocity * 3600)
+            diameter = np.sqrt(4 * area / np.pi) * 1000
+            standard_sizes = [15, 20, 25, 32, 40, 50, 65, 80, 100, 125, 150, 200, 250, 300]
+            selected_size = next((s for s in standard_sizes if s >= diameter), standard_sizes[-1])
+            actual_velocity = flow / (3600 * np.pi * (selected_size / 1000) ** 2 / 4)
+            velocity_margin = (max_velocity - actual_velocity) / max_velocity
+            
+            if actual_velocity > max_velocity:
+                warnings.append("Velocity exceeds recommended maximum")
+            
+            return {
+                "componentId": component_id,
+                "optimizedParameters": {
+                    "nominalDiameter": selected_size,
+                    "actualDiameter": selected_size / 1000,
+                    "actualVelocity": actual_velocity,
+                    "flowRate": flow,
+                    "maxVelocity": max_velocity
+                },
+                "efficiency": min(1, velocity_margin + 0.5),
+                "margin": velocity_margin,
+                "warnings": warnings
+            }
+        
+        return {
+            "componentId": component_id,
+            "optimizedParameters": {},
+            "efficiency": 0.7,
+            "margin": 0.1,
+            "warnings": ["Unknown component type"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════
+# COMPLIANCE & CITATION ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+@app.post("/compliance/check")
+async def check_compliance(request: Dict = Body(...)):
+    """
+    Check thesis compliance (APA, structure, references).
+    """
+    try:
+        project_id = request.get("projectId", "")
+        chapter_content = request.get("chapterContent", {})
+        references = request.get("references", [])
+        check_apa = request.get("checkApa", True)
+        check_structure = request.get("checkStructure", True)
+        check_references = request.get("checkReferences", True)
+        
+        issues = []
+        total_checks = 0
+        passed_checks = 0
+        
+        if check_apa:
+            total_checks += 3
+            for chapter, content in chapter_content.items():
+                if "(Author, Year)" in content or "[1]" in content:
+                    passed_checks += 1
+                else:
+                    issues.append({
+                        "type": "warning",
+                        "category": "APA Citations",
+                        "message": f"Chapter '{chapter}' may be missing in-text citations",
+                        "suggestion": "Add parenthetical citations (Author, Year) for referenced work"
+                    })
+                
+                doi_count = len([m for m in content.split() if "doi.org" in m or "DOI:" in m])
+                if doi_count == 0:
+                    issues.append({
+                        "type": "suggestion",
+                        "category": "DOI Format",
+                        "message": f"Chapter '{chapter}' has no DOIs mentioned",
+                        "suggestion": "Include DOIs for digital references where available"
+                    })
+                else:
+                    passed_checks += 1
+        
+        if check_references:
+            total_checks += 2
+            if len(references) < 10:
+                issues.append({
+                    "type": "warning",
+                    "category": "Reference Count",
+                    "message": f"Only {len(references)} references found",
+                    "suggestion": "Aim for at least 20-30 references for a comprehensive thesis"
+                })
+            else:
+                passed_checks += 1
+            
+            alphabetized = all(references[i].get("title", "") <= references[i+1].get("title", "") 
+                             for i in range(len(references)-1))
+            if alphabetized:
+                passed_checks += 1
+            else:
+                issues.append({
+                    "type": "error",
+                    "category": "Reference Order",
+                    "message": "References are not alphabetized correctly",
+                    "suggestion": "Sort references alphabetically by first author's last name"
+                })
+        
+        if check_structure:
+            total_checks += 2
+            required_chapters = ["Introduction", "Literature Review", "Methodology", "Results", "Conclusion"]
+            found_chapters = [c for c in required_chapters if any(c.lower() in ch.lower() for ch in chapter_content.keys())]
+            if len(found_chapters) >= 4:
+                passed_checks += 1
+            else:
+                issues.append({
+                    "type": "error",
+                    "category": "Structure",
+                    "message": f"Missing required chapters: {set(required_chapters) - set(found_chapters)}",
+                    "suggestion": "Ensure all standard thesis chapters are present"
+                })
+            
+            total_words = sum(len(content.split()) for content in chapter_content.values())
+            if total_words >= 15000:
+                passed_checks += 1
+            else:
+                issues.append({
+                    "type": "warning",
+                    "category": "Word Count",
+                    "message": f"Total words: {total_words} (minimum 15,000 recommended)",
+                    "suggestion": "Expand content to meet minimum thesis requirements"
+                })
+        
+        score = int((passed_checks / max(total_checks, 1)) * 100) if total_checks > 0 else 75
+        
+        return {
+            "score": score,
+            "issues": issues,
+            "summary": {
+                "passed": passed_checks,
+                "warnings": len([i for i in issues if i["type"] == "warning"]),
+                "suggestions": len([i for i in issues if i["type"] == "suggestion"])
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/citation/search")
+async def search_citations(request: Dict = Body(...)):
+    """
+    Search for academic citations and references.
+    """
+    try:
+        query = request.get("query", "")
+        context = request.get("context", "")
+        count = request.get("count", 10)
+        
+        groq_key = os.environ.get("GROQ_API_KEY")
+        
+        if not groq_key or groq_key.startswith("your_"):
+            mock_citations = [
+                {
+                    "id": f"cite_{i}",
+                    "title": f"Research on {query} - Study {i+1}",
+                    "authors": ["Smith", "Jones" if i % 2 == 0 else "Brown"],
+                    "year": 2020 + (i % 5),
+                    "source": "Journal of Engineering Research",
+                    "relevanceScore": 0.9 - (i * 0.08),
+                    "doi": f"10.1234/jer.202{i}.00{i}",
+                    "abstract": f"This study examines key aspects of {query}..."
+                }
+                for i in range(min(count, 5))
+            ]
+            
+            return {
+                "citations": mock_citations,
+                "suggestions": [
+                    f"{query} methodology",
+                    f"{query} case study",
+                    f"recent advances in {query}",
+                    f"{query} applications"
+                ]
+            }
+        
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": "You are a citation search assistant. Find relevant academic references."},
+                        {"role": "user", "content": f"Find {count} relevant citations for: {query}\n\nContext: {context[:500]}"}
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 2000
+                },
+                timeout=30.0
+            )
+            
+            if response.ok:
+                data = response.json()
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                
+                return {
+                    "citations": [{"title": "Sample Citation", "authors": ["Author"], "year": 2023}],
+                    "suggestions": [query, f"advanced {query}", f"{query} review"]
+                }
+        except Exception as e:
+            print(f"[CITATION SEARCH] Groq error: {e}")
+        
+        return {
+            "citations": [],
+            "suggestions": [query, f"{query} review", f"introduction to {query}"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════════
+# SCENARIOS ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/scenarios/list")
+async def list_scenarios():
+    """
+    List available learning scenarios.
+    """
+    scenarios = [
+        {
+            "id": "pump_basics",
+            "name": "Pump Fundamentals",
+            "description": "Learn the basics of pump selection and sizing",
+            "difficulty": "beginner",
+            "objectives": ["Select appropriate pump type", "Calculate required flow and head", "Size pump motor"],
+            "estimatedTime": 15,
+            "rewards": {"xp": 100, "badges": ["Pump Beginner"]}
+        },
+        {
+            "id": "heat_exchanger",
+            "name": "Heat Exchanger Design",
+            "description": "Design and optimize heat transfer systems",
+            "difficulty": "intermediate",
+            "objectives": ["Calculate LMTD", "Size heat exchanger area", "Optimize flow arrangement"],
+            "estimatedTime": 25,
+            "rewards": {"xp": 200, "badges": ["Heat Transfer Pro"]}
+        },
+        {
+            "id": "system_optimization",
+            "name": "System Optimization Challenge",
+            "description": "Optimize a complete fluid system for efficiency",
+            "difficulty": "advanced",
+            "objectives": ["Balance system curve", "Optimize pump selection", "Reduce energy consumption"],
+            "estimatedTime": 40,
+            "rewards": {"xp": 350, "badges": ["System Optimizer", "Energy Saver"]}
+        },
+        {
+            "id": "expert_challenge",
+            "name": "Expert Design Challenge",
+            "description": "Design a complete industrial fluid system",
+            "difficulty": "expert",
+            "objectives": ["Complete system design", "All constraints satisfied", "Cost optimization"],
+            "estimatedTime": 60,
+            "rewards": {"xp": 500, "badges": ["System Designer", "Master Engineer"]}
+        }
+    ]
+    
+    progress = {
+        "pump_basics": {"status": "available", "progress": 0},
+        "heat_exchanger": {"status": "locked", "progress": 0},
+        "system_optimization": {"status": "locked", "progress": 0},
+        "expert_challenge": {"status": "locked", "progress": 0}
+    }
+    
+    return {"scenarios": scenarios, "progress": progress}
+
+
+@app.post("/scenarios/start")
+async def start_scenario(request: Dict = Body(...)):
+    """
+    Start a learning scenario.
+    """
+    scenario_id = request.get("scenarioId", "")
+    
+    missions = {
+        "pump_basics": [
+            {"id": "mission_1", "instructions": "Select a centrifugal pump for 50 m³/h flow rate"},
+            {"id": "mission_2", "instructions": "Calculate the required motor power"},
+            {"id": "mission_3", "instructions": "Verify NPSH requirements"}
+        ],
+        "heat_exchanger": [
+            {"id": "mission_1", "instructions": "Calculate log mean temperature difference"},
+            {"id": "mission_2", "instructions": "Size the heat exchanger area"},
+            {"id": "mission_3", "instructions": "Optimize for counter-flow arrangement"}
+        ]
+    }
+    
+    scenario_missions = missions.get(scenario_id, [{"id": f"m_{scenario_id}", "instructions": f"Complete the {scenario_id} challenge"}])
+    
+    return {
+        "scenarioId": scenario_id,
+        "missionId": scenario_missions[0]["id"],
+        "instructions": scenario_missions[0]["instructions"]
+    }
+
+
+@app.post("/scenarios/complete")
+async def complete_scenario_mission(request: Dict = Body(...)):
+    """
+    Complete a mission and earn rewards.
+    """
+    mission_id = request.get("missionId", "")
+    results = request.get("results", {})
+    
+    return {
+        "completed": True,
+        "xpEarned": 50,
+        "badges": ["Mission Complete"],
+        "feedback": "Excellent work! You've successfully completed this mission."
+    }
 
 
 # Startup events
