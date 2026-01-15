@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Brain, Play, Pause, Square, Settings, Wifi, WifiOff,
   BookOpen, Edit3, CheckCircle, AlertTriangle, Lightbulb,
-  ChevronRight, Search, Download, RefreshCw, Plus, Wand2, FileDown
+  ChevronRight, Search, Download, RefreshCw, Plus, Wand2, FileDown, Book, Eye
 } from 'lucide-react';
 import { Button } from '../Common/Button';
 import { Card, CardTitle } from '../Common/Card';
 import { useAgentWebSocket, calculateOverallProgress, filterTasksByAgent, AgentTask, AgentInsight } from '../../../hooks/useAgentWebSocket';
+import { ReferenceManager } from '../ReferenceManager';
+import { ThesisPreview } from './ThesisPreview';
+import { Reference } from '../../../services/citationEngine';
 import './AgenticDashboard.css';
 
 interface Project {
@@ -15,10 +18,26 @@ interface Project {
     basics?: {
       title?: string;
       author?: string;
+      supervisor?: string;
+      department?: string;
+      university?: string;
     };
   };
   draft_content?: Record<string, string>;
   references?: Array<{ id: string }>;
+}
+
+interface ThesisPreviewProps {
+  wizard_state?: {
+    basics?: {
+      title?: string;
+      author?: string;
+      supervisor?: string;
+      department?: string;
+      university?: string;
+    };
+  };
+  draft_content?: Record<string, string>;
 }
 
 interface AgenticDashboardProps {
@@ -203,7 +222,7 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
         {/* Center: Agent Panels */}
         <div className="agentic-dashboard__center">
           <div className="agent-tabs">
-            {['literature', 'writing', 'analysis', 'compliance'].map(agent => (
+            {['literature', 'writing', 'analysis', 'compliance', 'references', 'preview'].map(agent => (
               <button
                 key={agent}
                 className={`agent-tab ${activeAgentTab === agent ? 'is-active' : ''}`}
@@ -211,13 +230,35 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
               >
                 <AgentIcon type={agent} />
                 <span>{agent.charAt(0).toUpperCase() + agent.slice(1)}</span>
-                <StatusDot status={agentStatus[agent]} />
+                {agent !== 'references' && agent !== 'preview' && <StatusDot status={agentStatus[agent]} />}
               </button>
             ))}
           </div>
 
           <div className="agent-panel">
-            {activeTasks.filter(t => t.agent_type === activeAgentTab).map(task => (
+            {activeAgentTab === 'references' ? (
+              <ReferenceManager
+                references={(project?.references as Reference[]) || []}
+                onAddReference={(ref) => console.log('Add reference:', ref)}
+                onUpdateReference={(id, updates) => console.log('Update reference:', id, updates)}
+                onDeleteReference={(id) => console.log('Delete reference:', id)}
+                onDeleteSelected={(ids) => console.log('Delete selected:', ids)}
+                onImportReferences={(refs) => console.log('Import references:', refs)}
+                onExportReferences={(format) => console.log('Export format:', format)}
+                selectedIds={[]}
+                onSelect={(id) => console.log('Select:', id)}
+                onSelectAll={() => console.log('Select all')}
+                onDeselectAll={() => console.log('Deselect all')}
+              />
+            ) : activeAgentTab === 'preview' ? (
+              <ThesisPreview
+                project={{
+                    wizard_state: project?.wizard_state,
+                    draft_content: project?.draft_content
+                }}
+                references={(project?.references as Reference[]) || []}
+              />
+            ) : activeTasks.filter(t => t.agent_type === activeAgentTab).map(task => (
               <ActiveTaskCard
                 key={task.id}
                 task={task}
@@ -415,6 +456,7 @@ const AgentIcon: React.FC<{ type: string; size?: number }> = ({ type, size = 18 
     writing: <Edit3 size={size} />,
     analysis: <BookOpen size={size} />,
     compliance: <CheckCircle size={size} />,
+    references: <Book size={size} />,
   };
   return <span className="agent-icon">{icons[type] || icons.literature}</span>;
 };

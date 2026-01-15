@@ -75,13 +75,69 @@ export interface ImagePart {
 
 export interface Reference {
   id: string;
+  
+  // Type classification
+  type: 'journal' | 'book' | 'website' | 'conference' | 'thesis' | 'report' | 'patent' | 'software' | 'other';
+  
+  // Author information - structured for proper formatting
+  authors: {
+    firstName: string;
+    lastName: string;
+    middleName?: string;
+    initials?: string;
+    orcid?: string;
+    affiliation?: string;
+  }[];
+  
+  // Date information
+  year: number;
+  month?: number;
+  day?: number;
+  
+  // Title information
   title: string;
-  authors: string;
-  year: string;
+  secondaryTitle?: string;
+  
+  // Journal/Book information
   journal?: string;
-  link?: string;
-  snippet?: string;
+  volume?: string;
+  issue?: string;
+  pages: string;  // "start-end" or just start page
+  edition?: string;
+  publisher?: string;
+  institution?: string;
+  
+  // Digital identifiers
+  doi?: string;
+  url?: string;
+  issn?: string;
+  isbn?: string;
+  
+  // Conference information
+  conference?: string;
+  conferenceLocation?: string;
+  
+  // Additional metadata
+  abstract?: string;
+  keywords?: string[];
+  language?: string;
+  accessDate?: string;
+  
+  // Formatted citations (cached)
   formattedApa?: string;
+  formattedIeee?: string;
+  formattedHarvard?: string;
+  formattedMla?: string;
+  formattedChicago?: string;
+  
+  // Source tracking
+  source: 'manual' | 'google-scholar' | 'researchgate' | 'bibtex' | 'ris' | 'csv' | 'crossref' | 'other';
+  addedAt: Date;
+  
+  // User notes/tags
+  notes?: string;
+  tags?: string[];
+  favorite?: boolean;
 }
 
 export interface FilePart {
@@ -372,14 +428,6 @@ export interface MechSimulationDiagnostics {
   massBalance: { status: 'ok' | 'warning' | 'error'; inlet: number; outlet: number; imbalance: number; imbalancePercent: number; };
   energyBalance: { status: 'ok' | 'warning' | 'error'; input: number; output: number; imbalance: number; imbalancePercent: number; };
   convergence: { iterations: number; residual: number; converged: boolean; };
-}
-
-export interface MechDynamicSimulationResult extends MechSimulationResult {
-  isDynamic: true;
-  timeStep: number;
-  totalDuration: number;
-  timeSeries: Record<string, number[]>;
-  timePoints: number[];
 }
 
 export interface MechDynamicSimulationResult extends MechSimulationResult {

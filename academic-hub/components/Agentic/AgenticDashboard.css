@@ -7,7 +7,7 @@
   overflow: hidden;
 }
 
-/ overflow* Header */ .agentic-dashboard__header {
+/* overflow Header */ .agentic-dashboard__header {
   display: flex;
   align-items: center;
   justify-content: space-between;

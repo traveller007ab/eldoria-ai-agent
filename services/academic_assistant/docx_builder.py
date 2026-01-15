@@ -10,6 +10,128 @@ import time
 from datetime import datetime
 import re
 
+# ============================================================================
+# CITATION FORMATTING UTILITIES
+# ============================================================================
+
+def _format_author_apa(author_str: str) -> str:
+    """Format author name for APA style: 'Smith, J. A.' or 'Smith, John'"""
+    if not author_str:
+        return "Anonymous"
+    
+    # Handle "Last, First Middle" format
+    if "," in author_str:
+        parts = author_str.split(",", 1)
+        last = parts[0].strip()
+        first = parts[1].strip() if len(parts) > 1 else ""
+        
+        # Convert to initials
+        if " " in first:
+            initials = " ".join([n[0].upper() + "." for n in first.split() if n])
+            return f"{last}, {initials}"
+        elif first:
+            return f"{last}, {first[0].upper()}."
+        return last
+    
+    # Handle "First Last" format
+    parts = author_str.split()
+    if len(parts) >= 2:
+        last = parts[-1]
+        first = " ".join(parts[:-1])
+        if " " in first:
+            initials = " ".join([n[0].upper() + "." for n in first.split() if n])
+            return f"{last}, {initials}"
+        return f"{last}, {first[0].upper()}."
+    
+    return author_str
+
+
+def _format_citation_apa(ref: dict) -> str:
+    """Format a reference in APA 7th Edition style"""
+    # Extract fields with defaults
+    authors = ref.get('authors', '')
+    year = ref.get('year', 'n.d.')
+    title = ref.get('title', 'Untitled')
+    journal = ref.get('journal', '')
+    volume = ref.get('volume', '')
+    issue = ref.get('issue', '')
+    pages = ref.get('pages', '')
+    doi = ref.get('doi', '')
+    publisher = ref.get('publisher', '')
+    url = ref.get('url', '')
+    edition = ref.get('edition', '')
+    
+    # Format authors
+    if isinstance(authors, list):
+        author_list = [_format_author_apa(a) for a in authors]
+        if len(author_list) == 1:
+            author_str = author_list[0]
+        elif len(author_list) == 2:
+            author_str = f"{author_list[0]} & {author_list[1]}"
+        elif len(author_list) > 2:
+            author_str = ", ".join(author_list[:-1]) + ", & " + author_list[-1]
+        else:
+            author_str = "Anonymous"
+    elif authors:
+        # Handle comma-separated authors
+        author_list = [_format_author_apa(a.strip()) for a in authors.split(",") if a.strip()]
+        if len(author_list) == 1:
+            author_str = author_list[0]
+        elif len(author_list) == 2:
+            author_str = f"{author_list[0]} & {author_list[1]}"
+        elif len(author_list) > 2:
+            author_str = ", ".join(author_list[:-1]) + ", & " + author_list[-1]
+        else:
+            author_str = "Anonymous"
+    else:
+        author_str = "Anonymous"
+    
+    # Determine reference type based on available fields
+    has_journal = bool(journal)
+    has_publisher = bool(publisher)
+    
+    if has_journal:
+        # Journal article
+        title_str = title if title.endswith('.') else title + '.'
+        
+        if volume and issue:
+            journal_str = f"{journal}, {volume}({issue})"
+        elif volume:
+            journal_str = f"{journal}, {volume}"
+        else:
+            journal_str = journal
+        
+        if pages:
+            result = f"{author_str} ({year}). {title_str} {journal_str}, {pages}."
+        else:
+            result = f"{author_str} ({year}). {title_str} {journal_str}."
+        
+        if doi:
+            result += f" https://doi.org/{doi}"
+    elif has_publisher:
+        # Book
+        title_str = title if title.endswith('.') else title + '.'
+        
+        if edition:
+            edition_str = f" ({edition} ed.)"
+        else:
+            edition_str = ""
+        
+        result = f"{author_str} ({year}).{edition_str} {title_str} {publisher}."
+        
+        if doi:
+            result += f" https://doi.org/{doi}"
+    else:
+        # Generic/Website
+        title_str = title if title.endswith('.') else title + '.'
+        result = f"{author_str} ({year}). {title_str}"
+        
+        if url:
+            result += f" {url}"
+    
+    return result
+
+
 def _sanitize_content(content):
     """
     Robustly strips AI preambles using a multi-pass regex loop.
@@ -523,10 +645,22 @@ def build_thesis(input_data):
     references = input_data.get('references', [])
     if references:
         doc.add_heading('REFERENCES', level=1)
-        for ref in references:
-            apa = ref.get('formattedApa', f"{ref.get('authors')} ({ref.get('year')}). {ref.get('title')}. {ref.get('journal')}.")
+        
+        # Sort references alphabetically by first author
+        sorted_refs = sorted(references, key=lambda r: (
+            r.get('authors', [''])[0].lower() if isinstance(r.get('authors'), list) 
+            else str(r.get('authors', '')).lower()
+        ))
+        
+        for ref in sorted_refs:
+            # Use proper APA formatting
+            apa = _format_citation_apa(ref)
             p = doc.add_paragraph(apa)
             p.style.font.size = Pt(11)
+            # Add hanging indent (first line normal, rest indented)
+            p.paragraph_format.first_line_indent = Inches(0.5)
+            p.paragraph_format.left_indent = Inches(0)
+            p.paragraph_format.right_indent = Inches(0)
     
     # 4. Ethical Watermark (Footer)
     # Footer handled by _add_footer
