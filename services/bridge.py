@@ -57,13 +57,24 @@ if project_root not in sys.path:
 # Create FastAPI app early (before decorators that use it)
 app = FastAPI(title="Eldoria Neural Bridge")
 
-# Add CORS middleware
+# Add CORS middleware - SECURITY: Restrict to specific origins
+# Add your production domain(s) to this list
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    # Add production domains here:
+    # "https://your-app.netlify.app",
+    # "https://your-custom-domain.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 # Internal Service Imports
@@ -176,16 +187,37 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):
                         await websocket.send_json({"type": "error", "payload": {"message": f"Invalid agent type: {agent_type_str}"}})
             
             elif command == "approve_task":
-                # Approval logic could be added here
-                pass
+                task_id = payload.get("task_id")
+                if task_id and hasattr(orchestrator, 'approve_task'):
+                    try:
+                        await orchestrator.approve_task(task_id)
+                        await websocket.send_json({"type": "task_approved", "payload": {"task_id": task_id}})
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "payload": {"message": f"Failed to approve task: {str(e)}"}})
+                else:
+                    await websocket.send_json({"type": "error", "payload": {"message": "task_id required for approve_task"}})
                 
             elif command == "cancel_task":
-                # Cancel logic could be added here
-                pass
+                task_id = payload.get("task_id")
+                if task_id and hasattr(orchestrator, 'cancel_task'):
+                    try:
+                        await orchestrator.cancel_task(task_id)
+                        await websocket.send_json({"type": "task_cancelled", "payload": {"task_id": task_id}})
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "payload": {"message": f"Failed to cancel task: {str(e)}"}})
+                else:
+                    await websocket.send_json({"type": "error", "payload": {"message": "task_id required for cancel_task"}})
                 
             elif command == "mark_insight_read":
-                # Mark read logic could be added here
-                pass
+                insight_id = payload.get("insight_id")
+                if insight_id and hasattr(orchestrator, 'mark_insight_read'):
+                    try:
+                        await orchestrator.mark_insight_read(insight_id)
+                        await websocket.send_json({"type": "insight_read", "payload": {"insight_id": insight_id}})
+                    except Exception as e:
+                        await websocket.send_json({"type": "error", "payload": {"message": f"Failed to mark insight read: {str(e)}"}})
+                else:
+                    await websocket.send_json({"type": "error", "payload": {"message": "insight_id required for mark_insight_read"}})
 
     except WebSocketDisconnect:
         await orchestrator.unregister_websocket(websocket)
@@ -366,8 +398,8 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return payload
 
-async def require_auth():
-    return True
+# SECURITY: Removed insecure require_auth() that always returned True
+# All protected endpoints now use Depends(get_current_user) for proper JWT validation
 
 if vault_router:
     app.include_router(vault_router)
@@ -378,13 +410,7 @@ if simulation_router:
 if architect_router:
     app.include_router(architect_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# SECURITY: Removed duplicate CORS middleware declaration
 
 class CommandRequest(BaseModel):
     command: str
@@ -626,24 +652,16 @@ async def get_default_path():
         return {"path": os.path.expanduser("~")}
         raise HTTPException(status_code=500, detail=str(e))
 
+# SECURITY: /execute endpoint DISABLED - was RCE vulnerability
+# This endpoint allowed arbitrary shell command execution.
+# If you need command execution, implement a strict whitelist of allowed commands.
 @app.post("/execute")
 async def execute_command(request: CommandRequest):
-    try:
-        cwd = request.cwd or os.getcwd()
-        result = subprocess.run(
-            request.command,
-            cwd=cwd,
-            shell=True,
-            capture_output=True,
-            text=True
-        )
-        return {
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "exitCode": result.returncode
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """DISABLED for security - arbitrary command execution is not allowed."""
+    raise HTTPException(
+        status_code=403, 
+        detail="Command execution is disabled in production for security reasons."
+    )
 
 @app.get("/dialog/file")
 async def open_file_dialog():
@@ -697,22 +715,29 @@ def get_valid_key(body_key: Optional[str], env_name: str) -> Optional[str]:
         
     return None
 
+# SECURITY: /debug/keys endpoint restricted - was information disclosure
+# Only available in development mode
 @app.get("/debug/keys")
 async def debug_keys():
-    """Tells the user which keys are set vs placeholders without revealing the secret."""
+    """Debug endpoint - ONLY available in development mode."""
+    is_dev = os.environ.get("ENV", "production").lower() in ["dev", "development", "local"]
+    if not is_dev:
+        raise HTTPException(
+            status_code=403, 
+            detail="Debug endpoints are disabled in production."
+        )
+    
+    # Only show status, never values
     keys = ["GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "TAVILY_API_KEY"]
     results = {}
     for k in keys:
         val = os.environ.get(k)
         if not val:
-            results[k] = "MISSING ❌"
+            results[k] = "MISSING"
         elif is_placeholder(val):
-            results[k] = f"PLACEHOLDER DETECTED ⚠️ (Value: {val[:4]}...)"
+            results[k] = "PLACEHOLDER"
         else:
-            results[k] = "READY ✅"
-            
-    # Diagnosis: List all keys present (safely, no values) to check for typos/scoping
-    results["_ALL_ENV_KEYS"] = sorted(list(os.environ.keys()))
+            results[k] = "CONFIGURED"
     return results
 
 @app.post("/proxy/groq")

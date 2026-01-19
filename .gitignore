@@ -7,6 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Build error logs (clean these up)
+build_errors*.txt
+tsc_errors*.txt
+tsc_check.log
+all_errors.log
+error*.txt
+*_errors*.txt
+*_output*.txt
+*_log.txt
+
 node_modules
 # Build artifacts
 dist
@@ -18,10 +28,15 @@ out
 build
 *.spec
 
-# Environment
-*.local
-.env*
+# Environment - CRITICAL: Never commit env files with secrets
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env*.local
 !.env.example
+!.env.local.example
 
 # Editor directories and files
 .vscode/*
@@ -33,3 +48,16 @@ build
 *.njsproj
 *.sln
 *.sw?
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+venv
+.venv
+*.egg-info
+
+# Test artifacts
+coverage
+.nyc_output
+playwright-report
