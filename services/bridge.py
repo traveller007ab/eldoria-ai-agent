@@ -64,9 +64,9 @@ ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
-    # Add production domains here:
-    # "https://your-app.netlify.app",
-    # "https://your-custom-domain.com",
+    # Production domains:
+    "https://eldoria-ai-agent-production.up.railway.app",
+    "https://eldoriaai.netlify.app",
 ]
 
 app.add_middleware(
