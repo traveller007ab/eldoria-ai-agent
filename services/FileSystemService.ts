@@ -71,9 +71,7 @@ export const FileSystemService = {
         }
 
         return true;
-    }
-        return true;
-},
+    },
 
     /**
      * Get the URL for serving a file directly (e.g. for iframes/images).
