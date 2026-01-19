@@ -85,10 +85,14 @@ const AppContent: React.FC = () => {
 
   // Phase 7: Deep Integration - Push Nexus State to AI Context
   // This allows the "Classic Chat" to know what's happening on the Canvas
+  // Phase 7: Deep Integration - Push Nexus State to AI Context
+  // This allows the "Classic Chat" to know what's happening on the Canvas
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
     // Dynamic import to avoid cycles or ensure store exists
     import('./stores/useNexusStore').then(({ useNexusStore }) => {
-      const unsub = useNexusStore.subscribe((state) => {
+      unsubscribe = useNexusStore.subscribe((state) => {
         import('./services/ContextService').then(({ contextService }) => {
           contextService.updateNexusState({
             nodeCount: state.nodes.length,
@@ -107,8 +111,11 @@ const AppContent: React.FC = () => {
           });
         });
       });
-      return () => unsub();
     });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleLevelSelect = (level: 'newbie' | 'intermediate' | 'expert') => {
