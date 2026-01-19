@@ -19,32 +19,28 @@ export const ReferenceNode: React.FC<NodeProps<ReferenceNodeData>> = memo(({ dat
     return (
         <div
             className={`
-                w-56 bg-slate-900/40 backdrop-blur-xl rounded-2xl border
-                transition-all duration-500 group cursor-pointer
+                w-56 bg-slate-900/80 backdrop-blur-md rounded-lg border
+                transition-all duration-200 group cursor-pointer
                 ${selected
-                    ? 'border-cyan-500/50 shadow-[0_0_40px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/20'
-                    : 'border-white/10 hover:border-white/20 hover:bg-slate-900/60'
+                    ? 'border-cyan-500/40 ring-1 ring-cyan-500/10'
+                    : 'border-white/10 hover:border-white/15'
                 }
             `}
         >
-            <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50" />
-            </div>
-
             {/* Connection Handles */}
             <Handle
                 type="target"
                 position={Position.Left}
-                className="!w-3 !h-3 !bg-cyan-500 !border-2 !border-slate-900 !left-[-6px] !z-50 hover:!scale-125 transition-transform"
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-left-1"
             />
             <Handle
                 type="source"
                 position={Position.Right}
-                className="!w-3 !h-3 !bg-cyan-500 !border-2 !border-slate-900 !right-[-6px] !z-50 hover:!scale-125 transition-transform"
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-right-1"
             />
 
             {/* Header Hint */}
-            <div className="h-1 bg-gradient-to-r from-cyan-600 to-blue-600 opacity-60" />
+            <div className="h-0.5 bg-gradient-to-r from-cyan-600/60 to-blue-600/60" />
 
             {/* Content */}
             <div className="p-4 relative">

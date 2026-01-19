@@ -36,28 +36,24 @@ export const BlueprintNode: React.FC<NodeProps<BlueprintNodeData>> = memo(({ id,
     return (
         <div
             className={`
-                w-64 bg-slate-900/40 backdrop-blur-xl rounded-2xl border overflow-hidden
-                transition-all duration-500 group cursor-pointer
+                w-64 bg-slate-900/80 backdrop-blur-md rounded-lg border overflow-hidden
+                transition-all duration-200 group cursor-pointer
                 ${selected
-                    ? 'border-emerald-500/50 shadow-[0_0_40px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/20'
-                    : 'border-white/10 hover:border-white/20 hover:bg-slate-900/60'
+                    ? 'border-emerald-500/40 ring-1 ring-emerald-500/10'
+                    : 'border-white/10 hover:border-white/15'
                 }
-                ${isRunningThis ? 'shadow-[0_0_20px_rgba(16,185,129,0.1)] animate-pulse' : ''}
             `}
         >
-            {/* Inner Glow Effect */}
-            <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/5 to-transparent opacity-50" />
-
             {/* Connection Handles */}
             <Handle
                 type="target"
                 position={Position.Left}
-                className="!w-3 !h-3 !bg-emerald-500 !border-2 !border-slate-900 !left-[-6px] !z-50 hover:!scale-125 transition-transform"
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-left-1"
             />
             <Handle
                 type="source"
                 position={Position.Right}
-                className="!w-3 !h-3 !bg-emerald-500 !border-2 !border-slate-900 !right-[-6px] !z-50 hover:!scale-125 transition-transform"
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-right-1"
             />
 
             {/* Preview Area */}

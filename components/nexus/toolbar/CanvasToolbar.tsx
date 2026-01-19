@@ -62,9 +62,9 @@ export const CanvasToolbar: React.FC = () => {
 
     return (
         <>
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-3">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2">
                 {/* Layout Controls */}
-                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1 flex flex-col gap-1 shadow-2xl">
+                <div className="bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 shadow-lg">
                     <ToolbarButton
                         icon={Grid3X3}
                         tooltip="Grid Layout"
@@ -94,7 +94,7 @@ export const CanvasToolbar: React.FC = () => {
                 </div>
 
                 {/* View Controls */}
-                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1 flex flex-col gap-1 shadow-2xl">
+                <div className="bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 shadow-lg">
                     <ToolbarButton
                         icon={ZoomIn}
                         tooltip="Zoom In"
@@ -118,7 +118,7 @@ export const CanvasToolbar: React.FC = () => {
                 </div>
 
                 {/* Utility Controls */}
-                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1 flex flex-col gap-1 shadow-2xl">
+                <div className="bg-slate-900/60 backdrop-blur-md border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 shadow-lg">
                     <ToolbarButton
                         icon={showMinimap ? Eye : EyeOff}
                         tooltip={showMinimap ? 'Hide Minimap' : 'Show Minimap'}

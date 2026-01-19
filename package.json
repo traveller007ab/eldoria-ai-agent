@@ -7,7 +7,7 @@
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vite",
     "start": "concurrently -k \"npm run dev\" \"npm run bridge\"",
     "bridge": "python services/bridge.py",
     "prebuild": "node -e \"const fs=require('fs'); const src='release/eldoria-bridge-win.exe'; const dest='public/downloads/eldoria-bridge-win.exe'; if(fs.existsSync(src)){fs.mkdirSync('public/downloads',{recursive:true});fs.copyFileSync(src,dest);console.log('Bridge exe copied for production build')}else{console.log('No bridge exe found in release/ - skipping')}\"",

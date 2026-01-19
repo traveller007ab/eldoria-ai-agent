@@ -19,7 +19,7 @@ try:
 except ImportError:
     NUMPY_AVAILABLE = False
     np = None
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 try:
@@ -1069,6 +1069,88 @@ async def restart_bridge(background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ FILE SYSTEM EXTENSIONS (Phase 6) ============
+
+class FileReadRequest(BaseModel):
+    path: str
+
+class FileWriteRequest(BaseModel):
+    path: str
+    content: str
+    mode: str = "w"  # 'w' for write/overwrite, 'a' for append
+
+@app.post("/fs/read")
+async def fs_read(req: FileReadRequest):
+    """Read textual content from a file."""
+    try:
+        if not os.path.exists(req.path):
+            raise HTTPException(status_code=404, detail="File not found")
+        if not os.path.isfile(req.path):
+            raise HTTPException(status_code=400, detail="Path is not a file")
+        
+        with open(req.path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return {"content": content, "size": len(content)}
+    except UnicodeDecodeError:
+         raise HTTPException(status_code=400, detail="File is binary or not UTF-8 encoded")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/fs/write")
+async def fs_write(req: FileWriteRequest):
+    """Write textual content to a file."""
+    try:
+        with open(req.path, req.mode, encoding='utf-8') as f:
+            f.write(req.content)
+        return {"success": True, "bytes_written": len(req.content)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/codebase/index")
+async def codebase_index(root: str = "."):
+    """
+    List files in the specified root directory.
+    Currently performs a shallow scan of the directory, returning files and folders.
+    """
+    try:
+        # Resolve absolute path relative to project root if it starts with .
+        if root.startswith("."):
+            target_dir = os.path.abspath(os.path.join(project_root, root))
+        else:
+            target_dir = root
+
+        if not os.path.exists(target_dir):
+             return {"files": []}
+
+        files_list = []
+        
+        # Simple listdir to start
+        with os.scandir(target_dir) as entries:
+            for entry in entries:
+                # Filter out standard ignore list
+                if entry.name.startswith(".") and entry.name != ".env": continue
+                if entry.name in ["node_modules", "__pycache__", "venv", "env", "dist", "build", "coverage"]: continue
+                
+                # Get type
+                entry_type = "directory" if entry.is_dir() else "file"
+                
+                # Simple path normalization
+                full_path = entry.path.replace("\\", "/")
+
+                files_list.append({
+                    "name": entry.name,
+                    "path": full_path,
+                    "type": entry_type
+                })
+        
+        return {"files": files_list}
+            
+    except Exception as e:
+        print(f"[BRIDGE] Error indexing codebase: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 # ============ RESEARCH MEDIA EXTRACTION ============
 
 class MediaExtractRequest(BaseModel):
@@ -1786,6 +1868,28 @@ async def shutdown_event():
             pass
 
 
+# ═══════════════════════════════════════════════════════════════
+# FILE SERVING (PDF/Binary)
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/fs/serve")
+async def serve_file(path: str):
+    """
+    Serve a file from the filesystem.
+    Useful for PDFs, images, etc.
+    """
+    try:
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Security check: Ensure we are inside project root? 
+        # For local desktop app, we might allow any path user selects, 
+        # but defaulting to caution is good. For now, trusting the local user.
+        
+        return FileResponse(path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     zeroconf = None
     info = None
@@ -1815,3 +1919,4 @@ if __name__ == "__main__":
         if zeroconf:
             zeroconf.unregister_all_services()
             zeroconf.close()
+

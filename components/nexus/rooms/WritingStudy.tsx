@@ -1,22 +1,17 @@
 /**
- * WritingStudy - Focus Mode for Markdown Notes
+ * WritingStudy - DIGITAL GARDEN AESTHETIC (Themed)
  * 
- * A distraction-free writing environment with:
- * - Full-screen markdown editor
- * - AI integration for refining ideas
- * - Connection Context sidebar
+ * "THE QUIET STUDY"
+ * Supports Sunlit and Moonlit modes.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    StickyNote, Save, Sparkles, X, ChevronRight, MessageSquare,
-    Type, Hash, List, Image, Code, Link, Zap, Loader2, RefreshCw,
-    FileText, CheckCircle2, Library, BookOpen, Share2, Eye, EyeOff,
-    DownloadCloud
+    Feather, Bold, Italic, List, Quote, Image as ImageIcon,
+    Save, Cloud, Clock, Sparkles, AlignLeft, Heading1, Heading2
 } from 'lucide-react';
 import { useNexusStore } from '../../../stores/useNexusStore';
-import { useNexusAI } from '../hooks/useNexusAI';
 
 interface WritingStudyProps {
     nodeId: string;
@@ -24,332 +19,371 @@ interface WritingStudyProps {
 
 export const WritingStudy: React.FC<WritingStudyProps> = ({ nodeId }) => {
     const node = useNexusStore((state) => state.nodes.find((n) => n.id === nodeId));
-    const updateNode = useNexusStore((state) => state.updateNode);
-    const edges = useNexusStore((state) => state.edges);
-    const nodes = useNexusStore((state) => state.nodes);
-    const { isZenMode, toggleZenMode } = useNexusStore();
-
-    const [content, setContent] = useState('');
-    const [title, setTitle] = useState('');
-    const [isAIPanelOpen, setIsAIPanelOpen] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [lastSaved, setLastSaved] = useState<Date | null>(null);
-    const [showSuccess, setShowSuccess] = useState(false);
-
+    const { isZenMode, isDarkMode } = useNexusStore();
     const data = node?.data as any;
 
+    const [content, setContent] = useState(data?.content || '');
+    const [title, setTitle] = useState(data?.title || '');
+    const [wordCount, setWordCount] = useState(0);
+    const [showAI, setShowAI] = useState(false);
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+
+    // Journal State
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const journalPath = `journal/Journal_${today}.md`;
+
     useEffect(() => {
-        if (data) {
-            setContent(data.content || '');
-            setTitle(data.title || 'Untitled Note');
-        }
-    }, [data]);
+        setWordCount(content.trim().split(/\s+/).filter((w: any) => w.length > 0).length);
+    }, [content]);
 
-    // AI Integration
-    const { messages, sendMessage, clearMessages, isLoading, isStreaming, error } = useNexusAI({
-        documentTitle: title,
-        documentContent: content
-    });
+    // Initial Load - Check for today's journal
+    useEffect(() => {
+        loadDailyJournal();
+    }, []);
 
-    const handleSave = async () => {
-        if (!node) return;
-        setIsSaving(true);
-        updateNode(node.id, {
-            title,
-            content
-        });
+    // Auto-save on Ctrl+S
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveJournal();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [content, title]);
 
-        // Simulate a slight delay for premium feedback
-        setTimeout(() => {
-            setIsSaving(false);
+    const loadDailyJournal = async () => {
+        try {
+            const FSS = await import('../../../services/FileSystemService').then(m => m.FileSystemService);
+            const fileContent = await FSS.readFile(journalPath);
+
+            // Parse frontmatter if exists (simple implementation)
+            const parts = fileContent.split('---');
+            if (parts.length >= 3) {
+                // Heuristic: basic frontmatter parsing
+                const frontmatter = parts[1];
+                const body = parts.slice(2).join('---').trim();
+
+                const titleMatch = frontmatter.match(/title:\s*(.*)/);
+                if (titleMatch) setTitle(titleMatch[1]);
+                setContent(body);
+            } else {
+                setContent(fileContent);
+            }
             setLastSaved(new Date());
-            setShowSuccess(true);
-            setTimeout(() => setShowSuccess(false), 2000);
-        }, 800);
+        } catch (error) {
+            // File doesn't exist? Use default/template
+            console.log("No journal entry for today, using template.");
+            setTitle('Daily Entry');
+            if (!content) {
+                setContent(`# ${new Date().toLocaleDateString()}\n\nToday's thoughts...`);
+            }
+        }
     };
 
-    const handleExportMD = () => {
-        const dataStr = `# ${title}\n\n${content}`;
-        const dataUri = 'data:text/markdown;charset=utf-8,' + encodeURIComponent(dataStr);
-        const fileName = `${title.toLowerCase().replace(/\s+/g, '-')}.md`;
+    const saveJournal = async () => {
+        setIsSaving(true);
+        try {
+            const FSS = await import('../../../services/FileSystemService').then(m => m.FileSystemService);
 
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', fileName);
-        linkElement.click();
+            // Create simple frontmatter
+            const fullContent = `---
+title: ${title || 'Untitled'}
+date: ${today}
+type: journal
+---
+
+${content}`;
+
+            await FSS.writeFile(journalPath, fullContent);
+            setLastSaved(new Date());
+
+            // Also update node data in store so it persists in graph state temporarily
+            useNexusStore.getState().updateNode(nodeId, {
+                content,
+                title,
+                lastModified: Date.now()
+            });
+
+        } catch (error) {
+            console.error("Failed to save journal:", error);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    if (!node) return null;
+    // Daily goal simulation
+    const dailyGoal = 500;
+    const progress = Math.min((wordCount / dailyGoal) * 100, 100);
 
-    // Get connected nodes for context sidebar
-    const connectedNodeIds = edges
-        .filter(e => e.source === nodeId || e.target === nodeId)
-        .map(e => e.source === nodeId ? e.target : e.source);
-
-    const connectedNodes = nodes.filter(n => connectedNodeIds.includes(n.id));
+    // Theme Variables
+    const bgClass = isDarkMode
+        ? 'bg-[#0F0F12]'
+        : 'bg-gradient-to-br from-stone-100 via-amber-50/40 to-rose-50/30';
 
     return (
-        <div className="h-full w-full bg-[#020617] flex relative overflow-hidden">
-            {/* Ambient Background */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-500/5 blur-[120px] rounded-full" />
-                <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-cyan-500/5 blur-[100px] rounded-full" />
-            </div>
+        <div className={`h-full w-full ${bgClass} p-4 md:p-6 overflow-hidden transition-colors duration-500`}>
 
-            {/* Left Sidebar: Context & Connections */}
-            <AnimatePresence>
-                {!isZenMode && (
-                    <motion.div
-                        className="w-72 bg-slate-900/50 backdrop-blur-xl border-r border-white/5 flex flex-col z-10"
-                        initial={{ x: -288, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: -288, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                    >
-                        <div className="p-6 border-b border-white/5">
-                            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
-                                <Library className="w-3.5 h-3.5 text-purple-400" />
-                                Neural Context
-                            </h3>
-                        </div>
-                        <div className="flex-1 overflow-auto p-4 space-y-3">
-                            {connectedNodes.length > 0 ? (
-                                connectedNodes.map(cn => (
-                                    <motion.div
-                                        key={cn.id}
-                                        className="p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-purple-500/30 transition-all group cursor-default"
-                                        whileHover={{ scale: 1.02 }}
-                                    >
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <div className={`p-2 rounded-lg bg-slate-950/50 border border-white/5 text-purple-400`}>
-                                                {(cn.data as any).type === 'blueprint' ? <Zap className="w-3.5 h-3.5" /> :
-                                                    (cn.data as any).type === 'reference' ? <BookOpen className="w-3.5 h-3.5" /> :
-                                                        <FileText className="w-3.5 h-3.5" />}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest leading-none">
-                                                    {(cn.data as any).type}
-                                                </p>
-                                                <h4 className="text-xs font-bold text-slate-200 truncate mt-1">
-                                                    {(cn.data as any).name || (cn.data as any).title}
-                                                </h4>
-                                            </div>
-                                        </div>
-                                        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                                            <div className="h-full w-1/3 bg-purple-500/40" />
-                                        </div>
-                                    </motion.div>
-                                ))
-                            ) : (
-                                <div className="py-20 text-center opacity-30">
-                                    <Share2 className="w-8 h-8 mx-auto mb-4 text-slate-600" />
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">No Connections</p>
-                                </div>
-                            )}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            <div className="h-full flex gap-4">
 
-            {/* Main Editor Area */}
-            <div className="flex-1 flex flex-col relative">
-                {/* Editor Header */}
-                <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
-                    <div className="flex items-center gap-4 flex-1">
-                        <StickyNote className="w-5 h-5 text-purple-400" />
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="bg-transparent border-none focus:outline-none text-xl font-bold text-white w-full max-w-xl"
-                            placeholder="Note Title..."
-                        />
-                    </div>
-                    <div className="flex items-center gap-3">
+                {/* CENTER: Writing Canvas */}
+                <div className="flex-1 min-w-0">
+                    <GlassCard className="h-full flex flex-col" accent isDark={isDarkMode}>
+                        {/* Toolbar */}
                         <AnimatePresence>
                             {!isZenMode && (
-                                <motion.button
-                                    onClick={handleSave}
-                                    disabled={isSaving}
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${isSaving
-                                        ? 'bg-emerald-500 text-white'
-                                        : showSuccess
-                                            ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]'
-                                            : 'bg-white/5 text-slate-400 hover:text-white border border-white/10 hover:border-purple-500/50'
-                                        }`}
+                                <motion.div
+                                    className={`px-4 py-3 border-b flex items-center justify-between ${isDarkMode ? 'border-white/[0.06]' : 'border-stone-200/50'}`}
+                                    initial={{ y: -50, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    exit={{ y: -50, opacity: 0 }}
                                 >
-                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : showSuccess ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                                    {isSaving ? 'Syncing...' : showSuccess ? 'Published' : 'Save Draft'}
-                                </motion.button>
+                                    <div className="flex items-center gap-1">
+                                        <FormatBtn icon={Bold} isDark={isDarkMode} />
+                                        <FormatBtn icon={Italic} isDark={isDarkMode} />
+                                        <div className={`w-px h-5 mx-2 ${isDarkMode ? 'bg-white/[0.06]' : 'bg-stone-200'}`} />
+                                        <FormatBtn icon={Heading1} isDark={isDarkMode} />
+                                        <FormatBtn icon={Heading2} isDark={isDarkMode} />
+                                        <div className={`w-px h-5 mx-2 ${isDarkMode ? 'bg-white/[0.06]' : 'bg-stone-200'}`} />
+                                        <FormatBtn icon={List} isDark={isDarkMode} />
+                                        <FormatBtn icon={Quote} isDark={isDarkMode} />
+                                        <FormatBtn icon={ImageIcon} isDark={isDarkMode} />
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => setShowAI(!showAI)}
+                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm transition-all border
+                                                ${showAI
+                                                    ? (isDarkMode ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300' : 'bg-violet-100 border-violet-200 text-violet-700')
+                                                    : (isDarkMode ? 'border-transparent text-zinc-500 hover:bg-white/[0.06]' : 'border-transparent text-stone-500 hover:bg-stone-100')
+                                                }`}
+                                        >
+                                            <Sparkles className="w-4 h-4" />
+                                            <span className="font-medium">AI</span>
+                                        </button>
+                                        <button
+                                            onClick={saveJournal}
+                                            disabled={isSaving}
+                                            className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-sm font-medium transition-colors shadow-lg
+                                            ${isDarkMode
+                                                    ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700'
+                                                    : 'bg-stone-800 text-white hover:bg-stone-700'
+                                                } ${isSaving ? 'opacity-50 cursor-wait' : ''}`}>
+                                            <Save className={`w-4 h-4 ${isSaving ? 'animate-pulse' : ''}`} />
+                                            {isSaving ? 'Saving...' : 'Save'}
+                                        </button>
+                                    </div>
+                                </motion.div>
                             )}
                         </AnimatePresence>
 
-                        <button
-                            onClick={handleExportMD}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-white/5 text-slate-400 hover:text-cyan-400 border border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
-                            title="Export as Markdown"
-                        >
-                            <DownloadCloud className="w-4 h-4" />
-                            <span className="hidden sm:inline">Export MD</span>
-                        </button>
+                        {/* Writing Area */}
+                        <div className="flex-1 overflow-auto">
+                            <div className={`max-w-2xl mx-auto py-12 px-8 transition-all duration-300 ${isZenMode ? 'scale-105' : ''}`}>
+                                {/* Title */}
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="Untitled"
+                                    className={`w-full bg-transparent text-4xl md:text-5xl font-serif font-medium focus:outline-none mb-2
+                                        ${isDarkMode ? 'text-zinc-200 placeholder:text-zinc-600' : 'text-stone-800 placeholder:text-stone-300'}`}
+                                />
 
-                        <button
-                            onClick={toggleZenMode}
-                            className={`p-2 rounded-xl transition-all ${isZenMode
-                                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                : 'bg-slate-800 text-slate-400 hover:text-white'
-                                }`}
-                            title="Toggle Zen Mode"
-                        >
-                            <Eye className="w-5 h-5" />
-                        </button>
+                                {/* Meta Line */}
+                                <div className={`flex items-center gap-3 mb-10 text-sm ${isDarkMode ? 'text-zinc-500' : 'text-stone-400'}`}>
+                                    <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                                    <span className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-zinc-600' : 'bg-stone-300'}`} />
+                                    <span>{wordCount} words</span>
+                                    {wordCount >= dailyGoal && (
+                                        <>
+                                            <span className={`w-1 h-1 rounded-full ${isDarkMode ? 'bg-zinc-600' : 'bg-stone-300'}`} />
+                                            <span className="text-emerald-500 font-medium">🎉 Goal reached!</span>
+                                        </>
+                                    )}
+                                </div>
 
-                        <button
-                            onClick={() => setIsAIPanelOpen(!isAIPanelOpen)}
-                            className={`p-2 rounded-xl transition-all ${isAIPanelOpen
-                                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                                : 'bg-slate-800 text-slate-400 hover:text-white'
-                                }`}
-                        >
-                            <Sparkles className="w-5 h-5" />
-                        </button>
-                    </div>
-                </header>
+                                {/* Content */}
+                                <textarea
+                                    value={content}
+                                    onChange={(e) => setContent(e.target.value)}
+                                    placeholder="Begin writing..."
+                                    className={`w-full min-h-[400px] bg-transparent text-lg leading-relaxed resize-none focus:outline-none font-serif
+                                        ${isDarkMode ? 'text-zinc-300 placeholder:text-zinc-700' : 'text-stone-700 placeholder:text-stone-300'}`}
+                                    spellCheck={false}
+                                />
+                            </div>
+                        </div>
 
-                {/* Editor Toolbar (Formatting) */}
-                <div className="h-10 bg-slate-900/50 border-b border-slate-800 flex items-center px-6 gap-4">
-                    <button className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"><Hash className="w-4 h-4" /></button>
-                    <button className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"><List className="w-4 h-4" /></button>
-                    <button className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"><Code className="w-4 h-4" /></button>
-                    <button className="p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"><Image className="w-4 h-4" /></button>
-                    <div className="h-4 w-px bg-slate-800 mx-2" />
-                    <button className="flex items-center gap-1.5 px-3 py-1 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 rounded-lg text-[10px] font-bold uppercase transition-colors">
-                        <Sparkles className="w-3 h-3" />
-                        Critique Writing
-                    </button>
+                        {/* Status Bar */}
+                        <AnimatePresence>
+                            {!isZenMode && (
+                                <motion.div
+                                    className={`px-6 py-3 border-t flex items-center justify-between
+                                        ${isDarkMode ? 'border-white/[0.06] bg-black/20' : 'border-stone-200/50 bg-white/30'}`}
+                                    initial={{ y: 50, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    exit={{ y: 50, opacity: 0 }}
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <span className={`flex items-center gap-1.5 text-xs ${isDarkMode ? 'text-zinc-500' : 'text-stone-500'}`}>
+                                            <Cloud className={`w-3.5 h-3.5 ${lastSaved ? 'text-emerald-500' : 'text-slate-400'}`} />
+                                            {lastSaved ? 'Saved to journal' : 'Not saved'}
+                                        </span>
+                                        {lastSaved && (
+                                            <span className={`flex items-center gap-1.5 text-xs ${isDarkMode ? 'text-zinc-600' : 'text-stone-400'}`}>
+                                                <Clock className="w-3.5 h-3.5" />
+                                                {lastSaved.toLocaleTimeString()}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Daily Goal Progress */}
+                                    <div className="flex items-center gap-3">
+                                        <span className={`text-xs ${isDarkMode ? 'text-zinc-600' : 'text-stone-500'}`}>Daily Goal</span>
+                                        <div className={`w-32 h-2 rounded-full overflow-hidden ${isDarkMode ? 'bg-white/[0.1]' : 'bg-stone-200'}`}>
+                                            <div
+                                                className="h-full bg-gradient-to-r from-amber-400 to-rose-400 rounded-full transition-all duration-500"
+                                                style={{ width: `${progress}%` }}
+                                            />
+                                        </div>
+                                        <span className={`text-xs font-medium ${isDarkMode ? 'text-zinc-400' : 'text-stone-600'}`}>{wordCount}/{dailyGoal}</span>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </GlassCard>
                 </div>
 
-                {/* Main Textarea */}
-                <div className="flex-1 relative overflow-hidden bg-[#0a0b0f]">
-                    <textarea
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        className="absolute inset-0 w-full h-full bg-transparent text-slate-300 p-10 focus:outline-none resize-none font-serif text-lg leading-relaxed selection:bg-purple-500/30"
-                        placeholder="Begin weaving your thoughts into existence..."
-                    />
+                {/* RIGHT: AI Writing Assistant */}
+                <AnimatePresence>
+                    {!isZenMode && showAI && (
+                        <motion.div
+                            className="w-80 shrink-0"
+                            initial={{ x: 320, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{ x: 320, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        >
+                            <GlassCard className="h-full flex flex-col" isDark={isDarkMode}>
+                                <div className={`px-4 py-3 border-b flex items-center gap-2 ${isDarkMode ? 'border-white/[0.06]' : 'border-stone-200/50'}`}>
+                                    <Feather className={`w-4 h-4 ${isDarkMode ? 'text-indigo-400' : 'text-violet-500'}`} />
+                                    <span className={`text-sm font-semibold ${isDarkMode ? 'text-zinc-300' : 'text-stone-700'}`}>Writing Coach</span>
+                                </div>
 
-                    {/* Character/Word count */}
-                    <div className="absolute bottom-6 left-10 text-[10px] text-slate-600 font-mono uppercase tracking-widest">
-                        Words: {content.split(/\s+/).filter(x => x.length > 0).length} | Chars: {content.length}
-                    </div>
-                </div>
+                                <div className="flex-1 overflow-auto p-4 space-y-4">
+                                    {/* Suggestion Cards */}
+                                    <SuggestionCard
+                                        type="improve"
+                                        title="Strengthen your opening"
+                                        description="Consider starting with a more vivid scene to hook your reader."
+                                        isDark={isDarkMode}
+                                    />
+                                    <SuggestionCard
+                                        type="idea"
+                                        title="Expand on this theme"
+                                        description="You mention 'recursive architecture' — explore how it relates to your main argument."
+                                        isDark={isDarkMode}
+                                    />
+                                    <SuggestionCard
+                                        type="tone"
+                                        title="Tone check"
+                                        description="Your writing feels clear and academic. Perfect for research documentation."
+                                        isDark={isDarkMode}
+                                    />
+                                </div>
+
+                                <div className={`p-4 border-t ${isDarkMode ? 'border-white/[0.06] bg-black/20' : 'border-stone-200/50 bg-white/30'}`}>
+                                    <input
+                                        type="text"
+                                        placeholder="Ask for writing help..."
+                                        className={`w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 border
+                                            ${isDarkMode
+                                                ? 'bg-[#151518] border-white/[0.1] text-zinc-300 focus:ring-indigo-500/50 placeholder:text-zinc-600'
+                                                : 'bg-white/80 border-stone-200 text-stone-700 focus:ring-violet-300 placeholder:text-stone-400'
+                                            }`}
+                                    />
+                                </div>
+                            </GlassCard>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
-
-            {/* Right Sidebar: AI Assistant */}
-            <AnimatePresence>
-                {isAIPanelOpen && !isZenMode && (
-                    <motion.div
-                        className="w-96 bg-slate-900 border-l border-slate-800 flex flex-col"
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 384, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                    >
-                        <AIPanel
-                            messages={messages}
-                            onSendMessage={sendMessage}
-                            onClear={clearMessages}
-                            isLoading={isLoading}
-                            isStreaming={isStreaming}
-                            error={error}
-                        />
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div>
     );
 };
 
-// Internal AI Panel Component for focus room
-const AIPanel: React.FC<{
-    messages: any[];
-    onSendMessage: (msg: string) => void;
-    onClear: () => void;
-    isLoading: boolean;
-    isStreaming: boolean;
-    error: string | null;
-}> = ({ messages, onSendMessage, onClear, isLoading, isStreaming, error }) => {
-    const [input, setInput] = useState('');
-    const endRef = useRef<HTMLDivElement>(null);
+// --- Subcomponents ---
 
-    useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+const GlassCard = ({ children, className = '', accent = false, isDark = false }: any) => (
+    <div className={`
+        relative backdrop-blur-xl rounded-2xl border transition-colors duration-500
+        shadow-[0_8px_32px_rgba(0,0,0,0.08)]
+        ${isDark
+            ? 'bg-[#151518]/70 border-white/[0.06]'
+            : 'bg-white/70 border-white/80'
+        }
+        ${accent && isDark ? 'ring-1 ring-amber-500/10' : ''}
+        ${accent && !isDark ? 'ring-1 ring-amber-200/50' : ''}
+        ${className}
+    `}>
+        {/* Bracket Connectors - POINTER EVENTS NONE FIX */}
+        <div className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-16 border-2 border-r-0 rounded-l-full opacity-50 pointer-events-none transition-colors duration-500
+            ${isDark ? 'border-amber-600/50' : 'border-amber-300'}`}
+        />
+        <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-16 border-2 border-l-0 rounded-r-full opacity-50 pointer-events-none transition-colors duration-500
+            ${isDark ? 'border-amber-600/50' : 'border-amber-300'}`}
+        />
+        <div className="relative z-10 h-full flex flex-col">{children}</div>
+    </div>
+);
 
-    const handleSend = () => {
-        if (!input.trim() || isLoading) return;
-        onSendMessage(input);
-        setInput('');
+const FormatBtn = ({ icon: Icon, isDark }: any) => (
+    <button className={`p-2 rounded-lg transition-all
+        ${isDark
+            ? 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06]'
+            : 'text-stone-400 hover:text-stone-700 hover:bg-stone-100'
+        }`}>
+        <Icon className="w-4 h-4" />
+    </button>
+);
+
+const SuggestionCard = ({ type, title, description, isDark }: any) => {
+    const icons: any = {
+        improve: '✨',
+        idea: '💡',
+        tone: '🎨',
     };
 
+    // Theme Colors
+    const getColors = () => {
+        if (isDark) {
+            switch (type) {
+                case 'improve': return 'bg-indigo-500/10 border-indigo-500/20 text-indigo-200';
+                case 'idea': return 'bg-amber-500/10 border-amber-500/20 text-amber-200';
+                case 'tone': return 'bg-rose-500/10 border-rose-500/20 text-rose-200';
+                default: return '';
+            }
+        } else {
+            switch (type) {
+                case 'improve': return 'bg-violet-50 border-violet-200 text-stone-700';
+                case 'idea': return 'bg-amber-50 border-amber-200 text-stone-700';
+                case 'tone': return 'bg-rose-50 border-rose-200 text-stone-700';
+                default: return '';
+            }
+        }
+    }
+
     return (
-        <div className="flex-1 flex flex-col h-full">
-            <div className="h-14 border-b border-slate-800 flex items-center justify-between px-4">
-                <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-400" />
-                    <span className="text-sm font-bold text-white">Writing Oracle</span>
-                </div>
-                <button onClick={onClear} className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors">
-                    <RefreshCw className="w-4 h-4 text-slate-400" />
-                </button>
+        <div className={`p-4 rounded-xl border ${getColors()}`}>
+            <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">{icons[type]}</span>
+                <h4 className={`text-sm font-semibold ${isDark ? 'text-zinc-200' : 'text-stone-700'}`}>{title}</h4>
             </div>
-
-            <div className="flex-1 overflow-auto p-4 space-y-4">
-                {messages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${msg.role === 'user'
-                            ? 'bg-purple-600 text-white rounded-br-none'
-                            : 'bg-slate-800 text-slate-300 rounded-bl-none'
-                            }`}>
-                            {msg.content}
-                        </div>
-                    </div>
-                ))}
-                {isStreaming && !messages[messages.length - 1]?.content && (
-                    <div className="flex justify-start">
-                        <div className="bg-slate-800 px-4 py-3 rounded-2xl rounded-bl-none">
-                            <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                        </div>
-                    </div>
-                )}
-                {error && (
-                    <div className="text-center text-[10px] text-red-400/80 bg-red-400/5 py-2 rounded-xl border border-red-500/20">
-                        {error}
-                    </div>
-                )}
-                <div ref={endRef} />
-            </div>
-
-            <div className="p-4 border-t border-slate-800 flex gap-2">
-                <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Ask for feedback or synthesis..."
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
-                />
-                <button
-                    onClick={handleSend}
-                    disabled={!input.trim() || isLoading}
-                    className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-colors disabled:opacity-50"
-                >
-                    <ChevronRight className="w-5 h-5" />
-                </button>
-            </div>
+            <p className={`text-sm leading-relaxed ${isDark ? 'text-zinc-400' : 'text-stone-600'}`}>{description}</p>
         </div>
     );
 };

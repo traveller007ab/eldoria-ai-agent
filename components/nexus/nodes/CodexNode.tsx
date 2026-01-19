@@ -26,23 +26,23 @@ export const CodexNode: React.FC<NodeProps<CodexNodeData>> = memo(({ id, data, s
                 enterRoom(id, 'codex_lab');
             }}
             className={`
-            min-w-[280px] bg-slate-900/40 backdrop-blur-xl border rounded-2xl overflow-hidden transition-all duration-500 group
+            min-w-[280px] bg-slate-900/80 backdrop-blur-md border rounded-lg overflow-hidden transition-all duration-200 group
             cursor-pointer
             ${selected
-                    ? `border-blue-500/50 shadow-[0_0_40px_rgba(59,130,246,0.3)] scale-[1.02]`
-                    : 'border-white/10 hover:border-blue-500/30 hover:shadow-[0_0_30px_rgba(59,130,246,0.1)]'
+                    ? `border-blue-500/40 ring-1 ring-blue-500/10`
+                    : 'border-white/10 hover:border-white/15'
                 }
         `}>
             {/* Connection Handles */}
             <Handle
                 type="target"
                 position={Position.Left}
-                className="!w-3 !h-3 !bg-blue-500 !border-2 !border-slate-900 !left-[-6px] !z-50 hover:!scale-125 transition-transform"
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-left-1"
             />
             <Handle
                 type="source"
                 position={Position.Right}
-                className="!w-3 !h-3 !bg-blue-500 !border-2 !border-slate-900 !right-[-6px] !z-50 hover:!scale-125 transition-transform"
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-right-1"
             />
 
             {/* Header Area */}

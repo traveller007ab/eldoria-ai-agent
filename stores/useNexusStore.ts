@@ -51,12 +51,23 @@ export interface CodexNodeData {
     lastModified?: number;
 }
 
-export type NexusNodeData = BlueprintNodeData | ReferenceNodeData | NoteNodeData | CodexNodeData;
+// Genesis OS: The Architect Node
+export interface ArchitectNodeData {
+    type: 'architect';
+    title: string;
+    status: 'draft' | 'active' | 'complete';
+    specs?: string; // Markdown documentation
+    childNodeIds?: string[]; // Nested node references
+    linkedFilePath?: string; // Path to related source file/folder
+    color?: 'default' | 'slate' | 'emerald' | 'amber';
+}
+
+export type NexusNodeData = BlueprintNodeData | ReferenceNodeData | NoteNodeData | CodexNodeData | ArchitectNodeData;
 
 export type NexusNode = Node<NexusNodeData>;
 export type NexusEdge = Edge<{ label?: string; strength?: number }>;
 
-export type ViewMode = 'canvas' | 'reading_room' | 'engine_room' | 'writing_study' | 'codex_lab';
+export type ViewMode = 'canvas' | 'reading_room' | 'engine_room' | 'writing_study' | 'codex_lab' | 'architect_workspace';
 
 export interface Project {
     id: string;
@@ -76,6 +87,7 @@ interface NexusState {
     viewMode: ViewMode;
     focusedNodeId: string | null;
     isZenMode: boolean;
+    isDarkMode: boolean;
     selectedNodeIds: string[];
 
     // Active Project Data (Directly reactive)
@@ -107,6 +119,7 @@ interface NexusState {
     enterRoom: (nodeId: string, roomType: ViewMode) => void;
     exitRoom: () => void;
     toggleZenMode: () => void;
+    toggleDarkMode: () => void;
 
     // Actions - Viewport
     setViewport: (viewport: Viewport) => void;
@@ -144,6 +157,7 @@ export const useNexusStore = create<NexusState>()(
             viewMode: 'canvas',
             focusedNodeId: null,
             isZenMode: false,
+            isDarkMode: false, // Default to Light Mode (Garden)
             selectedNodeIds: [],
 
             // Top-level mirrors of active project for reactivity
@@ -295,6 +309,7 @@ export const useNexusStore = create<NexusState>()(
             enterRoom: (nodeId, roomType) => set({ viewMode: roomType, focusedNodeId: nodeId }),
             exitRoom: () => set({ viewMode: 'canvas', focusedNodeId: null, isZenMode: false }),
             toggleZenMode: () => set((state) => ({ isZenMode: !state.isZenMode })),
+            toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
 
             // Viewport Actions
             setViewport: (viewport) => {

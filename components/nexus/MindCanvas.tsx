@@ -24,7 +24,7 @@ import ReactFlow, {
 } from 'reactflow';
 import {
     Plus, ZoomIn, ZoomOut, RotateCcw,
-    Cog, BookOpen, Layers, FileCode
+    Cog, BookOpen, Layers, FileCode, FolderKanban
 } from 'lucide-react';
 import 'reactflow/dist/style.css';
 
@@ -33,6 +33,7 @@ import { BlueprintNode } from './nodes/BlueprintNode';
 import { ReferenceNode } from './nodes/ReferenceNode';
 import { NoteNode } from './nodes/NoteNode';
 import { CodexNode } from './nodes/CodexNode';
+import { ArchitectNode } from './nodes/ArchitectNode';
 import { NeuralEdge } from './edges/NeuralEdge';
 import { CanvasToolbar } from './toolbar/CanvasToolbar';
 import { NexusBackground } from './NexusBackground';
@@ -44,6 +45,7 @@ const nodeTypes: NodeTypes = {
     referenceNode: ReferenceNode,
     noteNode: NoteNode,
     codexNode: CodexNode,
+    architectNode: ArchitectNode,
 };
 
 // Register custom edge types
@@ -196,6 +198,34 @@ export const MindCanvas: React.FC = () => {
         []
     );
 
+    // Handle selection change
+    const onSelectionChange = useCallback(({ nodes }: { nodes: any[] }) => {
+        useNexusStore.getState().selectNodes(nodes.map((n) => n.id));
+    }, []);
+
+    // Global Delete Key Listener (Backup for React Flow's internal handling)
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (['Delete', 'Backspace'].includes(e.key)) {
+                // Ignore if user is typing in an input
+                if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName) || (e.target as HTMLElement).isContentEditable) {
+                    return;
+                }
+
+                // Delete selected nodes
+                const { nodes, removeNode } = useNexusStore.getState();
+                const selectedIds = nodes.filter((n) => n.selected).map((n) => n.id);
+
+                if (selectedIds.length > 0) {
+                    selectedIds.forEach((id) => removeNode(id));
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     return (
         <div className="w-full h-full relative">
             <NexusBackground />
@@ -208,6 +238,7 @@ export const MindCanvas: React.FC = () => {
                 onMoveEnd={onMoveEnd}
                 onNodeDoubleClick={onNodeDoubleClick}
                 onNodeContextMenu={onNodeContextMenu}
+                onSelectionChange={onSelectionChange} // Sync selection
                 onNodesDelete={(nodesToDelete) => {
                     nodesToDelete.forEach(node => useNexusStore.getState().removeNode(node.id));
                 }}
@@ -313,7 +344,7 @@ const AddNodeFAB: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isOpen]);
 
-    const handleAddNode = (type: 'blueprint' | 'reference' | 'note' | 'codex') => {
+    const handleAddNode = (type: 'blueprint' | 'reference' | 'note' | 'codex' | 'architect') => {
         const id = crypto.randomUUID();
         const position = { x: 300 + Math.random() * 100, y: 300 + Math.random() * 100 };
         const baseNode = { id, position, type: `${type}Node` };
@@ -331,6 +362,9 @@ const AddNodeFAB: React.FC = () => {
             case 'codex':
                 addNode({ ...baseNode, data: { type: 'codex', filename: 'script.py', language: 'python', filePath: '' } });
                 break;
+            case 'architect':
+                addNode({ ...baseNode, data: { type: 'architect', title: 'New Workspace', status: 'draft' } });
+                break;
         }
         setIsOpen(false);
     };
@@ -338,26 +372,33 @@ const AddNodeFAB: React.FC = () => {
     return (
         <div className="relative" ref={menuRef}>
             {isOpen && (
-                <div className="absolute bottom-16 right-0 bg-slate-800/95 backdrop-blur-md border border-slate-700 rounded-2xl p-2 shadow-2xl min-w-[200px] animate-in fade-in slide-in-from-bottom-4 duration-200">
-                    <button onClick={() => handleAddNode('blueprint')} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-xl transition-colors">
+                <div className="absolute bottom-16 right-0 bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[200px] animate-in fade-in slide-in-from-bottom-4 duration-200">
+                    <button onClick={() => handleAddNode('architect')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-200 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+                        <FolderKanban className="w-4 h-4 text-slate-400" /> Architect Node
+                    </button>
+                    <div className="h-px bg-white/5 my-1" />
+                    <button onClick={() => handleAddNode('blueprint')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
                         <Cog className="w-4 h-4 text-emerald-400" /> Blueprint Node
                     </button>
-                    <button onClick={() => handleAddNode('reference')} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-xl transition-colors">
+                    <button onClick={() => handleAddNode('reference')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
                         <BookOpen className="w-4 h-4 text-cyan-400" /> Reference Node
                     </button>
-                    <button onClick={() => handleAddNode('note')} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-xl transition-colors">
+                    <button onClick={() => handleAddNode('note')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
                         <Layers className="w-4 h-4 text-amber-400" /> Note Node
                     </button>
-                    <button onClick={() => handleAddNode('codex')} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 rounded-xl transition-colors">
+                    <button onClick={() => handleAddNode('codex')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
                         <FileCode className="w-4 h-4 text-blue-400" /> Codex Node
                     </button>
                 </div>
             )}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(34,211,238,0.2)] transition-all duration-300 ${isOpen ? 'bg-red-500 rotate-45' : 'bg-gradient-to-br from-cyan-500 to-emerald-500 hover:scale-105'}`}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 ${isOpen
+                    ? 'bg-slate-700 rotate-45'
+                    : 'bg-slate-800 hover:bg-slate-700 border border-white/10 hover:border-white/20'
+                    }`}
             >
-                <Plus className="w-6 h-6 text-white" />
+                <Plus className={`w-5 h-5 ${isOpen ? 'text-slate-300' : 'text-slate-400'}`} />
             </button>
         </div>
     );

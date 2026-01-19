@@ -75,31 +75,28 @@ export const NoteNode: React.FC<NodeProps<NoteNodeData>> = memo(({ id, data, sel
                 }
             }}
             className={`
-                transition-all duration-500 group cursor-pointer
+                w-56 bg-slate-900/80 backdrop-blur-md rounded-lg border overflow-hidden
+                transition-all duration-200 group cursor-pointer
                 ${selected
-                    ? `${colors.border.replace('30', '50')} ${colors.glow} ring-1 ${colors.border.replace('30', '20')}`
-                    : 'border-white/10 hover:border-white/20 hover:bg-slate-900/60'
+                    ? `${colors.border.replace('30', '40')} ring-1 ${colors.border.replace('30', '10')}`
+                    : 'border-white/10 hover:border-white/15'
                 }
             `}
         >
-            <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50" />
-            </div>
-
             {/* Connection Handles */}
             <Handle
                 type="target"
                 position={Position.Left}
-                className={`!w-3 !h-3 !${colors.accent.replace('text-', 'bg-')} !border-2 !border-slate-900 !left-[-6px] !z-50 hover:!scale-125 transition-transform`}
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-left-1"
             />
             <Handle
                 type="source"
                 position={Position.Right}
-                className={`!w-3 !h-3 !${colors.accent.replace('text-', 'bg-')} !border-2 !border-slate-900 !right-[-6px] !z-50 hover:!scale-125 transition-transform`}
+                className="!w-2 !h-2 !bg-slate-500 !border-slate-700 !-right-1"
             />
 
             {/* Header Hint */}
-            <div className={`h-1 bg-gradient-to-r ${colors.header} opacity-60`} />
+            <div className={`h-0.5 bg-gradient-to-r ${colors.header} opacity-50`} />
 
             {/* Content */}
             <div className="p-4 relative">

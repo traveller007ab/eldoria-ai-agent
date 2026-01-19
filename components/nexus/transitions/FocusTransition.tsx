@@ -1,47 +1,36 @@
 /**
- * FocusTransition - Animated transition wrapper for Focus Modes
+ * FocusTransition - DIGITAL GARDEN AESTHETIC
  * 
- * Handles the cinematic "zoom in" effect when entering a room
- * and the "zoom out" effect when returning to canvas.
+ * "THE FRAME"
+ * Light/Dark compatible wrapper.
  */
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNexusStore, ViewMode } from '../../../stores/useNexusStore';
-import { Home, X } from 'lucide-react';
+import { ArrowLeft, Maximize2, Minimize2, Moon, Sun } from 'lucide-react';
 
 interface FocusTransitionProps {
     children: React.ReactNode;
     roomType: ViewMode;
     roomLabel: string;
-    accentColor: 'cyan' | 'emerald' | 'purple' | 'amber';
+    accentColor: 'cyan' | 'emerald' | 'purple' | 'amber' | 'slate';
 }
 
 const colorMap = {
-    cyan: {
-        bg: 'bg-cyan-500/10',
-        border: 'border-cyan-500/20',
-        text: 'text-cyan-400',
-        glow: 'rgba(34, 211, 238, 0.3)',
-    },
-    emerald: {
-        bg: 'bg-emerald-500/10',
-        border: 'border-emerald-500/20',
-        text: 'text-emerald-400',
-        glow: 'rgba(16, 185, 129, 0.3)',
-    },
-    purple: {
-        bg: 'bg-purple-500/10',
-        border: 'border-purple-500/20',
-        text: 'text-purple-400',
-        glow: 'rgba(139, 92, 246, 0.3)',
-    },
-    amber: {
-        bg: 'bg-amber-500/10',
-        border: 'border-amber-500/20',
-        text: 'text-amber-400',
-        glow: 'rgba(245, 158, 11, 0.3)',
-    },
+    cyan: 'text-teal-600 dark:text-teal-400',
+    emerald: 'text-emerald-600 dark:text-emerald-400',
+    purple: 'text-violet-600 dark:text-violet-400',
+    amber: 'text-amber-600 dark:text-amber-400',
+    slate: 'text-stone-600 dark:text-stone-400',
+};
+
+const dotMap = {
+    cyan: 'bg-teal-500',
+    emerald: 'bg-emerald-500',
+    purple: 'bg-violet-500',
+    amber: 'bg-amber-500',
+    slate: 'bg-stone-500',
 };
 
 export const FocusTransition: React.FC<FocusTransitionProps> = ({
@@ -50,110 +39,141 @@ export const FocusTransition: React.FC<FocusTransitionProps> = ({
     roomLabel,
     accentColor
 }) => {
-    const { viewMode, exitRoom, focusedNodeId, getNodeById, isZenMode, toggleZenMode } = useNexusStore();
+    const {
+        viewMode, exitRoom, focusedNodeId, getNodeById,
+        isZenMode, toggleZenMode, isDarkMode, toggleDarkMode
+    } = useNexusStore();
+
     const node = focusedNodeId ? getNodeById(focusedNodeId) : null;
-    const colors = colorMap[accentColor];
     const isActive = viewMode === roomType;
+
+    const textColor = colorMap[accentColor] || 'text-stone-600 dark:text-stone-400';
+    const dotColor = dotMap[accentColor] || 'bg-stone-500';
+
+    const transition = { duration: 0.4, ease: [0.16, 1, 0.3, 1] };
+
+    // Background changes based on theme
+    const bgClass = isDarkMode
+        ? 'bg-[#0F0F12]' // Deep charcoal for Moonlit Garden
+        : 'bg-gradient-to-br from-stone-100 to-stone-200'; // Warm stone for Sunlit Garden
 
     return (
         <AnimatePresence mode="wait">
             {isActive && (
                 <motion.div
                     key={roomType}
-                    className={`fixed inset-0 bg-slate-950 ${isZenMode ? 'z-[100000]' : 'z-50 pl-16'}`}
-                    initial={{ opacity: 0, scale: 1.1 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{
-                        duration: 0.4,
-                        ease: [0.22, 1, 0.36, 1] // Custom easing for smooth feel
-                    }}
+                    className={`fixed top-8 bottom-0 right-0 left-16 z-50 flex flex-col ${bgClass} transition-colors duration-500`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
                 >
-                    {/* Entry flash effect */}
-                    <motion.div
-                        className="absolute inset-0 pointer-events-none"
-                        initial={{ opacity: 0.5 }}
-                        animate={{ opacity: 0 }}
-                        transition={{ duration: 0.6 }}
-                        style={{
-                            background: `radial-gradient(circle at center, ${colors.glow} 0%, transparent 70%)`
-                        }}
-                    />
-
-                    {/* Room Header - Offset by TitleBar height (h-8) */}
+                    {/* Header Bar */}
                     <AnimatePresence>
                         {!isZenMode && (
-                            <motion.div
-                                className="absolute top-8 left-0 right-0 z-50 h-14 bg-slate-900/80 backdrop-blur-md border-b border-white/5"
-                                style={{ left: isZenMode ? 0 : '4rem' }} // 4rem = 16 (matches sidebar width)
+                            <motion.header
+                                className={`h-14 border-b flex items-center justify-between px-4 md:px-6 shrink-0 z-[60] backdrop-blur-xl transition-colors duration-500
+                                    ${isDarkMode
+                                        ? 'bg-[#151518]/70 border-white/[0.06]'
+                                        : 'bg-white/70 border-stone-200/50'
+                                    }`}
                                 initial={{ y: -56 }}
                                 animate={{ y: 0 }}
-                                exit={{ y: -70 }}
-                                transition={{ duration: 0.3 }}
+                                exit={{ y: -56 }}
+                                transition={transition}
                             >
-                                <div className="h-full flex items-center justify-between px-6">
-                                    {/* Left: Exit Button */}
-                                    <motion.button
-                                        onClick={exitRoom}
-                                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full text-sm font-medium text-slate-300 hover:text-white transition-all group"
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                    >
-                                        <Home className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                                        <span>Exit to Canvas</span>
-                                    </motion.button>
+                                {/* Left: Back */}
+                                <button
+                                    onClick={exitRoom}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all group
+                                        ${isDarkMode
+                                            ? 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]'
+                                            : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
+                                        }`}
+                                >
+                                    <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                                    <span className="text-sm font-medium">Back</span>
+                                </button>
 
-                                    {/* Center: Room Label */}
-                                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
-                                        <div className={`flex items-center gap-2 px-4 py-1.5 ${colors.bg} border ${colors.border} rounded-full`}>
-                                            <div className={`w-2 h-2 rounded-full ${colors.text.replace('text-', 'bg-')} animate-pulse`} />
-                                            <span className={`text-xs font-bold ${colors.text} uppercase tracking-widest`}>
-                                                {roomLabel}
-                                            </span>
-                                        </div>
-                                        {node && (
-                                            <span className="text-sm text-slate-400">
-                                                — {(node.data as any).name || (node.data as any).title || 'Untitled'}
-                                            </span>
-                                        )}
+                                {/* Center: Identity */}
+                                <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
+                                    <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-sm border transition-colors duration-500
+                                        ${isDarkMode
+                                            ? 'bg-[#1A1A1D]/80 border-white/[0.06]'
+                                            : 'bg-white/80 border-stone-200/50'
+                                        }`}>
+                                        <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+                                        <span className={`text-sm font-semibold ${textColor}`}>{roomLabel}</span>
                                     </div>
-
-                                    {/* Right: Close Button */}
-                                    <motion.button
-                                        onClick={exitRoom}
-                                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </motion.button>
+                                    {node && (
+                                        <span className={`text-sm hidden md:inline transition-colors duration-500
+                                            ${isDarkMode ? 'text-zinc-500' : 'text-stone-400'}
+                                        `}>
+                                            {(node.data as any).name || (node.data as any).title || 'Untitled'}
+                                        </span>
+                                    )}
                                 </div>
-                            </motion.div>
+
+                                {/* Right: Controls */}
+                                <div className="flex items-center gap-2">
+                                    {/* Theme Toggle */}
+                                    <button
+                                        onClick={toggleDarkMode}
+                                        className={`p-2 rounded-xl transition-all
+                                            ${isDarkMode
+                                                ? 'text-amber-400 hover:bg-white/[0.06]'
+                                                : 'text-violet-600 hover:bg-stone-100'
+                                            }`}
+                                        title={isDarkMode ? "Switch to Sunlit Garden" : "Switch to Moonlit Garden"}
+                                    >
+                                        {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                                    </button>
+
+                                    {/* Zen Toggle */}
+                                    <button
+                                        onClick={toggleZenMode}
+                                        className={`p-2 rounded-xl transition-all
+                                            ${isDarkMode
+                                                ? 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]'
+                                                : 'text-stone-400 hover:text-stone-700 hover:bg-stone-100'
+                                            }`}
+                                        title="Toggle Zen Mode"
+                                    >
+                                        <Maximize2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </motion.header>
                         )}
                     </AnimatePresence>
 
-                    {/* Room Content */}
-                    <motion.div
-                        className={`h-full transition-all duration-500 ${isZenMode ? 'pt-0' : 'pt-[88px]'}`} // 32px (TitleBar) + 56px (RoomBar)
-                        initial={{ opacity: 0, y: 20 }}
+                    {/* Stage */}
+                    <motion.main
+                        className="flex-1 relative w-full h-full overflow-hidden" // Removed redundant layout constraints
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.25, duration: 0.35 }}
+                        transition={{ ...transition, delay: 0.1 }}
                     >
                         {children}
-                    </motion.div>
 
-                    {/* Quick Zen Toggle (Visible only when hovering bottom or in Zen mode) */}
-                    {isZenMode && (
-                        <motion.button
-                            onClick={toggleZenMode}
-                            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-cyan-400 transition-all shadow-2xl"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            whileHover={{ scale: 1.05 }}
-                        >
-                            Exit Zen Mode
-                        </motion.button>
-                    )}
+                        {/* Exit Zen Button */}
+                        <AnimatePresence>
+                            {isZenMode && (
+                                <motion.button
+                                    className={`absolute top-4 right-4 p-2.5 backdrop-blur-md rounded-xl shadow-lg transition-all z-[100]
+                                        ${isDarkMode
+                                            ? 'bg-[#151518]/80 text-zinc-400 hover:text-white'
+                                            : 'bg-white/80 text-stone-500 hover:text-stone-800'
+                                        }`}
+                                    onClick={toggleZenMode}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                >
+                                    <Minimize2 className="w-4 h-4" />
+                                </motion.button>
+                            )}
+                        </AnimatePresence>
+                    </motion.main>
                 </motion.div>
             )}
         </AnimatePresence>

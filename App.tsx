@@ -83,6 +83,34 @@ const AppContent: React.FC = () => {
     }
   }, [onboardingPhase]);
 
+  // Phase 7: Deep Integration - Push Nexus State to AI Context
+  // This allows the "Classic Chat" to know what's happening on the Canvas
+  useEffect(() => {
+    // Dynamic import to avoid cycles or ensure store exists
+    import('./stores/useNexusStore').then(({ useNexusStore }) => {
+      const unsub = useNexusStore.subscribe((state) => {
+        import('./services/ContextService').then(({ contextService }) => {
+          contextService.updateNexusState({
+            nodeCount: state.nodes.length,
+            edgeCount: state.edges.length,
+            viewMode: state.viewMode,
+            selectedNodes: state.nodes
+              .filter(n => state.selectedNodeIds.includes(n.id))
+              .map(n => ({
+                id: n.id,
+                type: n.type,
+                label: n.data?.label || n.data?.title || 'Untitled',
+                preview: typeof n.data?.content === 'string'
+                  ? n.data.content.substring(0, 100)
+                  : 'Complex Data'
+              }))
+          });
+        });
+      });
+      return () => unsub();
+    });
+  }, []);
+
   const handleLevelSelect = (level: 'newbie' | 'intermediate' | 'expert') => {
     if (level === 'expert') {
       completeOnboarding();

@@ -1,8 +1,8 @@
 /**
- * FocusModeContainer - Manages Focus Room rendering
+ * FocusModeContainer - The Stage Manager
  * 
- * Renders the appropriate room based on the current view mode
- * with smooth transitions handled by FocusTransition.
+ * Manages the mounting of focus rooms.
+ * Updated to support the "Obsidian Frame" system.
  */
 
 import React, { Suspense } from 'react';
@@ -15,13 +15,14 @@ const EngineRoom = React.lazy(() => import('./rooms/EngineRoom'));
 const ReadingRoom = React.lazy(() => import('./rooms/ReadingRoom'));
 const WritingStudy = React.lazy(() => import('./rooms/WritingStudy'));
 const CodexLab = React.lazy(() => import('./rooms/CodexLab'));
+const ArchitectWorkspace = React.lazy(() => import('./ArchitectWorkspace'));
 
-// Loading fallback
+// Minimal Loader in the Void
 const RoomLoader: React.FC = () => (
-    <div className="h-full w-full flex items-center justify-center bg-slate-950">
+    <div className="h-full w-full flex items-center justify-center bg-[#050505]">
         <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
-            <span className="text-sm text-slate-400">Loading room...</span>
+            <Loader2 className="w-5 h-5 text-zinc-700 animate-spin" />
+            <span className="text-[10px] font-mono text-zinc-700 uppercase tracking-[0.2em]">Initializing Environment...</span>
         </div>
     </div>
 );
@@ -36,7 +37,7 @@ export const FocusModeContainer: React.FC = () => {
 
     return (
         <Suspense fallback={<RoomLoader />}>
-            {/* Engine Room - for Blueprints */}
+            {/* Engine Room */}
             <FocusTransition
                 roomType="engine_room"
                 roomLabel="Engine Room"
@@ -45,7 +46,7 @@ export const FocusModeContainer: React.FC = () => {
                 <EngineRoom nodeId={focusedNodeId} />
             </FocusTransition>
 
-            {/* Reading Room - for References */}
+            {/* Reading Room */}
             <FocusTransition
                 roomType="reading_room"
                 roomLabel="Reading Room"
@@ -54,7 +55,7 @@ export const FocusModeContainer: React.FC = () => {
                 <ReadingRoom nodeId={focusedNodeId} />
             </FocusTransition>
 
-            {/* Writing Study - for Notes */}
+            {/* Writing Study */}
             <FocusTransition
                 roomType="writing_study"
                 roomLabel="Writing Study"
@@ -63,13 +64,22 @@ export const FocusModeContainer: React.FC = () => {
                 <WritingStudy nodeId={focusedNodeId} />
             </FocusTransition>
 
-            {/* Codex Lab - for Code */}
+            {/* Codex Lab */}
             <FocusTransition
                 roomType="codex_lab"
                 roomLabel="Codex Lab"
                 accentColor="amber"
             >
                 <CodexLab nodeId={focusedNodeId} />
+            </FocusTransition>
+
+            {/* Architect Workspace */}
+            <FocusTransition
+                roomType="architect_workspace"
+                roomLabel="Architect Workspace"
+                accentColor="slate"
+            >
+                <ArchitectWorkspace />
             </FocusTransition>
         </Suspense>
     );
