@@ -28,6 +28,8 @@ export const ReadingRoom: React.FC<ReadingRoomProps> = ({ nodeId }) => {
     const [loading, setLoading] = useState(true);
     const [content, setContent] = useState<string>('');
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+    const [showLibrary, setShowLibrary] = useState(true);
+    const [showNotes, setShowNotes] = useState(false);
 
     // Initial Load
     React.useEffect(() => {
