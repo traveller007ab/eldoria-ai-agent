@@ -255,7 +255,6 @@ export const ReadingRoom: React.FC<ReadingRoomProps> = ({ nodeId }) => {
         );
     }
 };
-};
 
 // --- Subcomponents ---
 
