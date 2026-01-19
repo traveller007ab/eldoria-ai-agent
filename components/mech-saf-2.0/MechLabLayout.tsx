@@ -30,7 +30,11 @@ import { FluidComposerDialog } from './FluidComposerDialog';
 
 type RightPanelTab = 'properties' | 'results' | 'analysis' | 'diagnostics';
 
-export const MechLabLayout: React.FC = () => {
+interface MechLabLayoutProps {
+    hideHeader?: boolean;
+}
+
+export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
     const {
         isPropertiesPanelOpen,
         togglePropertiesPanel,
@@ -101,24 +105,32 @@ export const MechLabLayout: React.FC = () => {
     const handleRunSimulation = async () => {
         if (!currentBlueprint) return;
         setIsSimulating(true);
+        const { setSimulationProgress } = useMechStore.getState();
+        setSimulationProgress(0);
         setLastSimulationResult(null); // Clear previous
         addLog('Starting static simulation...', 'info');
 
         try {
-            const result = await SimulationService.run(currentBlueprint);
+            const result = await SimulationService.run(currentBlueprint, false, (progress, stage) => {
+                setSimulationProgress(progress);
+                addLog(`[${progress}%] ${stage}`, 'info');
+            });
             setLastSimulationResult(result);
 
             if (result.status === 'completed') {
+                setSimulationProgress(100);
                 addLog(`Simulation completed in ${result.duration}ms.`, 'success');
                 if (result.diagnostics.convergence.converged) {
                     setRightPanelTab('results');
                 }
             } else {
+                setSimulationProgress(0);
                 addLog(`Simulation failed to converge.`, 'error');
                 result.issues.forEach(i => addLog(`[${i.severity}] ${i.message}`, i.severity === 'critical' ? 'error' : 'warning'));
             }
         } catch (error) {
             console.error(error);
+            setSimulationProgress(0);
             addLog(`Simulation error: ${error}`, 'error');
             setLastSimulationResult({
                 id: crypto.randomUUID(),
@@ -251,8 +263,14 @@ export const MechLabLayout: React.FC = () => {
     };
 
     const getStatusDisplay = () => {
+        const { simulationProgress } = useMechStore();
         if (isSimulating) {
-            return <><Loader2 className="w-3 h-3 animate-spin" /> Simulating...</>;
+            return (
+                <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
+                    <span className="font-bold text-cyan-400">Solving: {Math.round(simulationProgress)}%</span>
+                </div>
+            );
         }
         if (lastSimulationResult?.status === 'completed') {
             return (
@@ -373,129 +391,122 @@ export const MechLabLayout: React.FC = () => {
             )}
 
             {/* Header */}
-            <header className="h-10 bg-[#0f1014] border-b border-slate-700 flex items-center justify-between px-0 shrink-0 z-50">
-                <div className="flex-1">
-                    <TopMenu
-                        onLoadTemplate={handleLoadTemplate}
-                        onSaveProject={handleSaveProject}
-                        onOpenMissions={() => setIsMissionsModalOpen(true)}
-                        onOpenAIDesign={() => setIsAIDesignModalOpen(true)}
-                        onExport={handleExport}
-                    />
-                </div>
-
-                <div className="flex items-center gap-4 px-4 border-l border-slate-800">
-                    <button
-                        onClick={handleRunSimulation}
-                        disabled={isSimulating || !currentBlueprint?.components.length}
-                        className="flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium transition-all border border-slate-600 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
-                        title="Run Static Analysis (Ctrl+Enter)"
-                    >
-                        {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                        <span className="hidden xl:inline">{isSimulating ? 'Simulating...' : 'Run Analysis'}</span>
-                    </button>
-
-                    <button
-                        onClick={isSimulating ? undefined : handleRunDynamic}
-                        className={`flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium transition-all border border-slate-600 ${isSimulating
-                            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                            : 'bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300'
-                            }`}
-
-                        title="Run Dynamic Simulation (60s)"
-                    >
-                        <Activity className="w-4 h-4" />
-                        <span className="hidden xl:inline">Dynamic</span>
-                    </button>
-
-                    <div className="h-6 w-px bg-slate-700 mx-2" />
-
-                    <button
-                        onClick={() => setIsHelpModalOpen(true)}
-                        className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
-                        title="Help (F1)"
-                    >
-                        <HelpCircle className="w-4 h-4" />
-                    </button>
-
-                    <div className="h-6 w-px bg-slate-700" />
-
-                    {/* <nav className="flex gap-1 text-sm text-slate-400">
-                        <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">File</button>
-                        <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">Edit</button>
-                        <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">View</button>
-                    </nav> */}
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-1.5 text-slate-400 hover:text-white px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-slate-700"
-                        title="Import Blueprint (JSON)"
-                    >
-                        <Upload className="w-4 h-4" />
-                    </button>
-
-                    {/* <button
-                        onClick={handleSaveProject}
-                        disabled={!currentBlueprint?.components.length || isSaving}
-                        className="flex items-center gap-1.5 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-slate-700"
-                        title="Save Project (Ctrl+S)"
-                    >
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    </button> */}
-
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowExportMenu(!showExportMenu)}
-                            disabled={!currentBlueprint?.components.length}
-                            className="flex items-center gap-1.5 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-slate-700"
-                            title="Export"
-                        >
-                            <Download className="w-4 h-4" />
-                            <ChevronDown className="w-3 h-3" />
-                        </button>
-
-                        {showExportMenu && (
-                            <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[180px] z-50">
-                                <button
-                                    onClick={handleExportJSON}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
-                                >
-                                    <FileJson className="w-4 h-4" />
-                                    Export as JSON
-                                </button>
-                                <button
-                                    onClick={handleExportModelica}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
-                                >
-                                    <FileCode className="w-4 h-4" />
-                                    Export as Modelica
-                                </button>
-                                {lastSimulationResult && (
-                                    <button
-                                        onClick={handleExportResultsCSV}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
-                                    >
-                                        <Table className="w-4 h-4" />
-                                        Export Results (CSV)
-                                    </button>
-                                )}
-                            </div>
-                        )}
+            {!hideHeader && (
+                <header className="h-10 bg-[#0f1014] border-b border-slate-700 flex items-center justify-between px-0 shrink-0 z-50">
+                    <div className="flex-1">
+                        <TopMenu
+                            onLoadTemplate={handleLoadTemplate}
+                            onSaveProject={handleSaveProject}
+                            onOpenMissions={() => setIsMissionsModalOpen(true)}
+                            onOpenAIDesign={() => setIsAIDesignModalOpen(true)}
+                            onExport={handleExport}
+                        />
                     </div>
 
-                    <div className="h-6 w-px bg-slate-700 mx-1" />
+                    <div className="flex items-center gap-4 px-4 border-l border-slate-800">
+                        <button
+                            onClick={handleRunSimulation}
+                            disabled={isSimulating || !currentBlueprint?.components.length}
+                            className="flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium transition-all border border-slate-600 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
+                            title="Run Static Analysis (Ctrl+Enter)"
+                        >
+                            {isSimulating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                            <span className="hidden xl:inline">{isSimulating ? 'Simulating...' : 'Run Analysis'}</span>
+                        </button>
 
-                    <button
-                        onClick={togglePropertiesPanel}
-                        className={`p-2 rounded-md transition-colors ${isPropertiesPanelOpen ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                        title="Toggle Right Panel (Ctrl+P)"
-                    >
-                        <PanelLeft className="w-5 h-5 rotate-180" />
-                    </button>
-                </div>
-            </header>
+                        <button
+                            onClick={isSimulating ? undefined : handleRunDynamic}
+                            className={`flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium transition-all border border-slate-600 ${isSimulating
+                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                : 'bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-cyan-300'
+                                }`}
+
+                            title="Run Dynamic Simulation (60s)"
+                        >
+                            <Activity className="w-4 h-4" />
+                            <span className="hidden xl:inline">Dynamic</span>
+                        </button>
+
+                        <div className="h-6 w-px bg-slate-700 mx-2" />
+
+                        <button
+                            onClick={() => setIsHelpModalOpen(true)}
+                            className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
+                            title="Help (F1)"
+                        >
+                            <HelpCircle className="w-4 h-4" />
+                        </button>
+
+                        <div className="h-6 w-px bg-slate-700" />
+
+                        {/* <nav className="flex gap-1 text-sm text-slate-400">
+                            <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">File</button>
+                            <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">Edit</button>
+                            <button className="hover:text-white transition-colors px-2 py-1 rounded hover:bg-slate-700">View</button>
+                        </nav> */}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-1.5 text-slate-400 hover:text-white px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-slate-700"
+                            title="Import Blueprint (JSON)"
+                        >
+                            <Upload className="w-4 h-4" />
+                        </button>
+
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowExportMenu(!showExportMenu)}
+                                disabled={!currentBlueprint?.components.length}
+                                className="flex items-center gap-1.5 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed px-2 py-1.5 rounded-md text-sm transition-colors hover:bg-slate-700"
+                                title="Export"
+                            >
+                                <Download className="w-4 h-4" />
+                                <ChevronDown className="w-3 h-3" />
+                            </button>
+
+                            {showExportMenu && (
+                                <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[180px] z-50">
+                                    <button
+                                        onClick={handleExportJSON}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
+                                    >
+                                        <FileJson className="w-4 h-4" />
+                                        Export as JSON
+                                    </button>
+                                    <button
+                                        onClick={handleExportModelica}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
+                                    >
+                                        <FileCode className="w-4 h-4" />
+                                        Export as Modelica
+                                    </button>
+                                    {lastSimulationResult && (
+                                        <button
+                                            onClick={handleExportResultsCSV}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
+                                        >
+                                            <Table className="w-4 h-4" />
+                                            Export Results (CSV)
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="h-6 w-px bg-slate-700 mx-1" />
+
+                        <button
+                            onClick={togglePropertiesPanel}
+                            className={`p-2 rounded-md transition-colors ${isPropertiesPanelOpen ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                            title="Toggle Right Panel (Ctrl+P)"
+                        >
+                            <PanelLeft className="w-5 h-5 rotate-180" />
+                        </button>
+                    </div>
+                </header>
+            )}
 
             {/* Hidden file input */}
             <div className="flex flex-1 overflow-hidden relative">

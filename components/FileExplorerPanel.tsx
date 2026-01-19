@@ -116,6 +116,15 @@ const CanvasItem: React.FC<CanvasItemProps> = ({ canvas, isActive }) => {
 
   return (
     <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/reactflow', JSON.stringify({
+          type: 'canvas-import',
+          id: canvas.id,
+          name: canvas.name
+        }));
+        e.dataTransfer.effectAllowed = 'move';
+      }}
       onClick={() => !isRenaming && !isPendingDeletion && selectCanvas(canvas.id)}
       onDoubleClick={() => !isPendingDeletion && setIsRenaming(true)}
       className={`${baseClasses} ${getDynamicClasses()}`}

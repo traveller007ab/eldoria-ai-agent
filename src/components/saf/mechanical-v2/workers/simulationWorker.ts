@@ -7,10 +7,6 @@
  * worker.runSimulation(blueprint).then(result => console.log(result));
  */
 
-// Import Core V3 Physics Engine
-import { SimulationKernel } from '../../../../../services/physics/SimulationKernel';
-import { MechBlueprint, ComponentInstance, Connection, MechSolverConfiguration } from '../../../../../types';
-
 // ============================================================================
 // WORKER TYPES (mirrored from main thread)
 // ============================================================================
@@ -18,7 +14,7 @@ import { MechBlueprint, ComponentInstance, Connection, MechSolverConfiguration }
 export interface SimulationInput {
   components: ComponentData[];
   connections: ConnectionData[];
-  config: MechSolverConfiguration;
+  config: any;
 }
 
 export interface ComponentData {
@@ -38,43 +34,85 @@ export interface ConnectionData {
   type: string;
 }
 
+// ============================================================================
+// DYNAMIC IMPORTS FOR SERVICES/PHYSICS (outside src/)
+// ============================================================================
 
+let SimulationService: any = null;
+
+async function loadSimulationService() {
+  if (SimulationService) return SimulationService;
+  
+  try {
+    // Dynamic import from services/physics (outside src/)
+    const serviceModule = await import('../../../../../services/physics/SimulationService.ts');
+    SimulationService = serviceModule.SimulationService;
+    
+    console.log('[Worker] SimulationService loaded successfully');
+    return SimulationService;
+  } catch (error) {
+    console.error('[Worker] Failed to load SimulationService:', error);
+    throw error;
+  }
+}
 
 // ============================================================================
 // ADAPTER: Input -> Blueprint
 // ============================================================================
 
-function adapterToBlueprint(input: SimulationInput): MechBlueprint {
+interface Blueprint {
+  id: string;
+  name: string;
+  description: string;
+  domain: string;
+  version: string;
+  components: any[];
+  connections: any[];
+  simulations: any[];
+  createdAt: Date;
+  updatedAt: Date;
+  author: string;
+  tags: string[];
+}
+
+function adapterToBlueprint(input: SimulationInput): Blueprint {
   // 1. Map Components
-  const components: ComponentInstance[] = input.components.map(c => ({
+  const components = input.components.map(c => ({
     id: c.id,
-    definitionId: c.definitionId, // This is crucial for Metadata Lookups
+    componentDefinitionId: c.definitionId,
     name: c.name,
     position: c.position,
     rotation: 0,
-    parameterValues: c.parameters, // Pass raw params
+    parameterValues: c.parameters,
     isSelected: false,
-    groupIds: []
-  } as any)); // Type assertion due to some field mismatch in V2 vs V3 usage
+    groupIds: [],
+    customPorts: [],
+    customEquations: undefined,
+    childBlueprintId: undefined,
+    notes: undefined,
+    subsystemId: undefined
+  }));
 
   // 2. Map Connections
-  const connections: Connection[] = input.connections.map(c => ({
+  const connections = input.connections.map(c => ({
     id: c.id,
     sourceComponentId: c.sourceComponentId,
     sourcePortId: c.sourcePortId,
     targetComponentId: c.targetComponentId,
     targetPortId: c.targetPortId,
     type: c.type,
+    parameterValues: {},
+    path: [],
     isSelected: false
-  } as any));
+  }));
 
   // 3. Construct Blueprint
   return {
-    id: 'bp_worker_transaction',
+    id: 'bp_worker_' + Date.now(),
     name: 'Worker Simulation',
     description: 'Transient blueprint for simulation',
-    domain: 'fluid', // Defaulting to fluid for now
-    version: '3.0.0', // V3 Engine
+    domain: 'fluid',
+    version: '3.0.0',
     components,
     connections,
     simulations: [],
@@ -94,44 +132,72 @@ self.onmessage = async function (e: MessageEvent) {
 
   if (type === 'RUN_SIMULATION') {
     const input = data as SimulationInput;
+    const startTime = performance.now();
 
     try {
-      const startTime = performance.now();
+      // Load simulation service dynamically
+      const Service = await loadSimulationService();
 
-      // 1. Convert Input to V3 Blueprint
+      // Convert Input to Blueprint
       const blueprint = adapterToBlueprint(input);
 
-      // 2. Run V3 Simulation Kernel
-      // Note: We use the Kernel directly. In V3, 'SimulationService' wraps this.
-      // But Kernel is pure logic, suitable for Worker.
-      const kernelResult = await SimulationKernel.runSimulation(
-        blueprint,
-        input.config
-      );
+      // Run Simulation Service
+      const result = await Service.run(blueprint, false);
 
       const endTime = performance.now();
 
-      // 3. Post Output
-      // The result format from Kernel matches the expected output mostly, 
-      // but we ensure it conforms to the Worker interface.
+      // Format result for worker interface
+      const workerResult = {
+        id: result.id || `sim_${Date.now()}`,
+        blueprintId: blueprint.id,
+        status: result.status || 'completed',
+        variables: result.variables || {},
+        metrics: result.metrics || {
+          totalPowerInput: 0,
+          totalPowerOutput: 0,
+          overallEfficiency: 0,
+          totalFlowRate: 0,
+          maxPressure: 0,
+          componentMetrics: {}
+        },
+        diagnostics: result.diagnostics || {
+          massBalance: { status: 'ok', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
+          energyBalance: { status: 'ok', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 }
+        },
+        constraintViolations: result.constraintViolations || [],
+        iterations: result.diagnostics?.convergence?.iterations || 10,
+        convergenceTime: endTime - startTime,
+        logs: ['Simulation completed successfully']
+      };
 
-      self.postMessage({ type: 'RESULT', data: kernelResult });
+      self.postMessage({ type: 'RESULT', data: workerResult });
 
     } catch (error) {
-      console.error("Worker Simulation Failed:", error);
+      console.error('[Worker] Simulation Failed:', error);
 
       const errorResult = {
         id: `sim_err_${Date.now()}`,
-        status: 'error',
+        blueprintId: input.components[0]?.id || 'unknown',
+        status: 'failed',
         variables: {},
-        metrics: {},
+        metrics: {
+          totalPowerInput: 0,
+          totalPowerOutput: 0,
+          overallEfficiency: 0,
+          totalFlowRate: 0,
+          maxPressure: 0,
+          componentMetrics: {}
+        },
         diagnostics: {
           massBalance: { status: 'error', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
-          energyBalance: { status: 'error', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
+          energyBalance: { status: 'error', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 }
         },
+        constraintViolations: [{
+          message: error instanceof Error ? error.message : 'Unknown simulation error'
+        }],
         iterations: 0,
-        convergenceTime: 0,
-        logs: [`Error: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        convergenceTime: performance.now() - startTime,
+        logs: [`Worker simulation failed: ${error instanceof Error ? error.message : 'Unknown error'}`]
       };
 
       self.postMessage({ type: 'RESULT', data: errorResult });

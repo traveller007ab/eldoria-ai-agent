@@ -17,24 +17,50 @@ import { OnboardingTour } from './components/onboarding/OnboardingTour';
 import { EldoriaLogo } from './components/Icons';
 import { DownloadHub } from './components/DownloadHub';
 import { TitleBar } from './components/layout/TitleBar';
+import { MechanicalBackground } from './components/layout/MechanicalBackground';
 import { MechLabLayout } from './components/mech-saf-2.0/MechLabLayout';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { MindCanvas } from './components/nexus/MindCanvas';
+import { FocusModeContainer } from './components/nexus/FocusModeContainer';
+import { ReactFlowProvider } from 'reactflow';
+import { Layout, Compass } from 'lucide-react';
 import { Sun, Moon } from 'lucide-react';
 
+type WorkspaceMode = 'classic' | 'canvas';
+
 const IdeWorkspace: React.FC = () => {
-  const { isTerminalVisible, isTerminalExpanded } = useWorkspace();
+  const { isTerminalVisible, isTerminalExpanded, workspaceMode } = useWorkspace();
   const isReallyExpanded = isTerminalVisible && isTerminalExpanded;
 
   return (
-    <div className="flex-grow flex p-4 gap-4 overflow-hidden">
-      {!isReallyExpanded && <FileExplorerPanel />}
-      <div className="flex-grow flex flex-col h-full gap-4 overflow-hidden min-h-0">
-        <div className={`flex-grow flex flex-col md:flex-row gap-4 overflow-hidden min-h-0 ${isReallyExpanded ? 'opacity-20 pointer-events-none scale-[0.98]' : 'opacity-100'} transition-all duration-500`}>
-          <EditorPanel />
-          <OutputPanel />
+    <div className="flex-grow flex flex-col overflow-hidden relative">
+
+      {/* Classic Mode */}
+      {workspaceMode === 'classic' && (
+        <div className="flex-grow flex p-4 gap-4 overflow-hidden">
+          {!isReallyExpanded && <FileExplorerPanel />}
+          <div className="flex-grow flex flex-col h-full gap-4 overflow-hidden min-h-0">
+            <div className={`flex-grow flex flex-col md:flex-row gap-4 overflow-hidden min-h-0 ${isReallyExpanded ? 'opacity-20 pointer-events-none scale-[0.98]' : 'opacity-100'} transition-all duration-500`}>
+              <EditorPanel />
+              <OutputPanel />
+            </div>
+            {isTerminalVisible && <TerminalPanel />}
+          </div>
         </div>
-        {isTerminalVisible && <TerminalPanel />}
-      </div>
+      )}
+
+      {/* Canvas Mode */}
+      {workspaceMode === 'canvas' && (
+        <div className="flex-grow flex p-4 gap-4 overflow-hidden">
+          {!isReallyExpanded && <FileExplorerPanel />}
+          <div className="flex-grow relative bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden">
+            <ReactFlowProvider>
+              <MindCanvas />
+              <FocusModeContainer />
+            </ReactFlowProvider>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -104,9 +130,9 @@ const AppContent: React.FC = () => {
       </button>
 
       <TitleBar />
-      <div className="animated-bg"></div>
+      <MechanicalBackground />
 
-      <div className="fixed bottom-12 right-12 w-64 h-64 opacity-[0.07] pointer-events-none select-none z-[1]">
+      <div className="fixed bottom-12 right-12 w-64 h-64 opacity-[0.05] pointer-events-none select-none z-[0] mix-blend-overlay">
         <EldoriaLogo className="w-full h-full text-cyan-400" />
       </div>
 
@@ -123,6 +149,7 @@ const AppContent: React.FC = () => {
             <Route path="/mech-saf-lab" element={<MechLabLayout />} />
             <Route path="/mech-saf-lab-v2" element={<MechLabLayout />} />
             <Route path="/download-hub" element={<DownloadHub />} />
+
           </Routes>
           <StatusBar />
         </div>

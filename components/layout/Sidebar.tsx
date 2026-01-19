@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Layout, GraduationCap, Terminal, Settings, Database, Loader2, LogOut, DownloadCloud, BookOpen, FlaskConical, Cpu } from 'lucide-react';
+import { Layout, GraduationCap, Terminal, Settings, Database, Loader2, LogOut, DownloadCloud, BookOpen, FlaskConical, Cpu, Compass } from 'lucide-react';
 import { KnowledgeIndexModal } from '../modals/KnowledgeIndexModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { EldoriaLogo } from '../Icons';
@@ -55,7 +55,6 @@ export const Sidebar: React.FC = () => {
                 >
                     <FlaskConical className="w-6 h-6 group-hover:scale-110 transition-transform" />
                 </NavLink>
-
 
 
                 <NavLink

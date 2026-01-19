@@ -81,7 +81,7 @@ export class OptimizerService {
         let evaluations = 0;
         const constraintViolations: string[] = [];
 
-        const generateGridPoints(params: OptimizationParameter[], indices: number[], depth: number = 0): Record<string, number>[] => {
+        const generateGridPoints = (params: OptimizationParameter[], indices: number[], depth: number = 0): Record<string, number>[] => {
             if (depth === params.length) {
                 return [{}];
             }

@@ -20,6 +20,7 @@ import {
   createComponentId,
   DEFAULT_SOLVER_CONFIG,
 } from '../types';
+import { ExpressionEvaluator } from './expressionEvaluator';
 
 /**
  * Base class for all mechanical components.
@@ -229,22 +230,18 @@ export abstract class ComponentBase {
   }
   
   /**
-   * Simple expression evaluator
-   * Note: Replace with math.js for complex expressions
+   * Secure expression evaluator using mathjs
+   * Replaces unsafe new Function() with ExpressionEvaluator
    */
   protected evaluateExpression(expr: string, vars: Record<string, number>): number {
-    // Create a safe evaluation function
-    const keys = Object.keys(vars);
-    const values = Object.values(vars);
+    const result = ExpressionEvaluator.evaluate(expr, vars);
     
-    try {
-      // Very basic evaluation - replace with math.js for production
-      const fn = new Function(...keys, `return ${expr};`);
-      return fn(...values);
-    } catch (error) {
-      console.error(`Failed to evaluate expression: ${expr}`, error);
-      return NaN;
+    if (result.success) {
+      return result.value;
     }
+    
+    console.error(`Failed to evaluate expression: ${expr}`, result.error);
+    return NaN;
   }
   
   // =========================================================================

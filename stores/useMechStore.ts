@@ -21,6 +21,7 @@ interface MechLabState {
     lastSimulationResult: MechSimulationResult | null;
     lastStaticResult: MechSimulationResult | null;
     isSimulating: boolean;
+    simulationProgress: number; // 0 to 100
 
     // Playback State
     playbackTime: number;
@@ -83,6 +84,7 @@ interface MechLabState {
 
     // Simulation
     setIsSimulating: (val: boolean) => void;
+    setSimulationProgress: (progress: number) => void;
 
     setLastSimulationResult: (result: MechSimulationResult | null) => void;
     setLastStaticResult: (result: MechSimulationResult | null) => void;
@@ -133,6 +135,7 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     lastSimulationResult: null,
     lastStaticResult: null,
     isSimulating: false,
+    simulationProgress: 0,
 
     // Playback Defaults
     playbackTime: 0,
@@ -585,6 +588,7 @@ export const useMechStore = create<MechLabState>((set, get) => ({
     }),
 
     setIsSimulating: (val) => set({ isSimulating: val }),
+    setSimulationProgress: (progress) => set({ simulationProgress: progress }),
 
     setLastSimulationResult: (result) => set((state) => {
         // Track static results separately for comparison

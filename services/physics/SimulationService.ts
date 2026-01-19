@@ -52,7 +52,11 @@ function calculateMotorEfficiency(
 
 export class SimulationService {
 
-    static async run(blueprint: MechBlueprint, fastMode: boolean = false): Promise<MechSimulationResult> {
+    static async run(
+        blueprint: MechBlueprint,
+        fastMode: boolean = false,
+        onProgress?: (progress: number, stage: string) => void
+    ): Promise<MechSimulationResult> {
         const startTime = Date.now();
         const registry = ComponentRegistry.getInstance();
         const variables: Record<string, number> = {};
@@ -68,34 +72,33 @@ export class SimulationService {
 
         if (!fastMode) {
             const complexity = blueprint.components.length + blueprint.connections.length;
+            onProgress?.(5, 'Initializing Simulation Kernel...');
             await new Promise(resolve => setTimeout(resolve, 500 + complexity * 100));
         }
 
-        // ============ MULTI-PHYSICS COUPLING LOOP ============
-        // 1. Mechanical Solver: Establishes shaft speeds (N) for all driven components.
-        // 2. Fluid Solver: Uses (N) to calculate Flows (Q) and Heads (H). returns Hydraulic Torques.
-        // 3. Thermal Solver: Uses (Q) and Heat Loads to calculate Temperatures (T).
-
         try {
             // --- Stage 1: Mechanical Kinematics ---
+            onProgress?.(20, 'Solving Mechanical Kinematics...');
             const { MechanicalNetworkSolver } = await import('./solvers/MechanicalNetworkSolver.ts');
             const mechSolver = new MechanicalNetworkSolver();
             const mechResult = await mechSolver.solve(blueprint, config, variables);
             Object.assign(variables, mechResult.variables);
 
             // --- Stage 2: Fluid Dynamics ---
+            onProgress?.(50, 'Analyzing Fluid Flow Dynamics...');
             const { FlowNetworkSolver } = await import('./solvers/FlowNetworkSolver.ts');
             const fluidSolver = new FlowNetworkSolver();
-            // Inject mech context (e.g. pump speed) into fluid solver
             const fluidResult = await fluidSolver.solve(blueprint, config, variables);
             Object.assign(variables, fluidResult.variables);
 
             // --- Stage 3: Thermal Analysis ---
+            onProgress?.(80, 'Converging Thermal Distribution...');
             const { ThermalNetworkSolver } = await import('./solvers/ThermalNetworkSolver.ts');
             const thermalSolver = new ThermalNetworkSolver();
-            // Pass merged variables (mech + fluid) as context for thermal calculations
             const thermalResult = await thermalSolver.solve(blueprint, config, variables);
             Object.assign(variables, thermalResult.variables);
+
+            onProgress?.(95, 'Finalizing Metrics & Diagnostics...');
 
             // Consolidate Metrics
             const totalPowerInput = mechResult.metrics?.totalPowerInput || fluidResult.metrics?.totalPowerInput || 0;
