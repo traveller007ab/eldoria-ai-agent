@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ArrowLeft, ArrowRight, RotateCw, X, Globe, Lock } from 'lucide-react';
 import { useBrowserStore } from '../../stores/browserStore';
+import { BrowserSettingsMenu } from './BrowserSettingsMenu';
 
 interface BrowserOmniboxProps {
     currentUrl: string;
@@ -103,10 +104,6 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
                     )}
                 </div>
             </form>
-
-            import {BrowserSettingsMenu} from './BrowserSettingsMenu';
-
-            // ... (inside the component return statement)
 
             {/* Right Side Actions */}
             <div className="flex items-center justify-center px-4">

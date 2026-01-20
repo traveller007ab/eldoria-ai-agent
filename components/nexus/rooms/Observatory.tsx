@@ -4,7 +4,7 @@ import { BrowserOmnibox } from '../../observatory/BrowserOmnibox';
 import { BrowserTabs } from '../../observatory/BrowserTabs';
 import { SpeedDial } from '../../observatory/SpeedDial';
 import { useBrowserStore } from '../../../stores/browserStore';
-import { ContextService } from '../../../services/ContextService'; // Ensure correct import path
+import { contextService as ContextService } from '../../../services/ContextService'; // Ensure correct import path
 
 export const Observatory: React.FC = () => {
     const {
