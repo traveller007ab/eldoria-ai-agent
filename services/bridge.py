@@ -1963,12 +1963,21 @@ async def browser_proxy(url: str):
 
         print(f"[BRIDGE] Proxying: {url}")
 
+        # Check if Brotli is available
+        try:
+            import brotli
+            BROTLI_AVAILABLE = True
+        except ImportError:
+            BROTLI_AVAILABLE = False
+
         # Headers to sound like a real browser
+        accept_encoding = 'gzip, deflate, br' if BROTLI_AVAILABLE else 'gzip, deflate'
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Encoding': accept_encoding,
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
         }
@@ -1988,8 +1997,11 @@ async def browser_proxy(url: str):
                 import gzip
                 raw_content = gzip.decompress(raw_content)
             elif resp.headers.get('Content-Encoding') == 'br':
-                import brotli
-                raw_content = brotli.decompress(raw_content)
+                if BROTLI_AVAILABLE:
+                    raw_content = brotli.decompress(raw_content)
+                else:
+                    # Should not happen if we requested correctly, but just in case
+                    print("[BRIDGE] Warning: Server sent Brotli but 'brotli' package missing")
 
             # Decode to text for HTML processing
             try:
