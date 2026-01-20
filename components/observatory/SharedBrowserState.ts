@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+type Listener = (state: BrowserState) => void;
 
 export interface BrowserState {
     url: string;
@@ -8,17 +8,7 @@ export interface BrowserState {
     canGoForward: boolean;
 }
 
-export interface BrowserController extends EventEmitter {
-    getState(): BrowserState;
-    navigate(url: string): void;
-    reload(): void;
-    goBack(): void;
-    goForward(): void;
-    on(event: string, listener: (...args: any[]) => void): this;
-    off(event: string, listener: (...args: any[]) => void): this;
-}
-
-class SharedBrowserController extends EventEmitter implements BrowserController {
+class SharedBrowserController {
     private state: BrowserState = {
         url: 'https://www.google.com',
         title: 'New Tab',
@@ -26,7 +16,7 @@ class SharedBrowserController extends EventEmitter implements BrowserController 
         canGoBack: false,
         canGoForward: false
     };
-    private subscribers: Set<(state: BrowserState) => void> = new Set();
+    private listeners: Set<Listener> = new Set();
 
     getState(): BrowserState {
         return { ...this.state };
@@ -58,17 +48,16 @@ class SharedBrowserController extends EventEmitter implements BrowserController 
     }
 
     private emitChange(): void {
-        for (const sub of this.subscribers) {
-            sub(this.state);
+        for (const listener of this.listeners) {
+            listener(this.state);
         }
-        this.emit('change', this.state);
     }
 
-    subscribe(callback: (state: BrowserState) => void): () => void {
-        this.subscribers.add(callback);
-        callback(this.state);
+    subscribe(listener: Listener): () => void {
+        this.listeners.add(listener);
+        listener(this.state);
         return () => {
-            this.subscribers.delete(callback);
+            this.listeners.delete(listener);
         };
     }
 }
