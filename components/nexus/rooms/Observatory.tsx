@@ -3,6 +3,7 @@ import { useNexusStore } from '../../../stores/useNexusStore';
 import { BrowserOmnibox } from '../../observatory/BrowserOmnibox';
 import { WebFrame, WebFrameHandle } from '../../observatory/WebFrame';
 import { contextService } from '../../../services/ContextService';
+import { sharedBrowser } from '../../observatory/SharedBrowserState';
 import { BookMarked, Share2, Globe, Sparkles } from 'lucide-react';
 
 interface ObservatoryProps {
@@ -16,36 +17,41 @@ export const Observatory: React.FC<ObservatoryProps> = ({ nodeId }) => {
     const [title, setTitle] = useState('New Tab');
     const [isLoading, setIsLoading] = useState(false);
 
-    // Determine environment
     const isElectron = !!(window as any).eldoriaDesktop?.isElectron;
+
+    useEffect(() => {
+        const unsubscribe = sharedBrowser.subscribe((state) => {
+            setUrl(state.url);
+            setTitle(state.title);
+            setIsLoading(state.isLoading);
+        });
+        return unsubscribe;
+    }, []);
 
     const handleNavigate = (newUrl: string) => {
         setUrl(newUrl);
+        sharedBrowser.navigate(newUrl);
     };
 
     const handleTitleChange = (newTitle: string) => {
         setTitle(newTitle);
-        // Push to AI Context
+        sharedBrowser.updateFromChild({ title: newTitle });
         contextService.updateBrowserState({ url, title: newTitle });
     };
 
     useEffect(() => {
-        // Initial context push
         contextService.updateBrowserState({ url, title });
         return () => {
-            // Clear context on unmount
             contextService.updateBrowserState(null);
         };
     }, []);
 
-    // Theme logic
     const bgClass = isDarkMode
         ? 'bg-[#0F0F12]'
         : 'bg-gradient-to-br from-slate-50 to-stone-100';
 
     return (
         <div className={`h-full w-full flex flex-col ${bgClass} transition-colors duration-500`}>
-            {/* Header: Omnibox & Controls */}
             <div className="shrink-0 p-2 z-10">
                 <BrowserOmnibox
                     url={url}
@@ -58,20 +64,24 @@ export const Observatory: React.FC<ObservatoryProps> = ({ nodeId }) => {
                 />
             </div>
 
-            {/* Main Content: WebFrame */}
             <div className="flex-1 relative overflow-hidden bg-white/5 mx-2 mb-2 rounded-xl border border-white/10 shadow-inner">
                 <WebFrame
                     ref={frameRef}
                     url={url}
                     isActive={true}
-                    onLoadStart={() => setIsLoading(true)}
-                    onLoadStop={() => setIsLoading(false)}
+                    onLoadStart={() => {
+                        setIsLoading(true);
+                        sharedBrowser.updateFromChild({ isLoading: true });
+                    }}
+                    onLoadStop={() => {
+                        setIsLoading(false);
+                        sharedBrowser.updateFromChild({ isLoading: false });
+                    }}
                     onTitleChange={handleTitleChange}
                     isElectron={isElectron}
                 />
             </div>
 
-            {/* Footer / Status Bar */}
             <div className={`shrink-0 px-4 py-1 flex items-center justify-between text-[10px] uppercase tracking-wider
                 ${isDarkMode ? 'text-zinc-600 bg-[#0a0a0c]' : 'text-stone-400 bg-stone-100'}`}>
                 <div className="flex items-center gap-2">

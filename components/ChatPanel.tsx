@@ -5,6 +5,7 @@ import { MessageSquare, Globe, Sparkles } from 'lucide-react';
 import { BrowserOmnibox } from './observatory/BrowserOmnibox';
 import { WebFrame, WebFrameHandle } from './observatory/WebFrame';
 import { contextService } from '../services/ContextService';
+import { sharedBrowser } from './observatory/SharedBrowserState';
 
 export const ChatPanel: React.FC = () => {
     const {
@@ -13,32 +14,35 @@ export const ChatPanel: React.FC = () => {
         sendChatMessage
     } = useWorkspace();
 
-    // Tab State
     const [activeTab, setActiveTab] = useState<'chat' | 'browser'>('chat');
 
-    // Browser State
     const frameRef = useRef<WebFrameHandle>(null);
     const [browserUrl, setBrowserUrl] = useState('https://www.google.com');
     const [browserTitle, setBrowserTitle] = useState('Minibrowser');
     const [isBrowserLoading, setIsBrowserLoading] = useState(false);
 
-    // Detect Electron
     const isElectron = !!(window as any).eldoriaDesktop?.isElectron;
 
-    // Sync browser context when active
+    useEffect(() => {
+        const unsubscribe = sharedBrowser.subscribe((state) => {
+            if (activeTab === 'browser') {
+                setBrowserUrl(state.url);
+                setBrowserTitle(state.title);
+                setIsBrowserLoading(state.isLoading);
+            }
+        });
+        return unsubscribe;
+    }, [activeTab]);
+
     useEffect(() => {
         if (activeTab === 'browser') {
             contextService.updateBrowserState({ url: browserUrl, title: browserTitle });
-        } else {
-            // Optional: Clear or keep context? 
-            // Keeping it might be useful if user flips back and forth.
-            // But for strict context, maybe clear if not visible?
-            // Let's keep it for now as "background" tab.
         }
     }, [activeTab, browserUrl, browserTitle]);
 
     const handleBrowserNavigate = (url: string) => {
         setBrowserUrl(url);
+        sharedBrowser.navigate(url);
     };
 
     if (!activeCanvas) {
@@ -51,7 +55,6 @@ export const ChatPanel: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full bg-slate-900/50">
-            {/* Tab Bar */}
             <div className="flex items-center gap-1 p-2 border-b border-cyan-500/20 bg-slate-900/80">
                 <button
                     onClick={() => setActiveTab('chat')}
@@ -78,10 +81,8 @@ export const ChatPanel: React.FC = () => {
                 </button>
             </div>
 
-            {/* Content Area */}
             <div className="flex-1 overflow-hidden relative">
 
-                {/* Chat Tab */}
                 <div className={`absolute inset-0 transition-opacity duration-300 ${activeTab === 'chat' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
                     <ChatThread
                         messages={activeCanvas.chat_history || []}
@@ -90,9 +91,7 @@ export const ChatPanel: React.FC = () => {
                     />
                 </div>
 
-                {/* Browser Tab */}
                 <div className={`absolute inset-0 flex flex-col bg-slate-950 transition-opacity duration-300 ${activeTab === 'browser' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-                    {/* Minibrowser Header */}
                     <div className="bg-slate-900 p-2">
                         <BrowserOmnibox
                             url={browserUrl}
@@ -105,15 +104,20 @@ export const ChatPanel: React.FC = () => {
                         />
                     </div>
 
-                    {/* Frame */}
                     <div className="flex-1 relative">
                         <WebFrame
                             ref={frameRef}
                             url={browserUrl}
                             isActive={activeTab === 'browser'}
                             isElectron={isElectron}
-                            onLoadStart={() => setIsBrowserLoading(true)}
-                            onLoadStop={() => setIsBrowserLoading(false)}
+                            onLoadStart={() => {
+                                setIsBrowserLoading(true);
+                                sharedBrowser.updateFromChild({ isLoading: true });
+                            }}
+                            onLoadStop={() => {
+                                setIsBrowserLoading(false);
+                                sharedBrowser.updateFromChild({ isLoading: false });
+                            }}
                             onTitleChange={setBrowserTitle}
                         />
                     </div>

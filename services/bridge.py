@@ -1897,25 +1897,78 @@ async def serve_file(path: str):
 
 # ═══════════════════════════════════════════════════════════════
 # BROWSER PROXY (For PWA/Web Mode)
+# Optimized with caching and compression
 # ═══════════════════════════════════════════════════════════════
+
+# In-memory cache for proxy responses (5MB limit per entry)
+_proxy_cache: Dict[str, Dict] = {}
+_MAX_CACHE_SIZE = 5 * 1024 * 1024  # 5MB
+_CACHE_TTL = 300  # 5 minutes
+
+
+def _get_cache_key(url: str) -> str:
+    """Generate cache key from URL."""
+    return url.lower().strip()
+
+
+def _get_cached_response(url: str) -> Optional[Dict]:
+    """Get cached response if valid."""
+    key = _get_cache_key(url)
+    if key in _proxy_cache:
+        cached = _proxy_cache[key]
+        import time
+        if time.time() - cached['timestamp'] < _CACHE_TTL:
+            return cached
+        del _proxy_cache[key]
+    return None
+
+
+def _set_cached_response(url: str, content: bytes, content_type: str):
+    """Cache response if within size limits."""
+    key = _get_cache_key(url)
+    if len(content) <= _MAX_CACHE_SIZE:
+        import time
+        _proxy_cache[key] = {
+            'content': content,
+            'content_type': content_type,
+            'timestamp': time.time()
+        }
+
 
 @app.get("/browser/proxy")
 async def browser_proxy(url: str):
     """
     Proxies a web page to allow it to be displayed in an iframe
     by stripping X-Frame-Options and CSP headers.
+    Optimized with caching and compression.
     """
     try:
         if not url.startswith(('http://', 'https://')):
             url = 'https://' + url
 
+        # Check cache first
+        cached = _get_cached_response(url)
+        if cached:
+            print(f"[BRIDGE] Cache hit: {url}")
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(
+                content=cached['content'],
+                status_code=200,
+                headers={
+                    'Content-Type': cached['content_type'],
+                    'X-Cache': 'HIT',
+                    'X-Proxied-By': 'Eldoria-Neural-Bridge'
+                }
+            )
+
         print(f"[BRIDGE] Proxying: {url}")
-        
+
         # Headers to sound like a real browser
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
         }
@@ -1925,14 +1978,30 @@ async def browser_proxy(url: str):
         async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
             resp = await client.get(url, headers=headers)
             resp.raise_for_status()
-            
+
             final_url = str(resp.url)
             content_type = resp.headers.get('Content-Type', '').lower()
-            
+            raw_content = resp.content
+
+            # Decompress if needed
+            if resp.headers.get('Content-Encoding') == 'gzip':
+                import gzip
+                raw_content = gzip.decompress(raw_content)
+            elif resp.headers.get('Content-Encoding') == 'br':
+                import brotli
+                raw_content = brotli.decompress(raw_content)
+
+            # Decode to text for HTML processing
+            try:
+                html_content = raw_content.decode('utf-8')
+            except UnicodeDecodeError:
+                html_content = raw_content.decode('latin-1', errors='replace')
+
             if 'text/html' in content_type and BS4_AVAILABLE:
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                
-                # 1. Inject <base> tag so relative links/images work
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(html_content, 'html.parser')
+
+                # Inject <base> tag for relative links/images
                 base_tag = soup.new_tag('base', href=final_url)
                 if soup.head:
                     soup.head.insert(0, base_tag)
@@ -1940,39 +2009,37 @@ async def browser_proxy(url: str):
                     head = soup.new_tag('head')
                     head.append(base_tag)
                     soup.html.insert(0, head)
-                
-                # 2. Aggressive Script Stripping (Common Frame-Busters)
+
+                # Neutralize frame-busting scripts
                 for s in soup.find_all('script'):
                     script_content = s.string if s.string else ""
-                    # Check for frame busting patterns
                     frame_busters = [
-                        'top.location', 'window.top', 'window.parent', 
+                        'top.location', 'window.top', 'window.parent',
                         'window.frameElement', 'if (top != self)', 'if(top!=self)'
                     ]
                     if any(pb in script_content.lower() for pb in frame_busters):
                         print(f"[BRIDGE] Neutralizing frame-buster in script")
-                        # Neutralize instead of decompose to avoid breaking the script entirely
                         s.string = script_content.replace('top.location', '/*top.loc*/ self.location') \
                                                  .replace('window.top', 'window.self') \
                                                  .replace('window.parent', 'window.self')
 
                 html_content = str(soup)
-            else:
-                html_content = resp.text
 
-            # 3. Create response with stripped security headers
+            # Cache the response
+            _set_cached_response(url, html_content.encode('utf-8'), 'text/html; charset=utf-8')
+
+            # Create response with stripped security headers
             from fastapi.responses import HTMLResponse
             res = HTMLResponse(content=html_content, status_code=resp.status_code)
-            
-            # We EXPLICITLY do NOT copy X-Frame-Options, Content-Security-Policy, etc.
-            # But we do copy other useful headers
+
+            # Copy useful headers but strip security headers
             for h in ['Content-Type', 'Cache-Control', 'Last-Modified']:
                 if h in resp.headers:
                     res.headers[h] = resp.headers[h]
-            
-            # Add a custom header to indicate it's proxied
+
             res.headers['X-Proxied-By'] = 'Eldoria-Neural-Bridge'
-            
+            res.headers['X-Cache'] = 'MISS'
+
             return res
 
     except Exception as e:
@@ -1987,6 +2054,7 @@ async def browser_proxy(url: str):
                         <div style="margin-top: 2rem; font-size: 0.8rem; opacity: 0.5;">URL: {url}</div>
                     </body>
                 </html>
+            """,
             """, 
             status_code=500
         )

@@ -44,6 +44,7 @@
     "reactflow": "^11.11.4",
     "recharts": "^3.6.0",
     "remark-gfm": "^4.0.0",
+    "sharp": "^0.34.5",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
