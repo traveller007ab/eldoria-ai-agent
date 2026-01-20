@@ -24,7 +24,7 @@ import ReactFlow, {
 } from 'reactflow';
 import {
     Plus, ZoomIn, ZoomOut, RotateCcw,
-    Cog, BookOpen, Layers, FileCode, FolderKanban
+    Cog, BookOpen, Layers, FileCode, FolderKanban, Globe
 } from 'lucide-react';
 import 'reactflow/dist/style.css';
 
@@ -38,6 +38,7 @@ import { NeuralEdge } from './edges/NeuralEdge';
 import { CanvasToolbar } from './toolbar/CanvasToolbar';
 import { NexusBackground } from './NexusBackground';
 import { NodeContextMenu } from './NodeContextMenu';
+import { Observatory } from './rooms/Observatory';
 
 // Register custom node types
 const nodeTypes: NodeTypes = {
@@ -46,6 +47,7 @@ const nodeTypes: NodeTypes = {
     noteNode: NoteNode,
     codexNode: CodexNode,
     architectNode: ArchitectNode,
+    observatoryNode: Observatory, // Phase 8: The Observatory
 };
 
 // Register custom edge types
@@ -103,6 +105,8 @@ export const MindCanvas: React.FC = () => {
                 case 'codex':
                     enterRoom(node.id, 'codex_lab');
                     break;
+                // Observatory is inline, no room to enter yet, or maybe it IS the room?
+                // For now, it renders ON the canvas as a node.
             }
         },
         [enterRoom]
@@ -272,6 +276,7 @@ export const MindCanvas: React.FC = () => {
                             case 'blueprint': return '#10b981';
                             case 'reference': return '#22d3ee';
                             case 'note': return '#f59e0b';
+                            case 'observatory': return '#8b5cf6'; // Phase 8 Color
                             default: return '#64748b';
                         }
                     }}
@@ -344,7 +349,7 @@ const AddNodeFAB: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isOpen]);
 
-    const handleAddNode = (type: 'blueprint' | 'reference' | 'note' | 'codex' | 'architect') => {
+    const handleAddNode = (type: 'blueprint' | 'reference' | 'note' | 'codex' | 'architect' | 'observatory') => {
         const id = crypto.randomUUID();
         const position = { x: 300 + Math.random() * 100, y: 300 + Math.random() * 100 };
         const baseNode = { id, position, type: `${type}Node` };
@@ -365,6 +370,9 @@ const AddNodeFAB: React.FC = () => {
             case 'architect':
                 addNode({ ...baseNode, data: { type: 'architect', title: 'New Workspace', status: 'draft' } });
                 break;
+            case 'observatory': // Phase 8
+                addNode({ ...baseNode, data: { type: 'observatory', title: 'Observatory', url: 'https://google.com' } });
+                break;
         }
         setIsOpen(false);
     };
@@ -375,6 +383,9 @@ const AddNodeFAB: React.FC = () => {
                 <div className="absolute bottom-16 right-0 bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[200px] animate-in fade-in slide-in-from-bottom-4 duration-200">
                     <button onClick={() => handleAddNode('architect')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-200 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
                         <FolderKanban className="w-4 h-4 text-slate-400" /> Architect Node
+                    </button>
+                    <button onClick={() => handleAddNode('observatory')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-200 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+                        <Globe className="w-4 h-4 text-violet-400" /> Observatory Node
                     </button>
                     <div className="h-px bg-white/5 my-1" />
                     <button onClick={() => handleAddNode('blueprint')} className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">

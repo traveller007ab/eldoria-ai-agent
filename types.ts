@@ -75,10 +75,10 @@ export interface ImagePart {
 
 export interface Reference {
   id: string;
-  
+
   // Type classification
   type: 'journal' | 'book' | 'website' | 'conference' | 'thesis' | 'report' | 'patent' | 'software' | 'other';
-  
+
   // Author information - structured for proper formatting
   authors: {
     firstName: string;
@@ -88,16 +88,16 @@ export interface Reference {
     orcid?: string;
     affiliation?: string;
   }[];
-  
+
   // Date information
   year: number;
   month?: number;
   day?: number;
-  
+
   // Title information
   title: string;
   secondaryTitle?: string;
-  
+
   // Journal/Book information
   journal?: string;
   volume?: string;
@@ -106,34 +106,34 @@ export interface Reference {
   edition?: string;
   publisher?: string;
   institution?: string;
-  
+
   // Digital identifiers
   doi?: string;
   url?: string;
   issn?: string;
   isbn?: string;
-  
+
   // Conference information
   conference?: string;
   conferenceLocation?: string;
-  
+
   // Additional metadata
   abstract?: string;
   keywords?: string[];
   language?: string;
   accessDate?: string;
-  
+
   // Formatted citations (cached)
   formattedApa?: string;
   formattedIeee?: string;
   formattedHarvard?: string;
   formattedMla?: string;
   formattedChicago?: string;
-  
+
   // Source tracking
   source: 'manual' | 'google-scholar' | 'researchgate' | 'bibtex' | 'ris' | 'csv' | 'crossref' | 'other';
   addedAt: Date;
-  
+
   // User notes/tags
   notes?: string;
   tags?: string[];
@@ -446,4 +446,19 @@ export interface DiagnosticIssue {
   value?: number;
   threshold?: number;
   ruleId: string;
+}
+
+// Global Types for Electron
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        src?: string;
+        allowpopups?: string;
+        webpreferences?: string;
+        nodeintegration?: string;
+        partition?: string;
+      };
+    }
+  }
 }

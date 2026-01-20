@@ -54,6 +54,13 @@ class ContextService {
         this.nexusState = state;
     }
 
+    // 3. Browser Context (Push-based)
+    private browserState: { url: string; title: string } | null = null;
+
+    public updateBrowserState(state: { url: string; title: string } | null) {
+        this.browserState = state;
+    }
+
     public getSystemContextString(): string {
         const ctx = this.context;
         let contextBuffer = "\n\n--- AMBIENT WORKSPACE CONTEXT ---\n";
@@ -80,6 +87,11 @@ class ContextService {
                 ).join('\n');
                 contextBuffer += `SELECTED NODES:\n${selectedSummary}\n`;
             }
+        }
+
+        // 3. Browser Context
+        if (this.browserState) {
+            contextBuffer += `ACTIVE BROWSER TAB: "${this.browserState.title}"\nURL: ${this.browserState.url}\n`;
         }
 
         if (ctx.recentFiles.length > 0) {
