@@ -16,9 +16,8 @@ export const Observatory: React.FC<ObservatoryProps> = ({ nodeId }) => {
     const [title, setTitle] = useState('New Tab');
     const [isLoading, setIsLoading] = useState(false);
 
-    // Determine environment (this would ideally be a prop or context, 
-    // but checking for Electron globally works for MVP)
-    const isElectron = !!(window as any).ipcRenderer;
+    // Determine environment
+    const isElectron = !!(window as any).eldoriaDesktop?.isElectron;
 
     const handleNavigate = (newUrl: string) => {
         setUrl(newUrl);

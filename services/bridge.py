@@ -12,6 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Any, Dict
 from datetime import datetime
+try:
+    from bs4 import BeautifulSoup
+    BS4_AVAILABLE = True
+except ImportError:
+    BS4_AVAILABLE = False
 
 try:
     import numpy as np
@@ -1889,6 +1894,76 @@ async def serve_file(path: str):
         return FileResponse(path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════════════════════
+# BROWSER PROXY (For PWA/Web Mode)
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/browser/proxy")
+async def browser_proxy(url: str):
+    """
+    Proxies a web page to allow it to be displayed in an iframe
+    by stripping X-Frame-Options and CSP headers.
+    """
+    try:
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        print(f"[BRIDGE] Proxying: {url}")
+        
+        # Headers to sound like a real browser
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+
+        response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+        response.raise_for_status()
+
+        content_type = response.headers.get('Content-Type', '').lower()
+        
+        # Only process HTML
+        if 'text/html' in content_type and BS4_AVAILABLE:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 1. Inject <base> tag so relative links/images work
+            base_tag = soup.new_tag('base', href=url)
+            if soup.head:
+                soup.head.insert(0, base_tag)
+            elif soup.html:
+                head = soup.new_tag('head')
+                head.append(base_tag)
+                soup.html.insert(0, head)
+            
+            # 2. Strip scripts that might try to "break out" of iframes
+            # (Optional: This can break some sites, but improves security)
+            # for s in soup.find_all('script'):
+            #     if 'top.location' in s.text or 'window.top' in s.text:
+            #         s.decompose()
+
+            html_content = str(soup)
+        else:
+            html_content = response.text
+
+        # 3. Create response with stripped security headers
+        from fastapi.responses import HTMLResponse
+        res = HTMLResponse(content=html_content, status_code=response.status_code)
+        
+        # We EXPLICITLY do NOT copy X-Frame-Options, Content-Security-Policy, etc.
+        # But we do copy other useful headers
+        for h in ['Content-Type', 'Cache-Control', 'Last-Modified']:
+            if h in response.headers:
+                res.headers[h] = response.headers[h]
+        
+        return res
+
+    except Exception as e:
+        print(f"[BRIDGE] Proxy Error: {e}")
+        return HTMLResponse(
+            content=f"<html><body><h1>Proxy Error</h1><p>{str(e)}</p></body></html>", 
+            status_code=500
+        )
 
 if __name__ == "__main__":
     zeroconf = None

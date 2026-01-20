@@ -247,10 +247,27 @@ app.on('window-all-closed', () => {
     }
 });
 
-// Security: Prevent new window creation
+// Security: Prevent unauthorized navigation in the main window
 app.on('web-contents-created', (event, contents) => {
+    // If it's a webview, we want to allow navigation to external sites
+    if (contents.getType() === 'webview') {
+        contents.on('will-navigate', (event, url) => {
+            console.log(`[Eldoria Webview] Navigating to: ${url}`);
+        });
+
+        // Open links that want new windows in the same webview or external browser
+        contents.setWindowOpenHandler(({ url }) => {
+            // Check if it's an external link or a popup
+            // For now, allow navigation but log it
+            return { action: 'allow' };
+        });
+        return;
+    }
+
+    // Main window restrictions
     contents.on('will-navigate', (event, url) => {
         if (!url.startsWith(VITE_DEV_SERVER_URL) && !url.startsWith('file://')) {
+            console.warn(`[Eldoria Main] Blocked unauthorized navigation to: ${url}`);
             event.preventDefault();
         }
     });

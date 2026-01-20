@@ -23,7 +23,7 @@ export const ChatPanel: React.FC = () => {
     const [isBrowserLoading, setIsBrowserLoading] = useState(false);
 
     // Detect Electron
-    const isElectron = !!(window as any).ipcRenderer;
+    const isElectron = !!(window as any).eldoriaDesktop?.isElectron;
 
     // Sync browser context when active
     useEffect(() => {
