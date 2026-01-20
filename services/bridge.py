@@ -1931,49 +1931,49 @@ async def browser_proxy(url: str):
             
             if 'text/html' in content_type and BS4_AVAILABLE:
                 soup = BeautifulSoup(resp.text, 'html.parser')
-            
-            # 1. Inject <base> tag so relative links/images work
-            base_tag = soup.new_tag('base', href=final_url)
-            if soup.head:
-                soup.head.insert(0, base_tag)
-            elif soup.html:
-                head = soup.new_tag('head')
-                head.append(base_tag)
-                soup.html.insert(0, head)
-            
-            # 2. Aggressive Script Stripping (Common Frame-Busters)
-            for s in soup.find_all('script'):
-                script_content = s.string if s.string else ""
-                # Check for frame busting patterns
-                frame_busters = [
-                    'top.location', 'window.top', 'window.parent', 
-                    'window.frameElement', 'if (top != self)', 'if(top!=self)'
-                ]
-                if any(pb in script_content.lower() for pb in frame_busters):
-                    print(f"[BRIDGE] Neutralizing frame-buster in script")
-                    # Neutralize instead of decompose to avoid breaking the script entirely
-                    s.string = script_content.replace('top.location', '/*top.loc*/ self.location') \
-                                             .replace('window.top', 'window.self') \
-                                             .replace('window.parent', 'window.self')
+                
+                # 1. Inject <base> tag so relative links/images work
+                base_tag = soup.new_tag('base', href=final_url)
+                if soup.head:
+                    soup.head.insert(0, base_tag)
+                elif soup.html:
+                    head = soup.new_tag('head')
+                    head.append(base_tag)
+                    soup.html.insert(0, head)
+                
+                # 2. Aggressive Script Stripping (Common Frame-Busters)
+                for s in soup.find_all('script'):
+                    script_content = s.string if s.string else ""
+                    # Check for frame busting patterns
+                    frame_busters = [
+                        'top.location', 'window.top', 'window.parent', 
+                        'window.frameElement', 'if (top != self)', 'if(top!=self)'
+                    ]
+                    if any(pb in script_content.lower() for pb in frame_busters):
+                        print(f"[BRIDGE] Neutralizing frame-buster in script")
+                        # Neutralize instead of decompose to avoid breaking the script entirely
+                        s.string = script_content.replace('top.location', '/*top.loc*/ self.location') \
+                                                 .replace('window.top', 'window.self') \
+                                                 .replace('window.parent', 'window.self')
 
-            html_content = str(soup)
-        else:
-            html_content = resp.text
+                html_content = str(soup)
+            else:
+                html_content = resp.text
 
-        # 3. Create response with stripped security headers
-        from fastapi.responses import HTMLResponse
-        res = HTMLResponse(content=html_content, status_code=resp.status_code)
-        
-        # We EXPLICITLY do NOT copy X-Frame-Options, Content-Security-Policy, etc.
-        # But we do copy other useful headers
-        for h in ['Content-Type', 'Cache-Control', 'Last-Modified']:
-            if h in resp.headers:
-                res.headers[h] = resp.headers[h]
-        
-        # Add a custom header to indicate it's proxied
-        res.headers['X-Proxied-By'] = 'Eldoria-Neural-Bridge'
-        
-        return res
+            # 3. Create response with stripped security headers
+            from fastapi.responses import HTMLResponse
+            res = HTMLResponse(content=html_content, status_code=resp.status_code)
+            
+            # We EXPLICITLY do NOT copy X-Frame-Options, Content-Security-Policy, etc.
+            # But we do copy other useful headers
+            for h in ['Content-Type', 'Cache-Control', 'Last-Modified']:
+                if h in resp.headers:
+                    res.headers[h] = resp.headers[h]
+            
+            # Add a custom header to indicate it's proxied
+            res.headers['X-Proxied-By'] = 'Eldoria-Neural-Bridge'
+            
+            return res
 
     except Exception as e:
         print(f"[BRIDGE] Proxy Error: {e}")
