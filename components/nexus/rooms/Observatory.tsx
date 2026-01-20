@@ -1,96 +1,113 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNexusStore } from '../../../stores/useNexusStore';
+import React, { useEffect, useRef } from 'react';
+import { WebFrame } from '../../observatory/WebFrame';
 import { BrowserOmnibox } from '../../observatory/BrowserOmnibox';
-import { WebFrame, WebFrameHandle } from '../../observatory/WebFrame';
-import { contextService } from '../../../services/ContextService';
-import { sharedBrowser } from '../../observatory/SharedBrowserState';
-import { BookMarked, Share2, Globe, Sparkles } from 'lucide-react';
+import { BrowserTabs } from '../../observatory/BrowserTabs';
+import { SpeedDial } from '../../observatory/SpeedDial';
+import { useBrowserStore } from '../../../stores/browserStore';
+import { ContextService } from '../../../services/ContextService'; // Ensure correct import path
 
-interface ObservatoryProps {
-    nodeId: string;
-}
+export const Observatory: React.FC = () => {
+    const {
+        tabs,
+        activeTabId,
+        addTab,
+        updateTab,
+        navigateTab,
+        goBack,
+        goForward,
+        setLoading
+    } = useBrowserStore();
 
-export const Observatory: React.FC<ObservatoryProps> = ({ nodeId }) => {
-    const { isDarkMode } = useNexusStore();
-    const frameRef = useRef<WebFrameHandle>(null);
-    const [url, setUrl] = useState('https://www.google.com');
-    const [title, setTitle] = useState('New Tab');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const isElectron = !!(window as any).eldoriaDesktop?.isElectron;
-
+    // Ensure at least one tab exists on mount
     useEffect(() => {
-        const unsubscribe = sharedBrowser.subscribe((state) => {
-            setUrl(state.url);
-            setTitle(state.title);
-            setIsLoading(state.isLoading);
-        });
-        return unsubscribe;
-    }, []);
+        if (tabs.length === 0) {
+            addTab('about:blank');
+        }
+    }, [tabs.length, addTab]);
 
-    const handleNavigate = (newUrl: string) => {
-        setUrl(newUrl);
-        sharedBrowser.navigate(newUrl);
-    };
+    const activeTab = tabs.find(t => t.id === activeTabId);
 
-    const handleTitleChange = (newTitle: string) => {
-        setTitle(newTitle);
-        sharedBrowser.updateFromChild({ title: newTitle });
-        contextService.updateBrowserState({ url, title: newTitle });
-    };
-
+    // Sync with Context Service for AI awareness
     useEffect(() => {
-        contextService.updateBrowserState({ url, title });
-        return () => {
-            contextService.updateBrowserState(null);
-        };
-    }, []);
+        if (activeTab) {
+            ContextService.updateBrowserState({
+                url: activeTab.url,
+                title: activeTab.title,
+                isActive: true
+            });
+        }
+    }, [activeTab?.url, activeTab?.title]);
 
-    const bgClass = isDarkMode
-        ? 'bg-[#0F0F12]'
-        : 'bg-gradient-to-br from-slate-50 to-stone-100';
+    const handleNavigate = (url: string) => {
+        if (activeTabId) {
+            navigateTab(activeTabId, url);
+        }
+    };
 
     return (
-        <div className={`h-full w-full flex flex-col ${bgClass} transition-colors duration-500`}>
-            <div className="shrink-0 p-2 z-10">
-                <BrowserOmnibox
-                    url={url}
-                    onNavigate={handleNavigate}
-                    onBack={() => frameRef.current?.goBack()}
-                    onForward={() => frameRef.current?.goForward()}
-                    onReload={() => frameRef.current?.reload()}
-                    isLoading={isLoading}
-                    isDark={isDarkMode}
-                />
-            </div>
+        <div className="flex flex-col h-full w-full bg-slate-950 relative overflow-hidden">
+            {/* 1. Tabs Bar */}
+            <BrowserTabs />
 
-            <div className="flex-1 relative overflow-hidden bg-white/5 mx-2 mb-2 rounded-xl border border-white/10 shadow-inner">
-                <WebFrame
-                    ref={frameRef}
-                    url={url}
-                    isActive={true}
-                    onLoadStart={() => {
-                        setIsLoading(true);
-                        sharedBrowser.updateFromChild({ isLoading: true });
-                    }}
-                    onLoadStop={() => {
-                        setIsLoading(false);
-                        sharedBrowser.updateFromChild({ isLoading: false });
-                    }}
-                    onTitleChange={handleTitleChange}
-                    isElectron={isElectron}
-                />
-            </div>
+            {/* 2. Navigation Toolbar */}
+            <BrowserOmnibox
+                currentUrl={activeTab?.url || ''}
+                isLoading={activeTab?.isLoading}
+                onNavigate={handleNavigate}
+                onBack={() => activeTabId && goBack(activeTabId)}
+                onForward={() => activeTabId && goForward(activeTabId)}
+                onReload={() => {
+                    // Basic reload hack: re-set URL to itself (WebFrame handles diffs, might need force reload logic later)
+                    if (activeTabId && activeTab) navigateTab(activeTabId, activeTab.url);
+                }}
+            />
 
-            <div className={`shrink-0 px-4 py-1 flex items-center justify-between text-[10px] uppercase tracking-wider
-                ${isDarkMode ? 'text-zinc-600 bg-[#0a0a0c]' : 'text-stone-400 bg-stone-100'}`}>
-                <div className="flex items-center gap-2">
-                    <Globe className="w-3 h-3" />
-                    <span>{isElectron ? 'Quantum Engine (Electron)' : 'Web Proxy (Iframe)'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <span>{title}</span>
-                </div>
+            {/* 3. Browser Content Area */}
+            <div className="flex-1 relative bg-slate-900/50">
+
+                {/* Render Speed Dial if Active Tab has no URL (and there are tabs) */}
+                {activeTab && (activeTab.url === 'about:blank' || activeTab.url === '') && (
+                    <div className="absolute inset-0 flex z-10">
+                        <SpeedDial />
+                    </div>
+                )}
+
+                {/* Render ALL WebFrames, but hide inactive ones. 
+            This preserves their DOM state (scroll, form data) */}
+                {tabs.map((tab) => {
+                    const isActive = tab.id === activeTabId;
+                    // Optimized: If it's the speed dial (empty url), we don't need to render the heavy WebFrame at all potentially,
+                    // OR we render it but keep it hidden/empty. 
+                    // Better: Render WebFrame always, but pass empty/null if 'about:blank' to keep it dormant.
+                    // Actually, WebFrame with 'about:blank' is fine.
+
+                    return (
+                        <div
+                            key={tab.id}
+                            className={`absolute inset-0 w-full h-full bg-white ${isActive ? 'z-0 display-flex' : 'z-[-1] invisible'}`}
+                            style={{ display: isActive ? 'flex' : 'none' }}
+                        >
+                            {/* Only render WebFrame if it has a real URL to avoid iframe flickering on Speed Dial? 
+                    No, keep it mounted so if we nav *to* it, it's ready. 
+                    But if it's 'about:blank', WebFrame might show a white box.
+                    Let's hide the container if it's 'about:blank' so SpeedDial shows through (if we overlay SpeedDial).
+                    Actually, we handled SpeedDial above as a separate overlay.
+                    So if tab is 'about:blank', this div is hidden or covered by SpeedDial z-index.
+                */}
+                            <WebFrame
+                                url={tab.url === 'about:blank' ? '' : tab.url}
+                                isActive={isActive}
+                                onLoadingStateChange={(loading) => setLoading(tab.id, loading)}
+                                onUpdatePageInfo={(info) => {
+                                    updateTab(tab.id, {
+                                        title: info.title || tab.title,
+                                        favicon: info.favicon
+                                    });
+                                }}
+                            />
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

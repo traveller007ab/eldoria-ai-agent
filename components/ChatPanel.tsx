@@ -94,13 +94,12 @@ export const ChatPanel: React.FC = () => {
                 <div className={`absolute inset-0 flex flex-col bg-slate-950 transition-opacity duration-300 ${activeTab === 'browser' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
                     <div className="bg-slate-900 p-2">
                         <BrowserOmnibox
-                            url={browserUrl}
+                            currentUrl={browserUrl}
                             onNavigate={handleBrowserNavigate}
                             onBack={() => frameRef.current?.goBack()}
                             onForward={() => frameRef.current?.goForward()}
                             onReload={() => frameRef.current?.reload()}
                             isLoading={isBrowserLoading}
-                            isDark={true}
                         />
                     </div>
 

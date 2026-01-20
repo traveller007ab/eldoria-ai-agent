@@ -3,10 +3,13 @@ import React, { useRef, useEffect, forwardRef, useImperativeHandle, useMemo, use
 interface WebFrameProps {
     url: string;
     isActive: boolean;
+    onLoadingStateChange?: (isLoading: boolean) => void;
+    onUpdatePageInfo?: (info: { title?: string; favicon?: string }) => void;
+    isElectron?: boolean;
+    // Legacy support (to be removed if refactored everywhere)
     onLoadStart?: () => void;
     onLoadStop?: () => void;
     onTitleChange?: (title: string) => void;
-    isElectron?: boolean;
 }
 
 export interface WebFrameHandle {
@@ -138,16 +141,27 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
             const handleStart = () => {
                 setIsLoading(true);
                 onLoadStart?.();
+                onLoadingStateChange?.(true);
             };
             const handleStop = () => {
                 setIsLoading(false);
                 onLoadStop?.();
+                onLoadingStateChange?.(false);
             };
-            const handleTitle = (e: any) => onTitleChange?.(e.title);
+            const handleTitle = (e: any) => {
+                onTitleChange?.(e.title);
+                onUpdatePageInfo?.({ title: e.title });
+            };
 
             wv.addEventListener('did-start-loading', handleStart);
             wv.addEventListener('did-stop-loading', handleStop);
             wv.addEventListener('page-title-updated', handleTitle);
+            // Try to get favicon (Electron <webview> often needs more work for this, ignoring for now or using page-favicon-updated)
+            wv.addEventListener('page-favicon-updated', (e: any) => {
+                if (e.favicons && e.favicons.length > 0) {
+                    onUpdatePageInfo?.({ favicon: e.favicons[0] });
+                }
+            });
 
             return () => {
                 wv.removeEventListener('did-start-loading', handleStart);
@@ -155,11 +169,12 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
                 wv.removeEventListener('page-title-updated', handleTitle);
             };
         }
-    }, [isElectron, onLoadStart, onLoadStop, onTitleChange]);
+    }, [isElectron, onLoadStart, onLoadStop, onTitleChange, onLoadingStateChange, onUpdatePageInfo]);
 
     const handleIframeLoad = () => {
         setIsLoading(false);
         onLoadStop?.();
+        onLoadingStateChange?.(false);
     };
 
     // Only trigger load start when proxy URL changes in PWA mode
@@ -167,8 +182,9 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
         if (!isElectron && proxyUrl) {
             setIsLoading(true);
             onLoadStart?.();
+            onLoadingStateChange?.(true);
         }
-    }, [proxyUrl, isElectron, onLoadStart]);
+    }, [proxyUrl, isElectron, onLoadStart, onLoadingStateChange]);
 
     if (isElectron) {
         return (
