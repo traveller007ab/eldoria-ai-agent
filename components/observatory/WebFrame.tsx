@@ -28,6 +28,8 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
     onLoadStart,
     onLoadStop,
     onTitleChange,
+    onLoadingStateChange,
+    onUpdatePageInfo,
     isElectron = false
 }, ref) => {
     const webviewRef = useRef<any>(null);
