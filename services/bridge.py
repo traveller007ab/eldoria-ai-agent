@@ -2055,7 +2055,6 @@ async def browser_proxy(url: str):
                     </body>
                 </html>
             """,
-            """, 
             status_code=500
         )
 
