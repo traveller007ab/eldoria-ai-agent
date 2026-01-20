@@ -9,7 +9,7 @@ export interface FileSystemNode {
     children?: FileSystemNode[];
 }
 
-const BRIDGE_URL = 'http://localhost:8000';
+const BRIDGE_URL = 'http://localhost:3001';
 
 export const FileSystemService = {
     /**

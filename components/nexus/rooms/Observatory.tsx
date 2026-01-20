@@ -69,11 +69,6 @@ export const Observatory: React.FC<ObservatoryProps> = ({ nodeId }) => {
                     onTitleChange={handleTitleChange}
                     isElectron={isElectron}
                 />
-
-                {/* Loading Overlay */}
-                {isLoading && (
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent animate-shimmer opacity-50" />
-                )}
             </div>
 
             {/* Footer / Status Bar */}

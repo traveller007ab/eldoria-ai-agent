@@ -1916,19 +1916,24 @@ async def browser_proxy(url: str):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
         }
 
-        response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
-        response.raise_for_status()
-
-        content_type = response.headers.get('Content-Type', '').lower()
-        
-        # Only process HTML
-        if 'text/html' in content_type and BS4_AVAILABLE:
-            soup = BeautifulSoup(response.text, 'html.parser')
+        # Use httpx for non-blocking async fetching
+        import httpx
+        async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            
+            final_url = str(resp.url)
+            content_type = resp.headers.get('Content-Type', '').lower()
+            
+            if 'text/html' in content_type and BS4_AVAILABLE:
+                soup = BeautifulSoup(resp.text, 'html.parser')
             
             # 1. Inject <base> tag so relative links/images work
-            base_tag = soup.new_tag('base', href=url)
+            base_tag = soup.new_tag('base', href=final_url)
             if soup.head:
                 soup.head.insert(0, base_tag)
             elif soup.html:
@@ -1936,32 +1941,53 @@ async def browser_proxy(url: str):
                 head.append(base_tag)
                 soup.html.insert(0, head)
             
-            # 2. Strip scripts that might try to "break out" of iframes
-            # (Optional: This can break some sites, but improves security)
-            # for s in soup.find_all('script'):
-            #     if 'top.location' in s.text or 'window.top' in s.text:
-            #         s.decompose()
+            # 2. Aggressive Script Stripping (Common Frame-Busters)
+            for s in soup.find_all('script'):
+                script_content = s.string if s.string else ""
+                # Check for frame busting patterns
+                frame_busters = [
+                    'top.location', 'window.top', 'window.parent', 
+                    'window.frameElement', 'if (top != self)', 'if(top!=self)'
+                ]
+                if any(pb in script_content.lower() for pb in frame_busters):
+                    print(f"[BRIDGE] Neutralizing frame-buster in script")
+                    # Neutralize instead of decompose to avoid breaking the script entirely
+                    s.string = script_content.replace('top.location', '/*top.loc*/ self.location') \
+                                             .replace('window.top', 'window.self') \
+                                             .replace('window.parent', 'window.self')
 
             html_content = str(soup)
         else:
-            html_content = response.text
+            html_content = resp.text
 
         # 3. Create response with stripped security headers
         from fastapi.responses import HTMLResponse
-        res = HTMLResponse(content=html_content, status_code=response.status_code)
+        res = HTMLResponse(content=html_content, status_code=resp.status_code)
         
         # We EXPLICITLY do NOT copy X-Frame-Options, Content-Security-Policy, etc.
         # But we do copy other useful headers
         for h in ['Content-Type', 'Cache-Control', 'Last-Modified']:
-            if h in response.headers:
-                res.headers[h] = response.headers[h]
+            if h in resp.headers:
+                res.headers[h] = resp.headers[h]
+        
+        # Add a custom header to indicate it's proxied
+        res.headers['X-Proxied-By'] = 'Eldoria-Neural-Bridge'
         
         return res
 
     except Exception as e:
         print(f"[BRIDGE] Proxy Error: {e}")
         return HTMLResponse(
-            content=f"<html><body><h1>Proxy Error</h1><p>{str(e)}</p></body></html>", 
+            content=f"""
+                <html>
+                    <body style="background: #0f172a; color: #94a3b8; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+                        <h1 style="color: #22d3ee; margin-bottom: 0.5rem;">Connection Warped</h1>
+                        <p>The bridge encountered an error while proxying this site:</p>
+                        <code style="background: #1e293b; padding: 0.5rem 1rem; border-radius: 0.5rem; color: #f43f5e;">{str(e)}</code>
+                        <div style="margin-top: 2rem; font-size: 0.8rem; opacity: 0.5;">URL: {url}</div>
+                    </body>
+                </html>
+            """, 
             status_code=500
         )
 
