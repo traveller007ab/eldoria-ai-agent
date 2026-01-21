@@ -81,9 +81,15 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   useEffect(() => {
     const norm = normalizedUrl();
     if (norm) {
-      setProxyUrl(computeProxyUrl(norm));
+      const proxy = computeProxyUrl(norm);
+      console.log('[WebFrame] URL:', norm);
+      console.log('[WebFrame] Proxy URL:', proxy);
+      setProxyUrl(proxy);
       setError(null);
       setRetryCount(0);
+    } else {
+      console.log('[WebFrame] Empty URL, not setting proxy');
+      setProxyUrl('');
     }
   }, [normalizedUrl, computeProxyUrl]);
 
@@ -310,20 +316,37 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
           </div>
         </div>
       )}
-      <iframe
-        ref={iframeRef}
-        src={proxyUrl}
-        className="w-full h-full border-0"
-        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-popups-to-escape-sandbox allow-downloads"
-        allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        loading="eager"
-        onLoad={handleLoad}
-        onError={handleIframeError}
-        style={{
-          opacity: isLoading ? 0 : 1,
-          transition: 'opacity 0.3s ease',
-        }}
-      />
+      
+      {proxyUrl && proxyUrl.startsWith('/api/') ? (
+        <iframe
+          ref={iframeRef}
+          src={proxyUrl}
+          className="w-full h-full border-0"
+          sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-popups-to-escape-sandbox allow-downloads"
+          allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          loading="eager"
+          onLoad={handleLoad}
+          onError={handleIframeError}
+          style={{
+            opacity: isLoading ? 0 : 1,
+            transition: 'opacity 0.3s ease',
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+          <div className="text-center max-w-md p-8">
+            <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">Browser Not Ready</h3>
+            <p className="text-gray-400 mb-4">
+              Proxy URL: {proxyUrl || 'not set'}
+            </p>
+            <p className="text-sm text-gray-500">
+              URL to load: {url}
+            </p>
+          </div>
+        </div>
+      )}
+      
       <a
         href={url}
         target="_blank"
