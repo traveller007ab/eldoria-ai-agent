@@ -36,7 +36,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [proxyUrl, setProxyUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const bridgeUrlRef = useRef<string | null>(null);
+    const [bridgeUrl, setBridgeUrl] = useState<string | null>(null);
     const isPausedRef = useRef(false);
 
     // Memoize normalized URL computation
@@ -51,7 +51,8 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
         const preconnect = async () => {
             try {
                 const baseUrl = await getBridgeUrl();
-                bridgeUrlRef.current = baseUrl;
+                setBridgeUrl(baseUrl);
+
                 // DNS + TCP + TLS preconnect
                 const link = document.createElement('link');
                 link.rel = 'preconnect';
@@ -72,10 +73,10 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
 
     // Memoize proxy URL computation
     const computedProxyUrl = useMemo(() => {
-        if (isElectron || !bridgeUrlRef.current) return null;
+        if (isElectron || !bridgeUrl) return null;
         const encodedUrl = encodeURIComponent(normalizedUrl);
-        return `${bridgeUrlRef.current}/browser/proxy?url=${encodedUrl}`;
-    }, [normalizedUrl, isElectron]);
+        return `${bridgeUrl}/browser/proxy?url=${encodedUrl}`;
+    }, [normalizedUrl, isElectron, bridgeUrl]);
 
     // Update proxy URL only when it changes
     useEffect(() => {

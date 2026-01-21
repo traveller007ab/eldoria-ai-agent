@@ -24,7 +24,14 @@ try:
 except ImportError:
     NUMPY_AVAILABLE = False
     np = None
-from fastapi.responses import StreamingResponse, FileResponse
+
+try:
+    import brotli
+    BROTLI_AVAILABLE = True
+except ImportError:
+    BROTLI_AVAILABLE = False
+
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 try:
@@ -82,7 +89,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
-# Internal Service Imports
 # Internal Service Imports
 
 # 1. Thesis Vault & Academic Assistant
@@ -1642,7 +1648,7 @@ async def check_compliance(request: Dict = Body(...)):
                     "suggestion": "Expand content to meet minimum thesis requirements"
                 })
         
-        score = int((passed_checks / max(total_checks, 1)) * 100) if total_checks > 0 else 75
+        score = int((passed_checks / max(total_checks, 1)) * 100) if total_checks > 0 else 0
         
         return {
             "score": score,
@@ -1704,10 +1710,11 @@ async def search_citations(request: Dict = Body(...)):
                 json={
                     "model": "llama-3.3-70b-versatile",
                     "messages": [
-                        {"role": "system", "content": "You are a citation search assistant. Find relevant academic references."},
-                        {"role": "user", "content": f"Find {count} relevant citations for: {query}\n\nContext: {context[:500]}"}
+                        {"role": "system", "content": "You are a citation search assistant. Return ONLY a JSON object with 'citations' (list of {title, authors, year, source, doi, abstract}) and 'suggestions' (list of strings)."},
+                        {"role": "user", "content": f"Find {count} relevant academic citations for: {query}\n\nContext: {context[:500]}"}
                     ],
-                    "temperature": 0.3,
+                    "temperature": 0.2,
+                    "response_format": {"type": "json_object"},
                     "max_tokens": 2000
                 },
                 timeout=30.0
@@ -1716,16 +1723,20 @@ async def search_citations(request: Dict = Body(...)):
             if response.ok:
                 data = response.json()
                 content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                
-                return {
-                    "citations": [{"title": "Sample Citation", "authors": ["Author"], "year": 2023}],
-                    "suggestions": [query, f"advanced {query}", f"{query} review"]
-                }
+                try:
+                    parsed = json.loads(content)
+                    return {
+                        "citations": parsed.get("citations", []),
+                        "suggestions": parsed.get("suggestions", [query, f"advanced {query}", f"{query} review"])
+                    }
+                except Exception as parse_err:
+                    print(f"[CITATION SEARCH] Parse error: {parse_err}")
         except Exception as e:
             print(f"[CITATION SEARCH] Groq error: {e}")
         
         return {
             "citations": [],
+            "mode": "Limited (No Real-time Results)",
             "suggestions": [query, f"{query} review", f"introduction to {query}"]
         }
     except Exception as e:
@@ -1940,7 +1951,7 @@ async def browser_proxy(url: str):
     """
     Proxies a web page to allow it to be displayed in an iframe
     by stripping X-Frame-Options and CSP headers.
-    Optimized with caching and compression.
+    Optimized with caching and compression. (Gzip only)
     """
     try:
         if not url.startswith(('http://', 'https://')):
@@ -1950,7 +1961,6 @@ async def browser_proxy(url: str):
         cached = _get_cached_response(url)
         if cached:
             print(f"[BRIDGE] Cache hit: {url}")
-            from fastapi.responses import HTMLResponse
             return HTMLResponse(
                 content=cached['content'],
                 status_code=200,
@@ -1963,15 +1973,9 @@ async def browser_proxy(url: str):
 
         print(f"[BRIDGE] Proxying: {url}")
 
-        # Check if Brotli is available
-        try:
-            import brotli
-            BROTLI_AVAILABLE = True
-        except ImportError:
-            BROTLI_AVAILABLE = False
-
         # Headers to sound like a real browser
-        accept_encoding = 'gzip, deflate, br' if BROTLI_AVAILABLE else 'gzip, deflate'
+        # NOTE: Gzip only for stability. Brotli causes dependency hell.
+        accept_encoding = 'gzip, deflate'
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -1996,13 +2000,7 @@ async def browser_proxy(url: str):
             if resp.headers.get('Content-Encoding') == 'gzip':
                 import gzip
                 raw_content = gzip.decompress(raw_content)
-            elif resp.headers.get('Content-Encoding') == 'br':
-                if BROTLI_AVAILABLE:
-                    raw_content = brotli.decompress(raw_content)
-                else:
-                    # Should not happen if we requested correctly, but just in case
-                    print("[BRIDGE] Warning: Server sent Brotli but 'brotli' package missing")
-
+            
             # Decode to text for HTML processing
             try:
                 html_content = raw_content.decode('utf-8')
@@ -2041,7 +2039,6 @@ async def browser_proxy(url: str):
             _set_cached_response(url, html_content.encode('utf-8'), 'text/html; charset=utf-8')
 
             # Create response with stripped security headers
-            from fastapi.responses import HTMLResponse
             res = HTMLResponse(content=html_content, status_code=resp.status_code)
 
             # Copy useful headers but strip security headers

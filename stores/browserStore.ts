@@ -11,15 +11,19 @@ export interface BrowserTab {
     historyIndex: number; // Current position in history stack
 }
 
+export type SearchEngine = 'google' | 'duckduckgo' | 'bing' | 'brave' | 'perplexity';
+
 interface BrowserState {
     tabs: BrowserTab[];
     activeTabId: string | null;
+    searchEngine: SearchEngine;
 
     // Actions
     addTab: (url?: string) => void;
     closeTab: (id: string) => void;
     setActiveTab: (id: string) => void;
     updateTab: (id: string, data: Partial<BrowserTab>) => void;
+    setSearchEngine: (engine: SearchEngine) => void;
 
     // Navigation State Updates
     navigateTab: (id: string, url: string) => void;
@@ -32,6 +36,9 @@ interface BrowserState {
 export const useBrowserStore = create<BrowserState>((set, get) => ({
     tabs: [],
     activeTabId: null,
+    searchEngine: 'google',
+
+    setSearchEngine: (engine) => set({ searchEngine: engine }),
 
     addTab: (url = 'about:blank') => {
         const newTab: BrowserTab = {
