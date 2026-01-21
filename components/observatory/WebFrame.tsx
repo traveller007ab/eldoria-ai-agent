@@ -1,253 +1,333 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
+import { Loader2, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
+
+interface EldoriaMessage {
+  type: 'ELDORIA_PAGE_METADATA' | 'ELDORIA_SCROLL' | 'ELDORIA_SELECTION' | 'ELDORIA_RESPONSE';
+  data: any;
+}
+
+export interface PageMetadata {
+  title: string;
+  description?: string;
+  keywords?: string;
+  author?: string;
+  canonical?: string;
+  ogImage?: string;
+}
 
 interface WebFrameProps {
-    url: string;
-    isActive: boolean;
-    onLoadingStateChange?: (isLoading: boolean) => void;
-    onUpdatePageInfo?: (info: { title?: string; favicon?: string }) => void;
-    isElectron?: boolean;
-    // Legacy support (to be removed if refactored everywhere)
-    onLoadStart?: () => void;
-    onLoadStop?: () => void;
-    onTitleChange?: (title: string) => void;
+  url: string;
+  isActive?: boolean;
+  onLoadStart?: () => void;
+  onLoadStop?: () => void;
+  onTitleChange?: (title: string) => void;
+  onMetadataChange?: (metadata: PageMetadata) => void;
+  onScrollChange?: (percent: number) => void;
+  onSelectionChange?: (text: string) => void;
+  onError?: (error: Error) => void;
+  isElectron?: boolean;
 }
 
 export interface WebFrameHandle {
-    reload: () => void;
-    goBack: () => void;
-    goForward: () => void;
+  reload: () => void;
+  goBack: () => void;
+  goForward: () => void;
+  extractText: () => Promise<string>;
+  getSelection: () => Promise<string>;
+  getScrollPercent: () => Promise<number>;
 }
 
-import { getBridgeUrl } from '../../services/bridgeClient';
-import { ProgressBar } from './ProgressBar';
-import { Globe } from 'lucide-react';
+function getUserId(): string {
+  let userId = localStorage.getItem('eldoria_browser_user_id');
+  if (!userId) {
+    userId = `user_${Math.random().toString(36).substring(2, 15)}`;
+    localStorage.setItem('eldoria_browser_user_id', userId);
+  }
+  return userId;
+}
 
 export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
-    url,
-    isActive,
-    onLoadStart,
-    onLoadStop,
-    onTitleChange,
-    onLoadingStateChange,
-    onUpdatePageInfo,
-    isElectron = false
+  url,
+  isActive = true,
+  onLoadStart,
+  onLoadStop,
+  onTitleChange,
+  onMetadataChange,
+  onScrollChange,
+  onSelectionChange,
+  onError,
+  isElectron = false
 }, ref) => {
-    const webviewRef = useRef<any>(null);
-    const iframeRef = useRef<HTMLIFrameElement>(null);
-    const [proxyUrl, setProxyUrl] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [bridgeUrl, setBridgeUrl] = useState<string | null>(null);
-    const isPausedRef = useRef(false);
+  const webviewRef = useRef<any>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [proxyUrl, setProxyUrl] = useState<string>('');
+  const [retryCount, setRetryCount] = useState(0);
 
-    // Memoize normalized URL computation
-    const normalizedUrl = useMemo(() => {
-        let u = url.trim();
-        if (!u.startsWith('http')) u = 'https://' + u;
-        return u;
-    }, [url]);
+  const normalizedUrl = useCallback(() => {
+    if (!url || url.trim() === '') return '';
+    let u = url.trim();
+    if (!u.startsWith('http')) u = 'https://' + u;
+    return u;
+  }, [url]);
 
-    // Pre-connect to bridge server on mount
-    useEffect(() => {
-        const preconnect = async () => {
-            try {
-                const baseUrl = await getBridgeUrl();
-                setBridgeUrl(baseUrl);
+  const computeProxyUrl = useCallback((inputUrl: string): string => {
+    if (!inputUrl) return '';
+    const proxyEndpoint = '/api/browser-proxy';
+    return `${proxyEndpoint}?url=${encodeURIComponent(inputUrl)}&userId=${getUserId()}`;
+  }, []);
 
-                // DNS + TCP + TLS preconnect
-                const link = document.createElement('link');
-                link.rel = 'preconnect';
-                link.href = baseUrl;
-                document.head.appendChild(link);
-                // DNS prefetch as fallback
-                const dnsPrefetch = document.createElement('link');
-                dnsPrefetch.rel = 'dns-prefetch';
-                dnsPrefetch.href = baseUrl;
-                document.head.appendChild(dnsPrefetch);
-                console.log('[WebFrame] Pre-connected to bridge:', baseUrl);
-            } catch (err) {
-                console.warn('[WebFrame] Preconnect failed:', err);
-            }
-        };
-        preconnect();
-    }, []);
+  useEffect(() => {
+    const norm = normalizedUrl();
+    if (norm) {
+      setProxyUrl(computeProxyUrl(norm));
+      setError(null);
+      setRetryCount(0);
+    }
+  }, [normalizedUrl, computeProxyUrl]);
 
-    // Memoize proxy URL computation
-    const computedProxyUrl = useMemo(() => {
-        if (isElectron || !bridgeUrl) return null;
-        const encodedUrl = encodeURIComponent(normalizedUrl);
-        return `${bridgeUrl}/browser/proxy?url=${encodedUrl}`;
-    }, [normalizedUrl, isElectron, bridgeUrl]);
+  useEffect(() => {
+    if (!proxyUrl || isElectron) return;
+    setIsLoading(true);
+    setError(null);
+    onLoadStart?.();
+  }, [proxyUrl, isElectron, onLoadStart]);
 
-    // Update proxy URL only when it changes
-    useEffect(() => {
-        if (computedProxyUrl !== proxyUrl) {
-            setProxyUrl(computedProxyUrl);
-        }
-    }, [computedProxyUrl, proxyUrl]);
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent<EldoriaMessage>) => {
+      if (event.origin !== window.location.origin) return;
+      const { type, data } = event.data;
 
-    // Better reload implementation
-    const performReload = useCallback(() => {
-        if (isElectron && webviewRef.current) {
-            webviewRef.current.reload();
-        } else if (iframeRef.current) {
-            const iframe = iframeRef.current;
-            // Use POST with cache-buster for faster reload than src swap
-            const cacheBuster = Date.now();
-            const reloadUrl = proxyUrl ? `${proxyUrl}&_cb=${cacheBuster}` : null;
-            if (reloadUrl) {
-                iframe.src = reloadUrl;
-            }
-        }
-    }, [isElectron, proxyUrl]);
-
-    // Better back/forward for iframe
-    const performGoBack = useCallback(() => {
-        if (isElectron && webviewRef.current && webviewRef.current.canGoBack()) {
-            webviewRef.current.goBack();
-        }
-        // Note: iframe history navigation limited in cross-origin context
-    }, [isElectron]);
-
-    const performGoForward = useCallback(() => {
-        if (isElectron && webviewRef.current && webviewRef.current.canGoForward()) {
-            webviewRef.current.goForward();
-        }
-    }, [isElectron]);
-
-    useImperativeHandle(ref, () => ({
-        reload: performReload,
-        goBack: performGoBack,
-        goForward: performGoForward
-    }), [performReload, performGoBack, performGoForward]);
-
-    // Visibility-based pausing for iframe
-    useEffect(() => {
-        if (!isElectron && iframeRef.current) {
-            const handleVisibilityChange = () => {
-                if (document.hidden && !isPausedRef.current) {
-                    iframeRef.current.contentWindow?.postMessage('ELDORIA_PAUSE', '*');
-                    isPausedRef.current = true;
-                } else if (!document.hidden && isPausedRef.current) {
-                    iframeRef.current.contentWindow?.postMessage('ELDORIA_RESUME', '*');
-                    isPausedRef.current = false;
-                }
-            };
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-            return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-        }
-    }, [isElectron]);
-
-    // Electron webview event listeners
-    useEffect(() => {
-        const wv = webviewRef.current;
-        if (isElectron && wv) {
-            const handleStart = () => {
-                setIsLoading(true);
-                onLoadStart?.();
-                onLoadingStateChange?.(true);
-            };
-            const handleStop = () => {
-                setIsLoading(false);
-                onLoadStop?.();
-                onLoadingStateChange?.(false);
-            };
-            const handleTitle = (e: any) => {
-                onTitleChange?.(e.title);
-                onUpdatePageInfo?.({ title: e.title });
-            };
-
-            wv.addEventListener('did-start-loading', handleStart);
-            wv.addEventListener('did-stop-loading', handleStop);
-            wv.addEventListener('page-title-updated', handleTitle);
-            // Try to get favicon (Electron <webview> often needs more work for this, ignoring for now or using page-favicon-updated)
-            wv.addEventListener('page-favicon-updated', (e: any) => {
-                if (e.favicons && e.favicons.length > 0) {
-                    onUpdatePageInfo?.({ favicon: e.favicons[0] });
-                }
-            });
-
-            return () => {
-                wv.removeEventListener('did-start-loading', handleStart);
-                wv.removeEventListener('did-stop-loading', handleStop);
-                wv.removeEventListener('page-title-updated', handleTitle);
-            };
-        }
-    }, [isElectron, onLoadStart, onLoadStop, onTitleChange, onLoadingStateChange, onUpdatePageInfo]);
-
-    const handleIframeLoad = () => {
-        setIsLoading(false);
-        onLoadStop?.();
-        onLoadingStateChange?.(false);
+      switch (type) {
+        case 'ELDORIA_PAGE_METADATA':
+          onTitleChange?.(data.title);
+          onMetadataChange?.(data);
+          break;
+        case 'ELDORIA_SCROLL':
+          onScrollChange?.(data.scrollPercent);
+          break;
+        case 'ELDORIA_SELECTION':
+          onSelectionChange?.(data.selection);
+          break;
+      }
     };
 
-    // Only trigger load start when proxy URL changes in PWA mode
-    useEffect(() => {
-        if (!isElectron && proxyUrl) {
-            setIsLoading(true);
-            onLoadStart?.();
-            onLoadingStateChange?.(true);
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onTitleChange, onMetadataChange, onScrollChange, onSelectionChange]);
+
+  const handleLoad = () => {
+    setIsLoading(false);
+    setError(null);
+    onLoadStop?.();
+  };
+
+  const handleIframeError = () => {
+    setIsLoading(false);
+    setError('Failed to load page');
+    onLoadStop?.();
+    onError?.(new Error('Load failed'));
+  };
+
+  useImperativeHandle(ref, () => ({
+    reload: () => {
+      if (isElectron && webviewRef.current) {
+        webviewRef.current.reload();
+      } else if (iframeRef.current) {
+        const cacheBuster = Date.now();
+        iframeRef.current.src = `${proxyUrl}&_cb=${cacheBuster}`;
+      }
+    },
+    goBack: () => {
+      if (isElectron && webviewRef.current && webviewRef.current.canGoBack()) {
+        webviewRef.current.goBack();
+      } else {
+        try {
+          iframeRef.current?.contentWindow?.history.back();
+        } catch (e) {
+          console.warn('Cannot access iframe history');
         }
-    }, [proxyUrl, isElectron, onLoadStart, onLoadingStateChange]);
+      }
+    },
+    goForward: () => {
+      if (isElectron && webviewRef.current && webviewRef.current.canGoForward()) {
+        webviewRef.current.goForward();
+      } else {
+        try {
+          iframeRef.current?.contentWindow?.history.forward();
+        } catch (e) {
+          console.warn('Cannot access iframe history');
+        }
+      }
+    },
+    extractText: async (): Promise<string> => {
+      return new Promise((resolve) => {
+        const handler = (event: MessageEvent) => {
+          if (event.data.type === 'ELDORIA_RESPONSE' && event.data.data.text) {
+            window.removeEventListener('message', handler);
+            resolve(event.data.data.text);
+          }
+        };
+        window.addEventListener('message', handler);
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'ELDORIA_COMMAND',
+          command: 'EXTRACT_TEXT'
+        }, '*');
+        setTimeout(() => {
+          window.removeEventListener('message', handler);
+          resolve('');
+        }, 2000);
+      });
+    },
+    getSelection: async (): Promise<string> => {
+      return new Promise((resolve) => {
+        const handler = (event: MessageEvent) => {
+          if (event.data.type === 'ELDORIA_RESPONSE' && event.data.data.selection !== undefined) {
+            window.removeEventListener('message', handler);
+            resolve(event.data.data.selection);
+          }
+        };
+        window.addEventListener('message', handler);
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'ELDORIA_COMMAND',
+          command: 'GET_SELECTION'
+        }, '*');
+        setTimeout(() => {
+          window.removeEventListener('message', handler);
+          resolve('');
+        }, 2000);
+      });
+    },
+    getScrollPercent: async (): Promise<number> => {
+      return new Promise((resolve) => {
+        const handler = (event: MessageEvent) => {
+          if (event.data.type === 'ELDORIA_RESPONSE' && event.data.data.scrollPercent !== undefined) {
+            window.removeEventListener('message', handler);
+            resolve(event.data.data.scrollPercent);
+          }
+        };
+        window.addEventListener('message', handler);
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'ELDORIA_COMMAND',
+          command: 'SCROLL_PERCENT'
+        }, '*');
+        setTimeout(() => {
+          window.removeEventListener('message', handler);
+          resolve(0);
+        }, 2000);
+      });
+    },
+  }));
 
-    if (isElectron) {
-        return (
-            <div className="w-full h-full relative">
-                <ProgressBar isLoading={isLoading} />
-                <webview
-                    ref={webviewRef}
-                    src={normalizedUrl}
-                    className="w-full h-full"
-                    style={{
-                        display: isActive ? 'flex' : 'none'
-                    }}
-                    allowpopups={true}
-                    useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                    webpreferences="contextIsolation=yes, sandbox=yes"
-                />
-            </div>
-        );
-    } else {
-        return (
-            <div className={`w-full h-full flex flex-col items-center justify-center bg-slate-900 border-none relative ${isActive ? 'flex' : 'hidden'}`}>
-                <ProgressBar isLoading={isLoading} color="bg-emerald-400" />
-
-                {isActive && proxyUrl ? (
-                    <div className="w-full h-full relative group">
-                        <iframe
-                            ref={iframeRef}
-                            src={proxyUrl}
-                            className="w-full h-full border-none bg-white font-sans"
-                            title="Web View"
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                            onLoad={handleIframeLoad}
-                            loading="eager"
-                        />
-                        <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-3 py-1.5 bg-slate-800/80 backdrop-blur-md text-cyan-400 text-xs rounded-lg border border-cyan-500/30 hover:bg-cyan-500 hover:text-white transition-all shadow-xl flex items-center gap-2"
-                            >
-                                <Globe className="w-3 h-3" />
-                                Open in External Tab
-                            </a>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex flex-col items-center gap-4 text-cyan-500/50">
-                        <div className="w-8 h-8 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
-                        <span className="text-xs uppercase tracking-widest animate-pulse">
-                            Establishing Neural Link to {new URL(normalizedUrl).hostname}...
-                        </span>
-                        <p className="text-[10px] text-slate-500 max-w-[200px] text-center mt-2 font-mono">
-                            Using secure bridge proxy to bypass site restrictions.
-                        </p>
-                    </div>
-                )}
-            </div>
-        );
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+    setError(null);
+    const norm = normalizedUrl();
+    if (norm) {
+      setProxyUrl(`${computeProxyUrl(norm)}&retry=${retryCount + 1}`);
     }
+  };
+
+  if (!url || url.trim() === '') {
+    return (
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-purple-900/20 to-blue-900/20">
+        <div className="text-center text-gray-400">
+          <p className="text-lg">Enter a URL to browse</p>
+          <p className="text-sm mt-2">Try: wikipedia.org, github.com, arxiv.org</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-red-900/20 to-orange-900/20">
+        <div className="text-center max-w-md p-8 bg-gray-800/50 rounded-lg backdrop-blur">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-white mb-2">Failed to Load Page</h3>
+          <p className="text-gray-300 mb-4">{error}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={handleRetry}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </button>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open Externally
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isElectron) {
+    return (
+      <div className="w-full h-full relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur z-10">
+            <Loader2 className="w-12 h-12 text-blue-400 animate-spin" />
+          </div>
+        )}
+        <webview
+          ref={webviewRef}
+          src={normalizedUrl()}
+          className="w-full h-full"
+          style={{ display: isActive ? 'flex' : 'none' }}
+          allowpopups={true}
+          useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+          webpreferences="contextIsolation=yes, sandbox=yes"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full bg-gray-900">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur z-10">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
+            <p className="text-white">Loading page...</p>
+            <p className="text-gray-400 text-sm mt-2">{url}</p>
+          </div>
+        </div>
+      )}
+      <iframe
+        ref={iframeRef}
+        src={proxyUrl}
+        className="w-full h-full border-0"
+        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-popups-to-escape-sandbox allow-downloads"
+        allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        loading="eager"
+        onLoad={handleLoad}
+        onError={handleIframeError}
+        style={{
+          opacity: isLoading ? 0 : 1,
+          transition: 'opacity 0.3s ease',
+        }}
+      />
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-gray-800/90 hover:bg-gray-700/90 rounded-lg text-white text-sm opacity-0 hover:opacity-100 transition-opacity backdrop-blur"
+        title="Open in new tab"
+      >
+        <ExternalLink className="w-4 h-4" />
+        Open Externally
+      </a>
+    </div>
+  );
 });
 
 WebFrame.displayName = 'WebFrame';

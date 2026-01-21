@@ -8,7 +8,8 @@ export interface BrowserTab {
     favicon?: string;
     isLoading: boolean;
     history: string[];
-    historyIndex: number; // Current position in history stack
+    historyIndex: number;
+    isPinned: boolean;
 }
 
 export type SearchEngine = 'google' | 'duckduckgo' | 'bing' | 'brave' | 'perplexity';
@@ -31,6 +32,11 @@ interface BrowserState {
     goForward: (id: string) => string | null; // Returns new URL
     setLoading: (id: string, isLoading: boolean) => void;
     reorderTabs: (newOrder: BrowserTab[]) => void;
+    pinTab: (id: string) => void;
+    unpinTab: (id: string) => void;
+    moveTab: (tabId: string, newIndex: number) => void;
+    canGoBack: (id: string) => boolean;
+    canGoForward: (id: string) => boolean;
 }
 
 export const useBrowserStore = create<BrowserState>((set, get) => ({
@@ -48,6 +54,7 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
             isLoading: false,
             history: [url],
             historyIndex: 0,
+            isPinned: false,
         };
 
         set((state) => {
@@ -158,4 +165,40 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
     },
 
     reorderTabs: (newOrder) => set({ tabs: newOrder }),
+
+    pinTab: (id) => {
+        set((state) => ({
+            tabs: state.tabs.map((t) => (t.id === id ? { ...t, isPinned: true } : t)),
+        }));
+    },
+
+    unpinTab: (id) => {
+        set((state) => ({
+            tabs: state.tabs.map((t) => (t.id === id ? { ...t, isPinned: false } : t)),
+        }));
+    },
+
+    moveTab: (tabId, newIndex) => {
+        set((state) => {
+            const tabs = [...state.tabs];
+            const oldIndex = tabs.findIndex(t => t.id === tabId);
+            if (oldIndex === -1) return state;
+
+            const [removed] = tabs.splice(oldIndex, 1);
+            tabs.splice(newIndex, 0, removed);
+            return { tabs };
+        });
+    },
+
+    canGoBack: (id) => {
+        const state = get();
+        const tab = state.tabs.find(t => t.id === id);
+        return tab ? tab.historyIndex > 0 : false;
+    },
+
+    canGoForward: (id) => {
+        const state = get();
+        const tab = state.tabs.find(t => t.id === id);
+        return tab ? tab.historyIndex < tab.history.length - 1 : false;
+    },
 }));
