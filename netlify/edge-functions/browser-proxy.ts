@@ -229,10 +229,19 @@ function createErrorPage(message: string): string {
 }
 
 export default async (request: Request) => {
+  const url = new URL(request.url);
+  const targetUrl = url.searchParams.get('url');
+  
+  console.log('[proxy] Request URL:', request.url);
+  console.log('[proxy] targetUrl param:', targetUrl);
+  
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+    'Pragma': 'no-cache',
+    'X-Proxy-Debug': 'true',
   };
 
   if (request.method === 'OPTIONS') {
@@ -240,9 +249,6 @@ export default async (request: Request) => {
   }
 
   try {
-    const url = new URL(request.url);
-    const targetUrl = url.searchParams.get('url');
-    
     if (!targetUrl) {
       return new Response('Missing url parameter', { 
         status: 400, 
@@ -254,11 +260,11 @@ export default async (request: Request) => {
     try {
       parsedTarget = new URL(targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`);
     } catch {
-      return new Response('Invalid URL', { status: 400, headers: corsHeaders });
+      return new Response('Invalid URL: ' + targetUrl, { status: 400, headers: corsHeaders });
     }
 
     const hostname = parsedTarget.hostname.toLowerCase();
-    console.log(`[proxy] Request for: ${hostname}`);
+    console.log('[proxy] Fetching:', parsedTarget.href);
 
     const isAllowed = ALLOWED_DOMAINS.some(domain => 
       hostname === domain || hostname.endsWith(`.${domain}`)
@@ -306,7 +312,9 @@ export default async (request: Request) => {
     responseHeaders.set('Content-Type', 'text/html; charset=utf-8');
     responseHeaders.set('X-Proxied-By', 'Eldoria-Neural-Bridge/2.0');
     responseHeaders.set('X-Frame-Options', 'ALLOWALL');
-    responseHeaders.set('Cache-Control', 'public, max-age=300');
+    responseHeaders.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    responseHeaders.set('Pragma', 'no-cache');
+    responseHeaders.set('Expires', '0');
 
     return new Response(html, {
       status: 200,
@@ -327,6 +335,6 @@ export default async (request: Request) => {
 };
 
 export const config = {
-  path: "/api/browser-proxy",
-  cache: "manual",
+  path: "/api/*",
+  cache: "off",
 };
