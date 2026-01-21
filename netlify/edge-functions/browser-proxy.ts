@@ -78,8 +78,21 @@ const BLOCKED_PATTERNS = [
 ];
 
 function transformHTML(html: string, baseUrl: string): string {
-  const baseTag = `<base href="${baseUrl}">`;
+  const baseUrlObj = new URL(baseUrl);
+  const baseTag = `<base href="${baseUrl}" target="_blank">`;
+  
+  // Inject base tag FIRST to handle all relative URLs
   html = html.replace(/<head>/i, `<head>${baseTag}`);
+
+  // Fix any existing base tags
+  html = html.replace(/<base[^>]*>/gi, baseTag);
+
+  // Fix relative URLs in href (links)
+  html = html.replace(/(href=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
+  // Fix relative URLs in src (scripts, images, styles)
+  html = html.replace(/(src=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
+  // Fix CSS @import
+  html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
 
   const integrationScript = `
     <script>
