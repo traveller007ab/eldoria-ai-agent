@@ -4,8 +4,10 @@ interface ProxyRequest {
 }
 
 const ALLOWED_DOMAINS = [
+  // Research & Reference
   'wikipedia.org',
   'en.wikipedia.org',
+  'wiktionary.org',
   'github.com',
   'stackoverflow.com',
   'docs.python.org',
@@ -13,17 +15,57 @@ const ALLOWED_DOMAINS = [
   'arxiv.org',
   'scholar.google.com',
   'pubmed.ncbi.nlm.nih.gov',
+  'nature.com',
+  'science.org',
+  'jstor.org',
   'medium.com',
   'dev.to',
   'blog.logrocket.com',
   'css-tricks.com',
   'smashingmagazine.com',
+  // Tech & Development
   'netlify.com',
   'vercel.com',
   'reactjs.org',
   'react.dev',
   'typescriptlang.org',
   'nodejs.org',
+  'npmjs.com',
+  'yarnpkg.com',
+  'docker.com',
+  'kubernetes.io',
+  'aws.amazon.com',
+  'cloudflare.com',
+  // Search Engines
+  'google.com',
+  'www.google.com',
+  'duckduckgo.com',
+  'bing.com',
+  'yahoo.com',
+  'baidu.com',
+  // Social
+  'twitter.com',
+  'x.com',
+  'reddit.com',
+  'linkedin.com',
+  'facebook.com',
+  'instagram.com',
+  // Video & Media
+  'youtube.com',
+  'vimeo.com',
+  'twitch.tv',
+  'dailymotion.com',
+  // Shopping & Other
+  'amazon.com',
+  'ebay.com',
+  'wikipedia.org',
+  'wikidata.org',
+  'openstreetmap.org',
+  'archive.org',
+  // Testing
+  'example.com',
+  'example.org',
+  'test.com',
 ];
 
 const BLOCKED_PATTERNS = [
@@ -187,10 +229,12 @@ export default async (request: Request) => {
   try {
     const url = new URL(request.url);
     const targetUrl = url.searchParams.get('url');
-    const userId = url.searchParams.get('userId') || 'anonymous';
-
+    
     if (!targetUrl) {
-      return new Response('Missing url parameter', { status: 400, headers: corsHeaders });
+      return new Response('Missing url parameter', { 
+        status: 400, 
+        headers: corsHeaders 
+      });
     }
 
     let parsedTarget: URL;
@@ -201,22 +245,22 @@ export default async (request: Request) => {
     }
 
     const hostname = parsedTarget.hostname.toLowerCase();
-
-    if (BLOCKED_PATTERNS.some(pattern => pattern.test(hostname))) {
-      return new Response('Access to internal networks denied', { status: 403, headers: corsHeaders });
-    }
+    console.log(`[proxy] Request for: ${hostname}`);
 
     const isAllowed = ALLOWED_DOMAINS.some(domain => 
       hostname === domain || hostname.endsWith(`.${domain}`)
     );
 
     if (!isAllowed) {
+      console.log(`[proxy] Domain not allowed: ${hostname}`);
       return new Response(
-        `Domain ${hostname} not whitelisted. Request access if needed.`, 
-        { status: 403, headers: corsHeaders }
+        `Domain ${hostname} not whitelisted.`, 
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'text/plain' } }
       );
     }
 
+    console.log(`[proxy] Fetching: ${parsedTarget.href}`);
+    
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
 
@@ -226,26 +270,22 @@ export default async (request: Request) => {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
       },
       signal: controller.signal,
     });
 
     clearTimeout(timeout);
+    console.log(`[proxy] Response status: ${response.status}`);
 
     const contentType = response.headers.get('Content-Type') || '';
     if (!contentType.includes('text/html')) {
-      return new Response('Only HTML content can be proxied', { status: 400, headers: corsHeaders });
+      return new Response('Only HTML content can be proxied', { 
+        status: 400, 
+        headers: corsHeaders 
+      });
     }
 
     let html = await response.text();
-
-    if (response.headers.get('Content-Encoding') === 'gzip') {
-      const buffer = await response.arrayBuffer();
-      html = new TextDecoder().decode(buffer);
-    }
 
     html = transformHTML(html, parsedTarget.href);
 
@@ -261,7 +301,7 @@ export default async (request: Request) => {
     });
 
   } catch (error) {
-    console.error('Proxy error:', error);
+    console.error('[proxy] Error:', error);
     
     return new Response(
       createErrorPage(error instanceof Error ? error.message : 'Unknown error'),

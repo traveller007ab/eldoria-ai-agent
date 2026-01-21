@@ -14,7 +14,7 @@
   directory = "netlify/functions"
 
 [[edge_functions]]
-  path = "/api/browser-proxy"
+  path = "/api/*"
   function = "browser-proxy"
 
 [[headers]]
@@ -24,7 +24,7 @@
 
 [[headers]]
   for = "/*"
-  except = "/api/browser-proxy"
+  except = "/api/*"
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
