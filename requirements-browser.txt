@@ -1,0 +1,8 @@
+# Browser Dependencies
+# Install with: pip install -r requirements-browser.txt
+
+PyQt5>=5.15.0
+PyQtWebEngine>=5.15.0
+
+# Optional: For enhanced styling
+# qdarkstyle>=3.0.0

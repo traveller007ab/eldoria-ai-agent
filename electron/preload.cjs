@@ -33,7 +33,13 @@ contextBridge.exposeInMainWorld('eldoriaDesktop', {
     platform: process.platform,
 
     // Check if running in Electron
-    isElectron: true
+    isElectron: true,
+
+    // PyQt5 Browser Control
+    openBrowser: (url) => ipcRenderer.invoke('browser:open', url),
+    browserNavigate: (url) => ipcRenderer.invoke('browser:navigate', url),
+    browserNewTab: (url) => ipcRenderer.invoke('browser:newTab', url),
+    closeBrowser: () => ipcRenderer.invoke('browser:close')
 });
 
 console.log('[Eldoria Preload] Desktop bridge initialized');

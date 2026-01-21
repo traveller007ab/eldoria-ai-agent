@@ -22,6 +22,10 @@ const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 let bridgeServer = null;
 let bridgePort = 3001;
 
+// PyQt5 Browser process
+let browserProcess = null;
+const BROWSER_PORT = 19876;
+
 // Security: Allowed commands for shell execution
 const ALLOWED_COMMANDS = [
     'echo', 'type', 'dir', 'ls', 'cat', 'pwd', 'cd', 'mkdir',
@@ -52,6 +56,69 @@ function startEmbeddedBridge() {
     } catch (error) {
         console.error('[Eldoria Main] Failed to start bridge server:', error);
     }
+}
+
+/**
+ * Start the PyQt5 browser
+ */
+function startPyQtBrowser(url = null) {
+    try {
+        const pythonPath = process.env.PYTHON_PATH || 'python';
+        const browserPath = path.join(__dirname, '..', 'browser', 'main.py');
+        
+        const args = [];
+        if (url) {
+            args.push('--url', url);
+        }
+        
+        browserProcess = spawn(pythonPath, [browserPath, ...args], {
+            cwd: path.join(__dirname, '..'),
+            stdio: 'pipe',
+            env: { ...process.env }
+        });
+        
+        browserProcess.stdout.on('data', (data) => {
+            console.log(`[PyQt Browser] ${data.toString().trim()}`);
+        });
+        
+        browserProcess.stderr.on('data', (data) => {
+            console.error(`[PyQt Browser Error] ${data.toString().trim()}`);
+        });
+        
+        browserProcess.on('error', (err) => {
+            console.error('[Eldoria Main] PyQt Browser error:', err);
+        });
+        
+        browserProcess.on('close', (code) => {
+            console.log(`[PyQt Browser] Exited with code ${code}`);
+            browserProcess = null;
+        });
+        
+        console.log('[Eldoria Main] PyQt5 Browser started');
+    } catch (error) {
+        console.error('[Eldoria Main] Failed to start PyQt Browser:', error);
+    }
+}
+
+/**
+ * Send message to PyQt browser via IPC
+ */
+function sendToBrowser(message) {
+    return new Promise((resolve, reject) => {
+        try {
+            const client = require('net').createConnection(BROWSER_PORT, '127.0.0.1');
+            client.on('connect', () => {
+                client.write(JSON.stringify(message));
+                client.end();
+                resolve(true);
+            });
+            client.on('error', (err) => {
+                resolve(false);
+            });
+        } catch (e) {
+            resolve(false);
+        }
+    });
 }
 
 /**
@@ -158,6 +225,34 @@ function setupIpcHandlers() {
         return { success: true };
     });
 
+    // PyQt5 Browser Control
+    ipcMain.handle('browser:open', async (event, url) => {
+        console.log(`[Eldoria Main] Opening browser${url ? ' with URL: ' + url : ''}`);
+        startPyQtBrowser(url);
+        return { success: true };
+    });
+
+    ipcMain.handle('browser:navigate', async (event, url) => {
+        console.log(`[Eldoria Main] Browser navigate to: ${url}`);
+        const sent = await sendToBrowser({ type: 'navigate', url });
+        return { success: sent };
+    });
+
+    ipcMain.handle('browser:newTab', async (event, url) => {
+        console.log(`[Eldoria Main] Browser new tab: ${url}`);
+        const sent = await sendToBrowser({ type: 'open_tab', url });
+        return { success: sent };
+    });
+
+    ipcMain.handle('browser:close', async () => {
+        if (browserProcess) {
+            browserProcess.kill();
+            browserProcess = null;
+        }
+        const sent = await sendToBrowser({ type: 'close' });
+        return { success: true };
+    });
+
     // Project Indexing via Main Process (Proxy to Python)
     ipcMain.handle('bridge:indexProject', async (event, rootPath) => {
         // In the desktop app, we default to the CWD or a specific project path
@@ -240,6 +335,11 @@ app.on('window-all-closed', () => {
     // Kill bridge server on exit
     if (bridgeServer) {
         bridgeServer.kill();
+    }
+    
+    // Kill browser process on exit
+    if (browserProcess) {
+        browserProcess.kill();
     }
 
     if (process.platform !== 'darwin') {
