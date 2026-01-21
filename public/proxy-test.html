@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Browser Proxy Test</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    h1 { color: #22d3ee; }
+    .test { margin: 20px 0; padding: 20px; background: #1e293b; border-radius: 8px; }
+    .success { color: #22c55e; }
+    .error { color: #ef4444; }
+    .loading { color: #eab308; }
+    button {
+      background: #22d3ee;
+      color: #0f172a;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover { background: #06b6d4; }
+    pre { background: #0f172a; padding: 10px; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Browser Proxy Test</h1>
+  
+  <div class="test">
+    <h3>Test 1: Check if proxy endpoint exists</h3>
+    <div id="test1">Testing...</div>
+  </div>
+  
+  <div class="test">
+    <h3>Test 2: Proxy a simple page</h3>
+    <div id="test2">Testing...</div>
+  </div>
+  
+  <div class="test">
+    <button onclick="runTests()">Run Tests Again</button>
+  </div>
+  
+  <h2>📋 Deployment Checklist</h2>
+  <pre>
+1. Push code to GitHub
+2. Connect repo to Netlify
+3. Ensure netlify.toml has edge_functions config
+4. Edge Function should auto-deploy
+5. Test at: YOUR_SITE/api/browser-proxy?url=https://example.com
+  </pre>
+
+  <script>
+    async function runTests() {
+      const siteUrl = window.location.origin;
+      
+      // Test 1: Check if proxy endpoint exists
+      document.getElementById('test1').innerHTML = '<span class="loading">Testing...</span>';
+      try {
+        const response = await fetch(`${siteUrl}/api/browser-proxy?url=https://example.com`);
+        if (response.ok) {
+          document.getElementById('test1').innerHTML = 
+            '<span class="success">✓ Proxy endpoint exists! Status: ' + response.status + '</span>';
+        } else {
+          document.getElementById('test1').innerHTML = 
+            '<span class="error">✗ Proxy returned status: ' + response.status + '</span>';
+        }
+      } catch (e) {
+        document.getElementById('test1').innerHTML = 
+          '<span class="error">✗ Proxy unreachable: ' + e.message + '</span>';
+      }
+      
+      // Test 2: Try to proxy a page
+      document.getElementById('test2').innerHTML = '<span class="loading">Testing...</span>';
+      try {
+        const response = await fetch(`${siteUrl}/api/browser-proxy?url=https://example.com`);
+        const text = await response.text();
+        if (text.includes('Example')) {
+          document.getElementById('test2').innerHTML = 
+            '<span class="success">✓ Proxy working! Page content retrieved.</span>';
+        } else {
+          document.getElementById('test2').innerHTML = 
+            '<span class="error">✗ Proxy returned unexpected content</span>';
+        }
+      } catch (e) {
+        document.getElementById('test2').innerHTML = 
+          '<span class="error">✗ Error: ' + e.message + '</span>';
+      }
+    }
+    
+    runTests();
+  </script>
+</body>
+</html>

@@ -242,12 +242,17 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full bg-gradient-to-br from-red-900/20 to-orange-900/20">
-        <div className="text-center max-w-md p-8 bg-gray-800/50 rounded-lg backdrop-blur">
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-900 to-slate-800">
+        <div className="text-center max-w-md p-8 bg-slate-800/50 rounded-lg backdrop-blur border border-slate-700">
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">Failed to Load Page</h3>
-          <p className="text-gray-300 mb-4">{error}</p>
-          <div className="flex gap-3 justify-center">
+          <h3 className="text-xl font-semibold text-white mb-2">Browser Proxy Unavailable</h3>
+          <p className="text-gray-300 mb-4">
+            The browser proxy is not responding. This may be because the Netlify Edge Function hasn't been deployed yet.
+          </p>
+          <p className="text-sm text-gray-400 mb-4">
+            URL: <span className="text-cyan-400">{url}</span>
+          </p>
+          <div className="flex gap-3 justify-center flex-wrap">
             <button
               onClick={handleRetry}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
@@ -259,12 +264,15 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition"
             >
               <ExternalLink className="w-4 h-4" />
-              Open Externally
+              Open Directly
             </a>
           </div>
+          <p className="text-xs text-gray-500 mt-4">
+            For the browser to work, deploy to Netlify with the Edge Function configured.
+          </p>
         </div>
       </div>
     );
