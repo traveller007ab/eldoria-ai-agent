@@ -1995,11 +1995,6 @@ async def browser_proxy(url: str):
             final_url = str(resp.url)
             content_type = resp.headers.get('Content-Type', '').lower()
             raw_content = resp.content
-
-            # Decompress if needed
-            if resp.headers.get('Content-Encoding') == 'gzip':
-                import gzip
-                raw_content = gzip.decompress(raw_content)
             
             # Decode to text for HTML processing
             try:
