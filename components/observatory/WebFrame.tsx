@@ -95,10 +95,23 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
 
   useEffect(() => {
     if (!proxyUrl || isElectron) return;
+    
     setIsLoading(true);
     setError(null);
     onLoadStart?.();
-  }, [proxyUrl, isElectron, onLoadStart]);
+    
+    // Timeout after 30 seconds
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('[WebFrame] Load timeout - forcing stop');
+        setIsLoading(false);
+        setError('Page load timed out after 30 seconds');
+        onLoadStop?.();
+      }
+    }, 30000);
+    
+    return () => clearTimeout(timeout);
+  }, [proxyUrl, isElectron, onLoadStart, isLoading, onLoadStop]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<EldoriaMessage>) => {
@@ -124,14 +137,16 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   }, [onTitleChange, onMetadataChange, onScrollChange, onSelectionChange]);
 
   const handleLoad = () => {
+    console.log('[WebFrame] onLoad fired');
     setIsLoading(false);
     setError(null);
     onLoadStop?.();
   };
 
-  const handleIframeError = () => {
+  const handleIframeError = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
+    console.log('[WebFrame] iframe error:', e);
     setIsLoading(false);
-    setError('Failed to load page');
+    setError('Failed to load page - check console for details');
     onLoadStop?.();
     onError?.(new Error('Load failed'));
   };
@@ -313,6 +328,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
             <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
             <p className="text-white">Loading page...</p>
             <p className="text-gray-400 text-sm mt-2">{url}</p>
+            <p className="text-gray-500 text-xs mt-4 font-mono break-all max-w-md">Proxy: {proxyUrl?.substring(0, 80)}...</p>
           </div>
         </div>
       )}
