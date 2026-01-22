@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { Loader2, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import { getBrowserProxyUrl } from '../../config';
 
 interface EldoriaMessage {
   type: 'ELDORIA_PAGE_METADATA' | 'ELDORIA_SCROLL' | 'ELDORIA_SELECTION' | 'ELDORIA_RESPONSE';
@@ -74,8 +75,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
 
   const computeProxyUrl = useCallback((inputUrl: string): string => {
     if (!inputUrl) return '';
-    const proxyEndpoint = '/api/browser-proxy';
-    return `${proxyEndpoint}?url=${encodeURIComponent(inputUrl)}&userId=${getUserId()}`;
+    return getBrowserProxyUrl(inputUrl, getUserId());
   }, []);
 
   useEffect(() => {
@@ -292,7 +292,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
             </a>
           </div>
           <p className="text-xs text-gray-500 mt-4">
-            For the browser to work, deploy to Netlify with the Edge Function configured.
+            For the browser to work, either deploy to Netlify or run the Python bridge locally.
           </p>
         </div>
       </div>
@@ -333,7 +333,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
         </div>
       )}
       
-      {proxyUrl && proxyUrl.startsWith('/api/') ? (
+      {proxyUrl && (proxyUrl.startsWith('/api/') || proxyUrl.startsWith('http')) ? (
         <iframe
           ref={iframeRef}
           src={proxyUrl}

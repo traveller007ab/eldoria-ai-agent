@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, ArrowLeft, ArrowRight, RotateCw, X, Globe, Lock, Star, History, Clock, ExternalLink } from 'lucide-react';
+import { Search, ArrowLeft, ArrowRight, RotateCw, X, Globe, Lock, Star, History, Clock, ExternalLink, Monitor } from 'lucide-react';
 import { browserService } from '../../src/services/BrowserService';
 
 interface Suggestion {
@@ -42,8 +42,53 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [showHistory, setShowHistory] = useState(false);
+  const [isElectron, setIsElectron] = useState(false);
+  const [isBridgeAvailable, setIsBridgeAvailable] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsElectron(!!(window as any).eldoriaDesktop?.isElectron);
+    checkBridgeAvailability();
+  }, []);
+
+  const checkBridgeAvailability = async () => {
+    try {
+      const response = await fetch('/browser/status');
+      if (response.ok) {
+        const data = await response.json();
+        setIsBridgeAvailable(data.browser_available);
+      }
+    } catch (e) {
+      setIsBridgeAvailable(false);
+    }
+  };
+
+  const canOpenInDesktop = isElectron || isBridgeAvailable;
+
+  const handleOpenInDesktop = async () => {
+    if (!currentUrl || currentUrl === 'about:blank') return;
+
+    const isElectron = !!(window as any).eldoriaDesktop?.isElectron;
+
+    if (isElectron && (window as any).eldoriaDesktop) {
+      await (window as any).eldoriaDesktop.openBrowser(currentUrl);
+      return;
+    }
+
+    try {
+      const response = await fetch('/browser/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: currentUrl }),
+      });
+      if (!response.ok) {
+        console.error('Failed to launch desktop browser');
+      }
+    } catch (e) {
+      console.warn('Bridge not available for desktop browser launch:', e);
+    }
+  };
 
   useEffect(() => {
     if (!isFocused) {
@@ -264,7 +309,15 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
       </form>
 
       <div className="flex items-center gap-2">
-        <button 
+        <button
+          onClick={handleOpenInDesktop}
+          disabled={!currentUrl || currentUrl === 'about:blank' || !canOpenInDesktop}
+          className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-cyan-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          title={canOpenInDesktop ? 'Open in Desktop Browser' : 'Desktop browser not available'}
+        >
+          <Monitor className="w-4 h-4" />
+        </button>
+        <button
           onClick={() => browserService.addBookmark()}
           className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-amber-400 transition-colors"
           title="Bookmark this page"

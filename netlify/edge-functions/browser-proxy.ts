@@ -335,6 +335,6 @@ export default async (request: Request) => {
 };
 
 export const config = {
-  path: "/api/*",
+  path: "/api/browser-proxy",
   cache: "off",
 };

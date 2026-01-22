@@ -28,3 +28,39 @@ export const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || (proc
 export const TAVILY_API_KEY = (import.meta as any).env?.VITE_TAVILY_API_KEY || (process.env?.TAVILY_API_KEY as string);
 export const OPENROUTER_API_KEY = (import.meta as any).env?.VITE_OPENROUTER_API_KEY || (process.env?.OPENROUTER_API_KEY as string);
 
+/**
+ * Bridge/Backend URL - For Python bridge connection
+ * Falls back to localhost:3001 for local development
+ */
+export const BRIDGE_URL = (import.meta as any).env?.VITE_BRIDGE_URL || 'http://localhost:3001';
+
+/**
+ * Browser Proxy URL - Determines which proxy to use for the embedded browser
+ * In production (Netlify), use the edge function at /api/browser-proxy
+ * In development or with bridge, use the Python bridge proxy
+ */
+export const getBrowserProxyUrl = (targetUrl: string, userId: string): string => {
+  const encodedUrl = encodeURIComponent(targetUrl);
+  
+  // Check if bridge URL is explicitly set (indicating bridge mode)
+  const bridgeUrl = (import.meta as any).env?.VITE_BRIDGE_URL;
+  
+  // If bridge URL is set, always use it
+  if (bridgeUrl) {
+    return `${bridgeUrl}/browser/proxy?url=${encodedUrl}`;
+  }
+  
+  // Detect if we're on Netlify (production PWA) or localhost
+  const isLocalhost = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || 
+     window.location.hostname === '127.0.0.1');
+  
+  if (isLocalhost) {
+    // Use Python bridge proxy for local development
+    return `http://localhost:3001/browser/proxy?url=${encodedUrl}`;
+  } else {
+    // Use Netlify Edge Function for deployed PWA
+    return `/api/browser-proxy?url=${encodedUrl}&userId=${userId}`;
+  }
+};
+

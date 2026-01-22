@@ -14,7 +14,7 @@
   directory = "netlify/functions"
 
 [[edge_functions]]
-  path = "/api/*"
+  path = "/api/browser-proxy"
   function = "browser-proxy"
 
 [[headers]]

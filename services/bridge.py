@@ -2062,6 +2062,55 @@ async def browser_proxy(url: str):
             status_code=500
         )
 
+
+@app.post("/browser/launch")
+async def launch_desktop_browser(request: Dict = Body(...)):
+    """
+    Launch the PyQt5 desktop browser with an optional URL.
+    This endpoint is used by the PWA to open sites in the full desktop browser.
+    """
+    try:
+        url = request.get("url", "")
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        browser_script = os.path.join(project_root, "browser", "main.py")
+        
+        if not os.path.exists(browser_script):
+            raise HTTPException(status_code=404, detail="Browser script not found")
+        
+        args = []
+        if url:
+            args.extend(["--url", url])
+        
+        process = subprocess.Popen(
+            [sys.executable, browser_script] + args,
+            cwd=project_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        return {
+            "success": True,
+            "message": "Desktop browser launched",
+            "url": url or None
+        }
+    except Exception as e:
+        print(f"[BRIDGE] Failed to launch desktop browser: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/browser/status")
+async def browser_status():
+    """
+    Check if the PyQt5 browser is available and ready.
+    """
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    browser_script = os.path.join(project_root, "browser", "main.py")
+    
+    return {
+        "browser_available": os.path.exists(browser_script),
+        "browser_path": browser_script
+    }
+
 if __name__ == "__main__":
     zeroconf = None
     info = None
