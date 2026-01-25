@@ -659,8 +659,7 @@ async def get_default_path():
             return {"path": buf.value}
         else: # Linux/Mac
             return {"path": os.path.expanduser("~/Documents")}
-    except Exception:
-        return {"path": os.path.expanduser("~")}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # SECURITY: /execute endpoint DISABLED - was RCE vulnerability

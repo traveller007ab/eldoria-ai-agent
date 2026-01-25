@@ -49,7 +49,7 @@ def create_access_token(user_id: str, email: str, expires_delta: Optional[timede
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-    except:
+    except Exception:
         return None
 
 async def create_user(email: str, password: str, name: Optional[str] = None) -> Dict[str, Any]:
@@ -91,7 +91,7 @@ async def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     
     try:
         return client.query("getProfile", {})
-    except:
+    except Exception:
         return None
 
 async def get_user_projects(user_id: str) -> List[Dict[str, Any]]:
@@ -104,7 +104,7 @@ async def get_user_projects(user_id: str) -> List[Dict[str, Any]]:
     
     try:
         return client.query("listProjects", {}) or []
-    except:
+    except Exception:
         return []
 
 async def create_project(user_id: str, name: str, description: Optional[str] = None, project_type: str = "code") -> Dict[str, Any]:
@@ -135,7 +135,7 @@ async def get_project_by_id(project_id: str, user_id: str) -> Optional[Dict[str,
             if p.get("id") == project_id or p.get("_id") == project_id:
                 return p
         return None
-    except:
+    except Exception:
         return None
 
 async def update_project(project_id: str, user_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
@@ -190,7 +190,7 @@ async def get_user_chat_sessions(user_id: str, project_id: Optional[str] = None)
     
     try:
         return client.query("listChatSessions", {}) or []
-    except:
+    except Exception:
         return []
 
 async def get_chat_session_by_id(session_id: str, user_id: str) -> Optional[Dict[str, Any]]:
@@ -207,7 +207,7 @@ async def get_chat_session_by_id(session_id: str, user_id: str) -> Optional[Dict
             if s.get("id") == session_id or s.get("_id") == session_id:
                 return s
         return None
-    except:
+    except Exception:
         return None
 
 async def add_chat_message(session_id: str, role: str, content: str, metadata: Optional[Dict] = None) -> Dict[str, Any]:
@@ -234,7 +234,7 @@ async def get_chat_messages(session_id: str) -> List[Dict[str, Any]]:
     
     try:
         return client.query("getChatMessages", {"sessionId": session_id}) or []
-    except:
+    except Exception:
         return []
 
 async def delete_chat_session(session_id: str, user_id: str) -> Dict[str, Any]:

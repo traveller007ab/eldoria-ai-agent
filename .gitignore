@@ -1,63 +1,43 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+build/
+release/
+*.exe
+*.asar
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
 # Logs
-logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-# Build error logs (clean these up)
-build_errors*.txt
-tsc_errors*.txt
-tsc_check.log
-all_errors.log
-error*.txt
-*_errors*.txt
-*_output*.txt
-*_log.txt
-
-node_modules
-# Build artifacts
-dist
-dist-ssr
-release
-android
-ios
-out
-build
-*.spec
-
-# Environment - CRITICAL: Never commit env files with secrets
-.env
-.env.local
-.env.development
-.env.production
-.env.staging
-.env*.local
-!.env.example
-!.env.local.example
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Documentation & Exports
+*.docx
+*.pdf
 
 # Python
-__pycache__
-*.pyc
-*.pyo
-venv
-.venv
-*.egg-info
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+requirements.txt
+!requirements.txt # Preserve requirements.txt but ignore other .txt files
+*.txt
+!requirements.txt
+!requirements-browser.txt
 
-# Test artifacts
-coverage
-.nyc_output
-playwright-report
+# Misc
+*.bak
+*.tmp
+nul
