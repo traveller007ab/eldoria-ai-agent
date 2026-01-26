@@ -3,12 +3,12 @@ import { useWorkspace } from '../context/WorkspaceContext';
 import { processImageFile } from '../utils/imageUtils';
 import { EditableTextPart } from './EditableTextPart';
 import { ImagePart } from './ImagePart';
-import { Image as ImageIcon, File as FileIcon, Folder as FolderIcon, HardDrive, X, Target, Save, Trash2, Zap } from 'lucide-react';
+import { Image as ImageIcon, File as FileIcon, Folder as FolderIcon, X, Zap } from 'lucide-react';
 import { bridgeClient } from '../services/bridgeClient';
 import { Button } from './ui/Button';
 
 export const EditorPanel: React.FC = () => {
-  const { activeCanvas, addCanvasPart, removeCanvasPart, generate, isLoading, publishToAcademicHub } = useWorkspace();
+  const { activeCanvas, addCanvasPart, removeCanvasPart, generate, isLoading } = useWorkspace();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddFileClick = async () => {
@@ -102,26 +102,17 @@ export const EditorPanel: React.FC = () => {
               />
             </div>
           </div>
-          <button
-            onClick={() => publishToAcademicHub()}
-            disabled={!activeCanvas}
-            className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-not-allowed text-emerald-300 rounded-md transition-all flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-widest border border-emerald-500/10"
-            title="Publish Code to Academic Hub"
-          >
-            <Target className="w-3.5 h-3.5" />
-            Publish
-          </button>
         </div>
-         <Button
-            variant="primary"
-            size="md"
-            onClick={generate}
-            disabled={isLoading || !canGenerate}
-            loading={isLoading}
-            rightIcon={isLoading ? undefined : <Zap className="w-4 h-4" />}
-         >
-            {isLoading ? 'Generating...' : '⚡ Generate'}
-         </Button>
+        <Button
+          variant="primary"
+          size="md"
+          onClick={generate}
+          disabled={isLoading || !canGenerate}
+          loading={isLoading}
+          rightIcon={isLoading ? undefined : <Zap className="w-4 h-4" />}
+        >
+          {isLoading ? 'Generating...' : '⚡ Generate'}
+        </Button>
       </div>
       <div className="w-full h-full custom-scrollbar pr-2 overflow-y-auto">
         {activeCanvas?.content?.map((part, index) => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Layout, GraduationCap, Terminal, Settings, Database, Loader2, LogOut, DownloadCloud, BookOpen, FlaskConical, Cpu, Compass } from 'lucide-react';
+import { Layout, GraduationCap, Terminal, Settings, Database, Loader2, DownloadCloud, BookOpen, FlaskConical, Cpu, Compass } from 'lucide-react';
 import { KnowledgeIndexModal } from '../modals/KnowledgeIndexModal';
 import { SettingsModal } from '../modals/SettingsModal';
 import { EldoriaLogo } from '../Icons';
@@ -92,9 +92,6 @@ export const Sidebar: React.FC = () => {
                         title="System Settings"
                     >
                         <Settings className="w-6 h-6 group-hover:rotate-45 transition-transform" />
-                    </button>
-                    <button className="p-3 text-cyan-500/40 hover:text-red-400 hover:bg-red-500/5 rounded-xl transition-all group" title="Disconnect Session">
-                        <LogOut className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
                     </button>
                 </div>
             </div>
