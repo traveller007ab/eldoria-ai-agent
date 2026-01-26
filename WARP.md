@@ -122,3 +122,27 @@ import { something } from '@/services/SomeService';
 - State mutations go through Zustand store actions
 - AI service calls should use `UnifiedAIService` or go through bridge proxies to avoid CORS
 - Physics calculations in SAF Lab use mathjs for symbolic math
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl/Cmd + K` | Open Command Bar |
+| `Alt + Shift + W` | Navigate to Workspace |
+| `Alt + Shift + A` | Navigate to Academic Hub |
+| `Escape` | Close modals / Command Bar |
+
+## New Components (2026)
+
+### CommandBar (`components/CommandBar.tsx`)
+Unified command interface for Ask, Research, and Generate actions. Opens with `Ctrl+K`.
+- Three modes: Search (cyan), Generate (purple), Research (emerald)
+- Quick actions for common tasks
+- Recent queries history
+- Keyboard-first design
+
+### SourceCards (`components/SourceCards.tsx`)
+Beautiful, expandable source cards for displaying research citations.
+- Favicon and domain detection
+- Expandable details with actions (Open, Copy, Cite)
+- Color-coded by source type (Wikipedia, GitHub, .edu, .gov, etc.)

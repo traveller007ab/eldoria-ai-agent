@@ -8,6 +8,7 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { StatusBar } from './components/layout/StatusBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { AcademicHub } from './academic-hub/AcademicHub';
+import { CommandBar, CommandBarTrigger } from './components/CommandBar';
 
 import { API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY } from './config';
 import { useWorkspace } from './context/WorkspaceContext';
@@ -23,14 +24,26 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { MindCanvas } from './components/nexus/MindCanvas';
 import { FocusModeContainer } from './components/nexus/FocusModeContainer';
 import { ReactFlowProvider } from 'reactflow';
-import { Layout, Compass } from 'lucide-react';
-import { Sun, Moon } from 'lucide-react';
+import { Layout, Compass, Sun, Moon } from 'lucide-react';
 
 type WorkspaceMode = 'classic' | 'canvas';
 
 const IdeWorkspace: React.FC = () => {
   const { isTerminalVisible, isTerminalExpanded, workspaceMode } = useWorkspace();
   const isReallyExpanded = isTerminalVisible && isTerminalExpanded;
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
+
+  // Ctrl+K / Cmd+K to open command bar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandBarOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <div className="flex-grow flex flex-col overflow-hidden relative">
@@ -61,6 +74,15 @@ const IdeWorkspace: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Command Bar Trigger */}
+      <CommandBarTrigger onClick={() => setIsCommandBarOpen(true)} />
+
+      {/* Command Bar */}
+      <CommandBar
+        isOpen={isCommandBarOpen}
+        onClose={() => setIsCommandBarOpen(false)}
+      />
     </div>
   );
 };

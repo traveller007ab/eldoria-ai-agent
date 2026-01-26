@@ -8,6 +8,8 @@ import { useWorkspace } from '../context/WorkspaceContext';
 import { Source } from '../types';
 import { ChevronDown, Send, Printer, FileText, Loader2 } from 'lucide-react';
 import { bridgeClient } from '../services/bridgeClient';
+import { SourceCards } from './SourceCards';
+import { generatePrintDocument } from '../utils/printUtils';
 
 
 const LoadingIndicator = () => (
@@ -365,7 +367,7 @@ export const OutputPanel: React.FC = () => {
                                 <MarkdownRenderer>
                                     {activeCanvas?.output || ''}
                                 </MarkdownRenderer>
-                                {hasSources && <Sources sources={activeCanvas.output_sources!} />}
+                                {hasSources && <SourceCards sources={activeCanvas.output_sources!} compact />}
                             </>
                         )}
                     </div>
