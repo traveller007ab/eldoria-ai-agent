@@ -53,6 +53,7 @@ interface AgenticDashboardProps {
   onOpenCustomizer?: () => void;
   onNewProject?: () => void;
   onSelectProject?: (project: any) => void;
+  onUpdateDraft?: (section: string, content: string) => void;
 }
 
 export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
@@ -62,7 +63,8 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
   onOpenExport,
   onOpenCustomizer,
   onNewProject,
-  onSelectProject
+  onSelectProject,
+  onUpdateDraft
 }) => {
   const [activeAgentTab, setActiveAgentTab] = useState<string>('literature');
   const {
@@ -258,10 +260,11 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
             ) : activeAgentTab === 'preview' ? (
               <ThesisPreview
                 project={{
-                    wizard_state: project?.wizard_state,
-                    draft_content: project?.draft_content
+                  wizard_state: project?.wizard_state,
+                  draft_content: project?.draft_content
                 }}
                 references={(project?.references as Reference[]) || []}
+                onUpdateDraft={onUpdateDraft}
               />
             ) : activeAgentTab === 'simulation' ? (
               <SimulationOptimizationPanel
@@ -273,11 +276,11 @@ export const AgenticDashboard: React.FC<AgenticDashboardProps> = ({
                 projectId={project?.id || ''}
                 chapterContent={project?.draft_content || {}}
                 references={project?.references?.map(r => ({
-                    id: r.id,
-                    authors: [],
-                    year: 2023,
-                    title: '',
-                    source: ''
+                  id: r.id,
+                  authors: [],
+                  year: 2023,
+                  title: '',
+                  source: ''
                 })) || []}
               />
             ) : activeAgentTab === 'saf' ? (

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Eye, Download, FileText, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, X, Maximize2, Copy, Check } from 'lucide-react';
+import { Eye, Download, FileText, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, X, Maximize2, Copy, Check, Edit3 } from 'lucide-react';
 import { Button } from '../Common/Button';
 
 interface ThesisPreviewProps {
@@ -22,14 +22,16 @@ interface ThesisPreviewProps {
         title?: string;
         source?: string;
     }>;
+    onUpdateDraft?: (section: string, content: string) => void;
 }
 
-export const ThesisPreview: React.FC<ThesisPreviewProps> = ({ project, references }) => {
+export const ThesisPreview: React.FC<ThesisPreviewProps> = ({ project, references, onUpdateDraft }) => {
     const [zoom, setZoom] = useState(100);
     const [currentPage, setCurrentPage] = useState(1);
     const [showPageNumbers, setShowPageNumbers] = useState(true);
     const [copied, setCopied] = useState(false);
     const [activeSection, setActiveSection] = useState<string>('all');
+    const [isEditing, setIsEditing] = useState(false);
 
     const chapters = useMemo(() => {
         if (!project.draft_content) return [];
@@ -125,6 +127,15 @@ export const ThesisPreview: React.FC<ThesisPreviewProps> = ({ project, reference
                     <Button variant="ghost" size="sm" onClick={handleCopyAll}>
                         {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                     </Button>
+                    {onUpdateDraft && (
+                        <Button
+                            variant={isEditing ? "primary" : "ghost"}
+                            size="sm"
+                            onClick={() => setIsEditing(!isEditing)}
+                        >
+                            <Edit3 className="w-4 h-4" />
+                        </Button>
+                    )}
                     <Button variant="ghost" size="sm">
                         <Download className="w-4 h-4" />
                     </Button>
@@ -231,8 +242,30 @@ export const ThesisPreview: React.FC<ThesisPreviewProps> = ({ project, reference
                                     <React.Fragment key={chapter.id}>
                                         <h2 className="thesis-preview__chapter-title">{chapter.title}</h2>
                                         <div className="thesis-preview__chapter-content">
-                                            {chapter.content || (
-                                                <p className="thesis-preview__empty">This chapter is empty.</p>
+                                            {isEditing && onUpdateDraft ? (
+                                                <textarea
+                                                    className="thesis-preview__editor"
+                                                    value={chapter.content || ''}
+                                                    onChange={(e) => onUpdateDraft(chapter.id, e.target.value)}
+                                                    placeholder="Start writing this chapter..."
+                                                    style={{
+                                                        width: '100%',
+                                                        minHeight: '400px',
+                                                        background: 'rgba(0,0,0,0.3)',
+                                                        border: '1px solid rgba(16,185,129,0.3)',
+                                                        borderRadius: '8px',
+                                                        padding: '16px',
+                                                        color: 'inherit',
+                                                        fontFamily: 'inherit',
+                                                        fontSize: 'inherit',
+                                                        lineHeight: 'inherit',
+                                                        resize: 'vertical'
+                                                    }}
+                                                />
+                                            ) : (
+                                                chapter.content || (
+                                                    <p className="thesis-preview__empty">This chapter is empty.</p>
+                                                )
                                             )}
                                         </div>
                                     </React.Fragment>

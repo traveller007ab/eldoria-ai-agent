@@ -463,6 +463,7 @@ export const AcademicHub: React.FC = () => {
                   setSelectedProject(project);
                   setIsWizardOpen(true);
                 }}
+                onUpdateDraft={handleUpdateDraft}
               />
             </div>
 
