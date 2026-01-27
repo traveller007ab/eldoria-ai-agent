@@ -4,7 +4,7 @@ import { ConfigErrorOverlay } from './components/ConfigErrorOverlay';
 import { FileExplorerPanel } from './components/FileExplorerPanel';
 import { EditorPanel } from './components/EditorPanel';
 import { OutputPanel } from './components/OutputPanel';
-import { TerminalPanel } from './components/TerminalPanel';
+import { NeuralCodexTerminal } from './components/NeuralCodexTerminal';
 import { StatusBar } from './components/layout/StatusBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { AcademicHub } from './academic-hub/AcademicHub';
@@ -57,7 +57,7 @@ const IdeWorkspace: React.FC = () => {
               <EditorPanel />
               <OutputPanel />
             </div>
-            {isTerminalVisible && <TerminalPanel />}
+            {isTerminalVisible && <NeuralCodexTerminal />}
           </div>
         </div>
       )}

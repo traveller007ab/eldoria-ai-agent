@@ -140,6 +140,21 @@ except ImportError as e1:
     except ImportError as e2:
         print(f"[BRIDGE] WARNING: Agent Orchestrator not available: {e2}")
 
+# 5. Neural Codex Router
+codex_router = None
+try:
+    from services.codex_router import router as codex_router
+    app.include_router(codex_router)
+    print("[BRIDGE] Neural Codex router loaded")
+except ImportError as e1:
+    print(f"[BRIDGE] Primary import error (Codex): {e1}")
+    try:
+        from codex_router import router as codex_router
+        app.include_router(codex_router)
+        print("[BRIDGE] Neural Codex router loaded (fallback)")
+    except ImportError as e2:
+        print(f"[BRIDGE] WARNING: Neural Codex not available: {e2}")
+
 # Active orchestrator instances (per project)
 active_orchestrators: dict = {}
 

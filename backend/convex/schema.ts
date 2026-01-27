@@ -202,4 +202,59 @@ export default defineSchema({
   }).index("by_user", ["userId"])
     .index("by_timestamp", ["timestamp"])
     .index("by_type", ["errorType"]),
+
+  // ============================================
+  // NEURAL CODEX TABLES
+  // ============================================
+
+  // Codex Threads - Persistent AI conversation threads
+  codexThreads: defineTable({
+    userId: v.id("users"),
+    projectId: v.optional(v.id("projects")),
+    title: v.string(),
+    tags: v.array(v.string()),
+    color: v.optional(v.string()),
+    pinned: v.boolean(),
+    archived: v.boolean(),
+    lastMessageAt: v.number(),
+    messageCount: v.number(),
+    preview: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"])
+    .index("by_project", ["projectId"])
+    .index("by_user_pinned", ["userId", "pinned"])
+    .index("by_user_archived", ["userId", "archived"]),
+
+  // Codex Messages - Individual messages in threads
+  codexMessages: defineTable({
+    threadId: v.id("codexThreads"),
+    role: v.string(),
+    content: v.string(),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  }).index("by_thread", ["threadId"])
+    .index("by_created", ["createdAt"]),
+
+  // Codex Attachments - Code, files, screenshots attached to messages
+  codexAttachments: defineTable({
+    messageId: v.id("codexMessages"),
+    type: v.string(),
+    content: v.optional(v.string()),
+    fileUrl: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    language: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  }).index("by_message", ["messageId"])
+    .index("by_type", ["type"]),
+
+  // Codex Links - Bi-directional relationships between threads
+  codexLinks: defineTable({
+    fromThreadId: v.id("codexThreads"),
+    toThreadId: v.id("codexThreads"),
+    linkType: v.string(),
+    createdAt: v.number(),
+  }).index("by_from", ["fromThreadId"])
+    .index("by_to", ["toThreadId"]),
 });
