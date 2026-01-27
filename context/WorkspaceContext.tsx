@@ -15,7 +15,7 @@ import { useWorkspaceAI } from '../hooks/useWorkspaceAI';
 type SaveStatus = 'idle' | 'saving' | 'saved';
 type MemoryStatus = 'idle' | 'searching' | 'saving' | 'error';
 
-interface WorkspaceState {
+export interface WorkspaceState {
   canvases: Canvas[];
   folders: Folder[];
   activeCanvasId: string | null;
@@ -53,7 +53,7 @@ interface WorkspaceState {
   workspaceMode: 'classic' | 'canvas';
 }
 
-type WorkspaceAction =
+export type WorkspaceAction =
   | { type: 'LOAD_CANVASES'; payload: Canvas[] }
   | { type: 'SET_ACTIVE_CANVAS'; payload: string }
   | { type: 'ADD_CANVAS'; payload: Canvas }

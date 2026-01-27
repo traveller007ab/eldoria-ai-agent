@@ -95,6 +95,8 @@ interface NexusState {
     edges: NexusEdge[];
     viewport: Viewport;
 
+    reset: () => void;
+
     // Actions - Project
     createProject: (name: string) => void;
     switchProject: (id: string) => void;
@@ -357,6 +359,10 @@ export const useNexusStore = create<NexusState>()(
 
             // Utilities
             getNodeById: (id) => get().nodes.find((n) => n.id === id),
+            reset: () => {
+                set({ nodes: [], edges: [] });
+                get().syncCurrentToProject();
+            },
         }),
         {
             name: 'eldoria-nexus-store-v2', // Increment name to clear old broken state

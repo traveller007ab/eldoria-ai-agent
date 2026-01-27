@@ -92,7 +92,7 @@ export const AIDesignModal: React.FC<AIDesignModalProps> = ({
     const [enableMolecularFluids, setEnableMolecularFluids] = useState(true);
     const [validatePhysics, setValidatePhysics] = useState(true);
 
-    const { loadBlueprint } = useMechStore();
+    const { setBlueprint } = useMechStore();
 
     // Check bridge status on mount
     React.useEffect(() => {
@@ -149,13 +149,15 @@ export const AIDesignModal: React.FC<AIDesignModalProps> = ({
                 description: description,
                 components: result.blueprint.components || [],
                 connections: result.blueprint.connections || [],
-                objectives: result.blueprint.objectives || [],
-                constraints: result.blueprint.constraints || [],
                 createdAt: new Date(),
-                updatedAt: new Date()
+                updatedAt: new Date(),
+                author: 'AI Assistant',
+                version: '1.0.0',
+                domain: (selectedDomain as any) || 'fluid',
+                tags: []
             };
 
-            loadBlueprint(blueprint);
+            setBlueprint(blueprint);
             onBlueprintGenerated?.(blueprint);
             onClose();
         }
@@ -306,8 +308,8 @@ export const AIDesignModal: React.FC<AIDesignModalProps> = ({
                                         key={fluid.id}
                                         onClick={() => setFluidType(fluid.id as any)}
                                         className={`px-2.5 py-1 text-xs rounded-lg transition-all ${fluidType === fluid.id
-                                                ? `bg-${fluid.color}-500/30 text-${fluid.color}-300 border border-${fluid.color}-500/40`
-                                                : 'bg-black/20 text-slate-400 border border-white/5 hover:border-white/20'
+                                            ? `bg-${fluid.color}-500/30 text-${fluid.color}-300 border border-${fluid.color}-500/40`
+                                            : 'bg-black/20 text-slate-400 border border-white/5 hover:border-white/20'
                                             }`}
                                     >
                                         {fluid.label}

@@ -100,7 +100,7 @@ export class OptimizerService {
             return points;
         };
 
-        const gridPoints = generateGridPoints(config.parameters);
+        const gridPoints = generateGridPoints(config.parameters, []);
         const totalEvaluations = gridPoints.length;
 
         for (let i = 0; i < gridPoints.length; i++) {

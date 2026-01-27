@@ -38,8 +38,8 @@ export interface PromptSchema {
     prompt_template?: string;
     user_prompt_template?: string;
     system_prompt?: string;
-    output_format: string;
-    icon: string;
+    output_format?: string;
+    icon?: string;
     temperature?: number;
     max_tokens?: number;
 }

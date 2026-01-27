@@ -18,7 +18,7 @@ interface SAFFlow {
 
 interface SAFBlueprintProps {
     data: {
-        project_name: string;
+        name: string;
         components: SAFComponent[];
         flows: SAFFlow[];
     };
@@ -54,7 +54,7 @@ export const SAFBlueprint: React.FC<SAFBlueprintProps> = ({ data }) => {
             // Default to Ch3 if everything is unclear, or if valid structure exists
             const ch3Title = 'System Architecture & Component Design';
             const ch3Content = `
-### ${ch3Title}: ${data.project_name}
+### ${ch3Title}: ${data.name}
 The system architecture was modeled using a hierarchical block decomposition method. The principal functional units are defined as follows:
 
 **Core Architecture**
@@ -75,7 +75,7 @@ ${data.flows.map(f => `1. ${f.from} interacts with ${f.to} via ${f.type} mechani
         // 3. Action: Chapter 4 (Results / Performance Data)
         if (hasMetrics) {
             const ch4Content = `
-### System Performance Metrics: ${data.project_name}
+### System Performance Metrics: ${data.name}
 Analysis of the system's operational parameters derived the following quantitative data points:
 
 | Parameter / Metric | Value / Status | Component Type |
@@ -130,7 +130,7 @@ ${metricComponents.map(c => `| **${c.name.split(':')[0]}** | ${c.name.includes('
                 <div className="flex items-center gap-2">
                     <span className="text-cyan-400 text-xs uppercase tracking-widest">SAF Blueprint // v1.0</span>
                     <span className="text-gray-500 text-xs">|</span>
-                    <span className="text-white font-bold">{data.project_name}</span>
+                    <span className="text-white font-bold">{data.name}</span>
                 </div>
                 <div className="flex gap-2">
                     <button

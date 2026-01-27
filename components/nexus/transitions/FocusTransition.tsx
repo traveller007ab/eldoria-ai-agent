@@ -50,7 +50,7 @@ export const FocusTransition: React.FC<FocusTransitionProps> = ({
     const textColor = colorMap[accentColor] || 'text-stone-600 dark:text-stone-400';
     const dotColor = dotMap[accentColor] || 'bg-stone-500';
 
-    const transition = { duration: 0.4, ease: [0.16, 1, 0.3, 1] };
+    const transition = { duration: 0.4, ease: "easeInOut" } as any;
 
     // Background changes based on theme
     const bgClass = isDarkMode
@@ -151,7 +151,7 @@ export const FocusTransition: React.FC<FocusTransitionProps> = ({
                         className="flex-1 relative w-full h-full overflow-hidden" // Removed redundant layout constraints
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ ...transition, delay: 0.1 }}
+                        transition={{ ...transition, delay: 0.1 } as any}
                     >
                         {children}
 

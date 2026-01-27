@@ -43,7 +43,7 @@ export interface ScenarioObjective {
     variable: string;
 
     /** Comparison type */
-    type: 'less_than' | 'greater_than' | 'equals' | 'range';
+    type: 'less_than' | 'greater_than' | 'equals' | 'range' | 'maintain';
 
     /** Target value(s) */
     target: number;

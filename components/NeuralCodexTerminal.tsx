@@ -26,60 +26,11 @@ import {
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { useCodex } from '../hooks/useCodex';
-import type { CodexThread as ApiThread, CodexMessage as ApiMessage } from '../services/codexService';
+import { useCodex, CodexThread, CodexMessage, CodexAttachment } from '../hooks/useCodex';
+import { useUser } from '../hooks/useUser';
+import { CodexExportEngine } from '../services/agentic/CodexExportEngine';
 
-// ============================================
-// TYPES
-// ============================================
-
-interface CodexThread {
-    _id?: string;  // From API
-    id?: string;   // Legacy/local
-    title: string;
-    tags: string[];
-    pinned: boolean;
-    archived: boolean;
-    lastMessageAt: number;
-    messageCount: number;
-    preview?: string;
-    color?: string;
-    relatedThreads?: string[];
-}
-
-interface CodexMessage {
-    _id?: string;  // From API
-    id?: string;   // Legacy/local
-    threadId?: string;
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    timestamp?: number;
-    createdAt?: number;
-    attachments?: CodexAttachment[];
-    relatedInsight?: {
-        threadId: string;
-        threadTitle: string;
-        message: string;
-    };
-}
-
-interface CodexAttachment {
-    id: string;
-    type: 'code' | 'file' | 'screenshot' | 'voice' | 'link';
-    name: string;
-    content?: string;
-    language?: string;
-    url?: string;
-    duration?: number; // for voice
-}
-
-interface CodexStats {
-    totalThreads: number;
-    totalMessages: number;
-    topTags: Array<{ tag: string; count: number }>;
-    recentActivity: Array<{ date: string; count: number }>;
-}
-
+// Local UI adaptors (if needed)
 type ViewMode = 'threads' | 'chat' | 'search' | 'graph' | 'insights';
 type SidebarSection = 'recent' | 'pinned' | 'tags' | 'timeline';
 
@@ -254,9 +205,9 @@ const CodexSidebar: React.FC<SidebarProps> = ({
                                 <div className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mb-1 px-2">Today</div>
                                 {todayThreads.map(thread => (
                                     <ThreadListItem
-                                        key={thread.id}
+                                        key={thread._id}
                                         thread={thread}
-                                        isActive={thread.id === activeThreadId}
+                                        isActive={thread._id === activeThreadId}
                                         onSelect={() => onSelectThread(thread)}
                                     />
                                 ))}
@@ -267,9 +218,9 @@ const CodexSidebar: React.FC<SidebarProps> = ({
                                 <div className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mb-1 px-2">Yesterday</div>
                                 {yesterdayThreads.map(thread => (
                                     <ThreadListItem
-                                        key={thread.id}
+                                        key={thread._id}
                                         thread={thread}
-                                        isActive={thread.id === activeThreadId}
+                                        isActive={thread._id === activeThreadId}
                                         onSelect={() => onSelectThread(thread)}
                                     />
                                 ))}
@@ -280,9 +231,9 @@ const CodexSidebar: React.FC<SidebarProps> = ({
                                 <div className="text-[9px] text-slate-600 uppercase tracking-wider font-mono mb-1 px-2">Earlier</div>
                                 {olderThreads.slice(0, 10).map(thread => (
                                     <ThreadListItem
-                                        key={thread.id}
+                                        key={thread._id}
                                         thread={thread}
-                                        isActive={thread.id === activeThreadId}
+                                        isActive={thread._id === activeThreadId}
                                         onSelect={() => onSelectThread(thread)}
                                     />
                                 ))}
@@ -300,9 +251,9 @@ const CodexSidebar: React.FC<SidebarProps> = ({
                         ) : (
                             pinnedThreads.map(thread => (
                                 <ThreadListItem
-                                    key={thread.id}
+                                    key={thread._id}
                                     thread={thread}
-                                    isActive={thread.id === activeThreadId}
+                                    isActive={thread._id === activeThreadId}
                                     onSelect={() => onSelectThread(thread)}
                                 />
                             ))
@@ -374,7 +325,7 @@ const MessageBubble: React.FC<{
 }> = ({ message, onInsertToEditor }) => {
     const isUser = message.role === 'user';
     const [copied, setCopied] = useState(false);
-    const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    const time = new Date(message.createdAt).toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
@@ -423,15 +374,7 @@ const MessageBubble: React.FC<{
             </div>
 
             {/* Related Insight */}
-            {message.relatedInsight && (
-                <div className="pl-16 mt-2">
-                    <div className="inline-flex items-center gap-2 px-2 py-1 bg-purple-500/10 border border-purple-500/20 rounded text-xs text-purple-300">
-                        <Sparkles className="w-3 h-3" />
-                        <span>Related: "{message.relatedInsight.threadTitle}"</span>
-                        <ExternalLink className="w-3 h-3" />
-                    </div>
-                </div>
-            )}
+            <span>Related Insight Available</span>
 
             {/* Attachments */}
             {message.attachments && message.attachments.length > 0 && (
@@ -459,7 +402,7 @@ const AttachmentChip: React.FC<{ attachment: CodexAttachment }> = ({ attachment 
     return (
         <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-cyan-300 cursor-pointer hover:bg-slate-700 transition-colors">
             <Icon className="w-3 h-3" />
-            <span className="truncate max-w-[120px]">{attachment.name}</span>
+            <span className="truncate max-w-[120px]">{attachment.fileName || 'Attachment'}</span>
             {attachment.language && (
                 <span className="text-[9px] text-slate-500 uppercase">{attachment.language}</span>
             )}
@@ -677,110 +620,7 @@ const InsightsPanel: React.FC<{
     );
 };
 
-// ============================================
-// MOCK DATA
-// ============================================
-
-const MOCK_THREADS: CodexThread[] = [
-    {
-        id: '1',
-        title: 'react-hooks-optimization',
-        tags: ['react', 'performance'],
-        pinned: true,
-        archived: false,
-        lastMessageAt: Date.now() - 7200000,
-        messageCount: 12,
-        preview: 'How can I optimize this component?'
-    },
-    {
-        id: '2',
-        title: 'debugging-auth-flow',
-        tags: ['auth', 'bug', 'jwt'],
-        pinned: false,
-        archived: false,
-        lastMessageAt: Date.now() - 86400000,
-        messageCount: 8,
-        preview: 'JWT token not refreshing properly'
-    },
-    {
-        id: '3',
-        title: 'thesis-chapter-3-outline',
-        tags: ['thesis', 'academic', 'writing'],
-        pinned: true,
-        archived: false,
-        lastMessageAt: Date.now() - 172800000,
-        messageCount: 24,
-        preview: 'Need help structuring methodology section'
-    },
-    {
-        id: '4',
-        title: 'saf-pump-calculations',
-        tags: ['saf', 'engineering', 'physics'],
-        pinned: false,
-        archived: false,
-        lastMessageAt: Date.now() - 259200000,
-        messageCount: 15,
-        preview: 'Cavitation analysis for centrifugal pump'
-    },
-    {
-        id: '5',
-        title: 'convex-database-setup',
-        tags: ['database', 'convex', 'backend'],
-        pinned: false,
-        archived: false,
-        lastMessageAt: Date.now() - 345600000,
-        messageCount: 6,
-        preview: 'Setting up real-time subscriptions'
-    }
-];
-
-const MOCK_MESSAGES: CodexMessage[] = [
-    {
-        id: '1',
-        role: 'user',
-        content: 'How can I optimize this component?',
-        timestamp: Date.now() - 7200000,
-        attachments: [{ id: 'a1', type: 'file', name: 'UserProfile.tsx' }]
-    },
-    {
-        id: '2',
-        role: 'assistant',
-        content: `I see 3 optimization opportunities:
-
-1. **Memoize the filtered list** with \`useMemo\`
-2. **Extract callback** to \`useCallback\` 
-3. **Consider virtualization** for 1000+ items
-
-Would you like me to show examples?`,
-        timestamp: Date.now() - 7190000,
-        relatedInsight: {
-            threadId: '5',
-            threadTitle: 'react-performance-tips',
-            message: 'You discussed useMemo patterns here'
-        }
-    },
-    {
-        id: '3',
-        role: 'user',
-        content: 'Show me the useMemo example',
-        timestamp: Date.now() - 7100000
-    },
-    {
-        id: '4',
-        role: 'assistant',
-        content: `Here's the optimized version:
-
-\`\`\`tsx
-const filtered = useMemo(() => {
-  return items.filter(i => i.active);
-}, [items]);
-\`\`\`
-
-This prevents recalculation on every render.`,
-        timestamp: Date.now() - 7090000,
-        attachments: [{ id: 'a2', type: 'code', name: 'useMemo example', language: 'tsx' }]
-    }
-];
+// Mocks removed for live backend integration
 
 // ============================================
 // MAIN COMPONENT
@@ -795,50 +635,38 @@ export const NeuralCodexTerminal: React.FC = () => {
         toggleTerminalExpansion,
         toggleTerminalMinimized,
         isTerminalExpanded,
-        isTerminalMinimized
+        isTerminalMinimized,
     } = useWorkspace();
+
+    // Live user data from Convex
+    const { userId } = useUser();
 
     // Use the Codex hook for real database integration
     const {
-        threads: apiThreads,
-        activeThread: apiActiveThread,
-        messages: apiMessages,
+        threads,
+        activeThread,
+        messages,
         isLoadingThreads,
         isLoadingMessages,
         isSending,
         stats,
-        loadThreads,
         selectThread,
         createThread,
         updateThread,
         deleteThread,
         pinThread,
         sendMessage,
-        searchThreads,
+        searchQuery: apiSearchQuery,
+        setSearchQuery: setApiSearchQuery,
+        searchResults,
         exportThread,
         clearActiveThread,
-    } = useCodex();
+    } = useCodex(userId);
 
-    // Adapt API types to local types
-    const threads: CodexThread[] = apiThreads.map(t => ({
-        ...t,
-        id: t._id,
-        lastMessageAt: t.lastMessageAt || t.updatedAt || Date.now(),
-    }));
+    const [localSearchQuery, setLocalSearchQuery] = useState('');
 
-    const activeThread: CodexThread | null = apiActiveThread ? {
-        ...apiActiveThread,
-        id: apiActiveThread._id,
-        lastMessageAt: apiActiveThread.lastMessageAt || apiActiveThread.updatedAt || Date.now(),
-    } : null;
-
-    const messages: CodexMessage[] = apiMessages.map(m => ({
-        ...m,
-        id: m._id,
-        timestamp: m.createdAt || Date.now(),
-    }));
-
-    // Local UI state
+    // Sidebar adaptation: Use search results if searching
+    const displayThreads = localSearchQuery ? searchResults : threads;
     const [input, setInput] = useState('');
     const [view, setView] = useState<ViewMode>('threads');
     const [commandHistory, setCommandHistory] = useState<string[]>([]);
@@ -846,7 +674,6 @@ export const NeuralCodexTerminal: React.FC = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [pendingAttachments, setPendingAttachments] = useState<CodexAttachment[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
 
     const inputRef = useRef<HTMLInputElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -857,6 +684,49 @@ export const NeuralCodexTerminal: React.FC = () => {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages]);
+
+    // Handle Keyboard Shortcuts
+    useEffect(() => {
+        const handleGlobalKeydown = (e: KeyboardEvent) => {
+            if (e.altKey) {
+                switch (e.key.toLowerCase()) {
+                    case 'n':
+                        e.preventDefault();
+                        handleNewThread();
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        handleExport();
+                        break;
+                    case 'g':
+                        e.preventDefault();
+                        setView('graph');
+                        break;
+                    case 'i':
+                        e.preventDefault();
+                        setView('insights');
+                        break;
+                    case 'c':
+                        e.preventDefault();
+                        setView('chat');
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        setIsSearchOpen(true);
+                        break;
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeydown);
+        return () => window.removeEventListener('keydown', handleGlobalKeydown);
+    }, [activeThread, messages]);
+
+    const handleExport = () => {
+        if (activeThread && messages.length > 0) {
+            CodexExportEngine.downloadThreadExport(activeThread, messages);
+        }
+    };
 
     // Focus input
     useEffect(() => {
@@ -873,14 +743,57 @@ export const NeuralCodexTerminal: React.FC = () => {
         setCommandHistory(prev => [input, ...prev.slice(0, 49)]);
         const messageContent = input.trim();
         setInput('');
+
+        // Map local attachments to API format if needed
+        const attachmentsToSend = pendingAttachments.map(att => ({
+            type: att.type,
+            content: att.content,
+            fileName: (att as any).name || att.fileName,
+            language: att.language,
+            metadata: att.metadata
+        }));
+
         setPendingAttachments([]);
 
         // Use the hook to send message to API
-        await sendMessage(messageContent, pendingAttachments);
+        await sendMessage(messageContent, attachmentsToSend);
     }, [input, activeThread, pendingAttachments, sendMessage]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Command processing
+        const cmd = input.trim().toLowerCase();
+        if (cmd === '/export') {
+            handleExport();
+            setInput('');
+            return;
+        }
+        if (cmd === '/new') {
+            handleNewThread();
+            setInput('');
+            return;
+        }
+        if (cmd === '/clear') {
+            setInput('');
+            return;
+        }
+        if (cmd === '/graph') {
+            setView('graph');
+            setInput('');
+            return;
+        }
+        if (cmd === '/insights') {
+            setView('insights');
+            setInput('');
+            return;
+        }
+        if (cmd === '/chat' || cmd === '/terminal') {
+            setView('chat');
+            setInput('');
+            return;
+        }
+
         handleSend();
     };
 
@@ -912,9 +825,8 @@ export const NeuralCodexTerminal: React.FC = () => {
     };
 
     const handleSelectThread = async (thread: CodexThread) => {
-        // Convert local type back to API type for selectThread
         await selectThread({
-            _id: thread._id || thread.id || '',
+            _id: thread._id,
             title: thread.title,
             tags: thread.tags,
             pinned: thread.pinned,
@@ -934,11 +846,7 @@ export const NeuralCodexTerminal: React.FC = () => {
         }
     };
 
-    const handleExport = async () => {
-        if (activeThread) {
-            await exportThread('markdown');
-        }
-    };
+
 
     // Minimized state
     if (isTerminalMinimized) {
@@ -962,7 +870,7 @@ export const NeuralCodexTerminal: React.FC = () => {
     return (
         <div
             className={`
-                ${isTerminalExpanded ? 'h-[70vh]' : 'h-96'}
+                ${isTerminalExpanded ? 'h-[70vh]' : 'h-64'}
                 w-full relative flex flex-col transition-all duration-500
                 overflow-hidden bg-[#0a0a0f]/95 backdrop-blur-xl 
                 border-t border-emerald-500/20 shrink-0
@@ -973,7 +881,7 @@ export const NeuralCodexTerminal: React.FC = () => {
                 view={view}
                 onViewChange={setView}
                 onSearch={() => setIsSearchOpen(true)}
-                onExport={() => console.log('Export')}
+                onExport={handleExport}
                 onSettings={() => console.log('Settings')}
                 threadTitle={activeThread?.title}
             />
@@ -982,8 +890,8 @@ export const NeuralCodexTerminal: React.FC = () => {
             <div className="flex-1 flex overflow-hidden">
                 {/* Sidebar */}
                 <CodexSidebar
-                    threads={threads}
-                    activeThreadId={activeThread?.id}
+                    threads={displayThreads as any}
+                    activeThreadId={activeThread?._id}
                     onSelectThread={handleSelectThread}
                     onNewThread={handleNewThread}
                     isCollapsed={isSidebarCollapsed}
@@ -1001,8 +909,8 @@ export const NeuralCodexTerminal: React.FC = () => {
                             >
                                 {messages.map(msg => (
                                     <MessageBubble
-                                        key={msg.id}
-                                        message={msg}
+                                        key={msg._id}
+                                        message={msg as any}
                                         onInsertToEditor={handleInsertToEditor}
                                     />
                                 ))}

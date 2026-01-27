@@ -1,6 +1,6 @@
 
 import { DynamicSimulationService } from '../services/physics/DynamicSimulationService.ts';
-import type { MechBlueprint, ComponentInstance, ConnectionInstance } from '../types.ts';
+import type { MechBlueprint, MechComponentInstance, MechConnection } from '../types.ts';
 
 async function runStressTest() {
     console.log("==========================================");
@@ -10,8 +10,8 @@ async function runStressTest() {
     const COMPONENT_COUNT = 100;
     console.log(`Generating Blueprint with ${COMPONENT_COUNT} components...`);
 
-    const components: ComponentInstance[] = [];
-    const connections: ConnectionInstance[] = [];
+    const components: MechComponentInstance[] = [];
+    const connections: MechConnection[] = [];
 
     // Create a long daisy chain: Tank -> Pump1 -> Pipe1 -> Pump2 -> Pipe2 ... -> Tank (Sink)
 

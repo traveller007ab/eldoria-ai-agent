@@ -125,10 +125,10 @@ const AppContent: React.FC = () => {
               .map(n => ({
                 id: n.id,
                 type: n.type,
-                label: n.data?.label || n.data?.title || 'Untitled',
-                preview: typeof n.data?.content === 'string'
-                  ? n.data.content.substring(0, 100)
-                  : 'Complex Data'
+                label: (n.data as any)?.label || (n.data as any)?.title || (n.data as any)?.name || (n.data as any)?.filename || 'Untitled',
+                preview: typeof (n.data as any)?.content === 'string'
+                  ? (n.data as any).content.substring(0, 100)
+                  : (n.data as any)?.specs || 'Complex Data'
               }))
           });
         });

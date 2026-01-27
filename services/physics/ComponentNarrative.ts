@@ -12,12 +12,12 @@ import type {
     DerivationStep,
     ComponentNarrative,
     FluidStream
-} from '../mechanical/SemanticComponent';
+} from '../../src/components/saf/mechanical/SemanticComponent';
 import type {
     MechanicalComponent,
     GoverningEquation,
     SimulationResult
-} from '../../../src/components/saf/mechanical/types';
+} from '../../src/components/saf/mechanical/types';
 
 // ═══════════════════════════════════════════════════════════════
 // NARRATIVE GENERATION

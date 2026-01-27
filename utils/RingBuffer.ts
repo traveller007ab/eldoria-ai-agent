@@ -166,17 +166,12 @@ export class TimeSeriesRingBuffer {
     this.timestamps.push(timestamp);
 
     for (const [key, value] of Object.entries(values)) {
-      if (!this.dataMap.has(key)) {
-        this.dataMap.set(key, new RingBuffer<number>(this.maxPoints));
+      let buffer = this.dataMap.get(key);
+      if (!buffer) {
+        buffer = new RingBuffer<number>(this.maxPoints);
+        this.dataMap.set(key, buffer);
       }
-      this.dataMap.get(key)!.push(value);
-    }
-
-    while (this.timestamps.getLength() > this.maxPoints) {
-      this.timestamps.shift();
-      for (const buffer of this.dataMap.values()) {
-        buffer.shift();
-      }
+      buffer.push(value);
     }
   }
 

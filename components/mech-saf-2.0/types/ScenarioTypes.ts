@@ -12,7 +12,9 @@ export interface ScenarioEvent {
 export interface ScenarioDefinition {
     id: string;
     name: string;
+    title?: string;
     description: string;
     duration: number; // Total simulation duration override
-    events: ScenarioEvent[];
+    timeLimitSeconds?: number;
+    events: any[];
 }

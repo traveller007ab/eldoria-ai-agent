@@ -10,7 +10,7 @@
 // DOMAIN DEFINITIONS
 // ═══════════════════════════════════════════════════════════════
 
-export type MechanicalDomain = 
+export type MechanicalDomain =
   | 'thermodynamic'
   | 'fluid'
   | 'heatTransfer'
@@ -20,7 +20,7 @@ export type MechanicalDomain =
   | 'control'
   | 'aerodynamic';
 
-export type SubDomain = 
+export type SubDomain =
   // Thermodynamic
   | 'powerCycle' | 'refrigeration' | 'combustion'
   // Fluid
@@ -42,7 +42,7 @@ export type SubDomain =
 // PORT DEFINITIONS - Unified Across All Domains
 // ═══════════════════════════════════════════════════════════════
 
-export type EnergyPortType = 
+export type EnergyPortType =
   | 'thermal'     // Heat (Q, kW)
   | 'mechanical'  // Shaft work (W, Nm, rad/s)
   | 'fluid'       // Fluid properties (ṁ, P, T)
@@ -91,12 +91,12 @@ export interface Connection {
 
 export type GeometryType = 'primitive' | 'parametrized' | 'cadImport';
 
-export type PrimitiveShape = 
-  | 'cylinder' 
-  | 'sphere' 
-  | 'rectangular' 
-  | 'torus' 
-  | 'cone' 
+export type PrimitiveShape =
+  | 'cylinder'
+  | 'sphere'
+  | 'rectangular'
+  | 'torus'
+  | 'cone'
   | 'pipe'
   | 'beam'
   | 'plate';
@@ -159,6 +159,7 @@ export interface GoverningEquation {
   domain: MechanicalDomain;
   expression: string;          // Symbolic (e.g., "Q = ṁ * Cp * (T_out - T_in)")
   latex?: string;              // For display (e.g., "Q = \\dot{m} c_p (T_{out} - T_{in})")
+  plain?: string;              // Text representation for non-LaTeX environments
   description?: string;        // Brief description of the equation
   assumptions?: string[];
   validityRange?: {
@@ -236,7 +237,7 @@ export interface MaterialSpecification {
   type: MaterialType;
   source?: 'catalog' | 'custom' | 'standard';
   designation?: string;  // e.g., "AISI 4140", "Al 6061-T6"
-  
+
   // Mechanical Properties
   density?: number;                    // kg/m³
   youngsModulus?: number;              // GPa
@@ -248,14 +249,14 @@ export interface MaterialSpecification {
   fractureToughness?: number;          // MPa·√m
   elongation?: number;                 // % at break
   hardness?: number;                   // HB, HRC, etc.
-  
+
   // Thermal Properties
   thermalConductivity?: number;        // W/(m·K)
   specificHeat?: number;               // J/(kg·K)
   thermalExpansion?: number;           // 1/K
   meltingPoint?: number;               // K
   maxServiceTemp?: number;             // K
-  
+
   // Additional Properties
   electricalConductivity?: number;     // S/m
   thermalDiffusivity?: number;         // m²/s
@@ -323,44 +324,44 @@ export interface MechanicalComponent {
   manufacturer?: string;
   model?: string;
   partNumber?: string;
-  
+
   // Description
   description?: string;
   tags?: string[];
-  
+
   // Geometry
   geometry?: ComponentGeometry;
-  
+
   // Ports
   ports: MechanicalPort[];
-  
+
   // Parameters (design variables)
   parameters: ComponentParameter[];
-  
+
   // States (calculated during simulation)
   states: ComponentState[];
-  
+
   // Governing equations
   equations: GoverningEquation[];
-  
+
   // Constraints
   constraints: ComponentConstraint[];
-  
+
   // Performance curves
   performanceMaps?: PerformanceMap[];
-  
+
   // Material specification
   material?: MaterialSpecification;
-  
+
   // Failure modes
   failureModes?: FailureMode[];
-  
+
   // Cost information
   cost?: CostInformation;
-  
+
   // Lifecycle
   lifecycle?: LifecycleAssessment;
-  
+
   // Metadata
   version?: string;
   createdAt?: Date;
@@ -378,25 +379,25 @@ export interface SAFBlueprint {
   name: string;
   description?: string;
   domain: MechanicalDomain;
-  
+
   // Components
   components: MechanicalComponent[];
-  
+
   // Connections
   connections: Connection[];
-  
+
   // Subsystems (hierarchical)
   subsystems?: SAFSubsystem[];
-  
+
   // Simulation results
   lastSimulation?: SimulationResult;
-  
+
   // Design history
   history?: BlueprintHistory[];
-  
+
   // Scenarios
   scenarios?: SAFScenario[];
-  
+
   // Metadata
   version: string;
   createdAt: Date;
@@ -456,20 +457,20 @@ export interface SimulationResult {
   blueprintId: string;
   timestamp: Date;
   status: 'converged' | 'diverged' | 'incomplete' | 'error';
-  
+
   // Solution data
   variables: Record<string, number>;  // All calculated values
-  
+
   // Convergence info
   iterations: number;
   convergenceTime: number;  // ms
   residual: number;
-  
+
   // Diagnostics
   logs: string[];
   warnings?: string[];
   errors?: string[];
-  
+
   // Performance metrics
   efficiency?: number;
   powerInput?: number;
@@ -503,7 +504,7 @@ export interface OptimizationPoint {
 // SOLVER CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
 
-export type SolverMethod = 
+export type SolverMethod =
   | 'newtonRaphson'
   | 'gaussSeidel'
   | 'successiveSubstitution'
@@ -531,18 +532,18 @@ export interface UIState {
   selectedComponentId: string | null;
   selectedDomain: MechanicalDomain | 'all';
   expandedNodes: string[];
-  
+
   // Editor state
   snapToGrid: boolean;
   showGrid: boolean;
   showPortLabels: boolean;
   showPerformanceCurves: boolean;
   showStressAnalysis: boolean;
-  
+
   // Simulation state
   isSimulating: boolean;
   lastSimulationId: string | null;
-  
+
   // UI preferences
   theme: 'dark' | 'light';
   panelWidth: Record<string, number>;

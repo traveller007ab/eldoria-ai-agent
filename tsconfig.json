@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": [
-      "node"
+      "node",
+      "jest"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
@@ -33,6 +34,7 @@
     "supabase",
     "release",
     "projects",
-    "src"
+    "src",
+    "backend"
   ]
 }

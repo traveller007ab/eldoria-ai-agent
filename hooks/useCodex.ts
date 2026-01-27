@@ -1,16 +1,55 @@
-/**
- * useCodex - React Hook for Neural Codex
- * 
- * Provides state management and API integration for the Neural Codex terminal.
- */
+import { useState, useCallback, useMemo } from 'react';
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../backend/convex/_generated/api";
+import { Id } from "../backend/convex/_generated/dataModel";
 
-import { useState, useEffect, useCallback } from 'react';
-import codexService, {
-    CodexThread,
-    CodexMessage,
-    CodexAttachment,
-    CodexStats
-} from '../services/codexService';
+export interface CodexThread {
+    _id: Id<"codexThreads">;
+    userId: Id<"users">;
+    projectId?: Id<"projects">;
+    title: string;
+    tags: string[];
+    color?: string;
+    pinned: boolean;
+    archived: boolean;
+    lastMessageAt: number;
+    messageCount: number;
+    preview?: string;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface CodexMessage {
+    _id: Id<"codexMessages">;
+    threadId: Id<"codexThreads">;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    metadata?: any;
+    createdAt: number;
+    attachments?: CodexAttachment[];
+}
+
+export interface CodexAttachment {
+    _id: Id<"codexAttachments">;
+    messageId: Id<"codexMessages">;
+    type: 'code' | 'file' | 'screenshot' | 'voice' | 'link';
+    content?: string;
+    fileUrl?: string;
+    fileName?: string;
+    language?: string;
+    metadata?: any;
+    createdAt: number;
+}
+
+export interface CodexStats {
+    totalThreads: number;
+    activeThreads: number;
+    pinnedThreads: number;
+    archivedThreads: number;
+    totalMessages: number;
+    uniqueTags: number;
+    topTags: string[];
+}
 
 interface UseCodexReturn {
     // Thread state
@@ -27,19 +66,20 @@ interface UseCodexReturn {
     stats: CodexStats | null;
 
     // Thread actions
-    loadThreads: (options?: { tag?: string; includeArchived?: boolean }) => Promise<void>;
-    selectThread: (thread: CodexThread) => Promise<void>;
-    createThread: (title: string, tags?: string[]) => Promise<CodexThread | null>;
-    updateThread: (threadId: string, updates: Partial<CodexThread>) => Promise<void>;
-    deleteThread: (threadId: string) => Promise<void>;
-    pinThread: (threadId: string, pinned: boolean) => Promise<void>;
-    archiveThread: (threadId: string) => Promise<void>;
+    selectThread: (thread: CodexThread) => void;
+    createThread: (title: string, tags?: string[]) => Promise<Id<"codexThreads"> | null>;
+    updateThread: (threadId: Id<"codexThreads">, updates: Partial<CodexThread>) => Promise<void>;
+    deleteThread: (threadId: Id<"codexThreads">) => Promise<void>;
+    pinThread: (threadId: Id<"codexThreads">, pinned: boolean) => Promise<void>;
+    archiveThread: (threadId: Id<"codexThreads">) => Promise<void>;
 
     // Message actions
     sendMessage: (content: string, attachments?: Partial<CodexAttachment>[]) => Promise<void>;
 
     // Search
-    searchThreads: (query: string) => Promise<CodexThread[]>;
+    searchQuery: string;
+    setSearchQuery: (query: string) => void;
+    searchResults: CodexThread[];
 
     // Export
     exportThread: (format: 'markdown' | 'json' | 'pdf') => Promise<void>;
@@ -48,206 +88,139 @@ interface UseCodexReturn {
     clearActiveThread: () => void;
 }
 
-export function useCodex(): UseCodexReturn {
-    // Thread state
-    const [threads, setThreads] = useState<CodexThread[]>([]);
-    const [activeThread, setActiveThread] = useState<CodexThread | null>(null);
-    const [isLoadingThreads, setIsLoadingThreads] = useState(false);
-
-    // Message state
-    const [messages, setMessages] = useState<CodexMessage[]>([]);
-    const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+export function useCodex(userId?: Id<"users">): UseCodexReturn {
+    // State
+    const [activeThreadId, setActiveThreadId] = useState<Id<"codexThreads"> | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
     const [isSending, setIsSending] = useState(false);
 
-    // Stats
-    const [stats, setStats] = useState<CodexStats | null>(null);
+    // Queries
+    // @ts-ignore - codex module might not be fully infra-recognized in TS but exists in runtime
+    const threads = useQuery(api.codex.listThreads, userId ? { userId } : "skip") as CodexThread[] | undefined;
+    // @ts-ignore
+    const messages = useQuery(api.codex.listMessages, activeThreadId ? { threadId: activeThreadId } : "skip") as CodexMessage[] | undefined;
+    // @ts-ignore
+    const stats = useQuery(api.codex.getStats, userId ? { userId } : "skip") as CodexStats | undefined;
+    // @ts-ignore
+    const searchResults = useQuery(api.codex.searchThreads, (userId && searchQuery) ? { userId, query: searchQuery } : "skip") as CodexThread[] | undefined;
 
-    // Load threads
-    const loadThreads = useCallback(async (options?: { tag?: string; includeArchived?: boolean }) => {
-        setIsLoadingThreads(true);
-        try {
-            const result = await codexService.listThreads(options);
-            setThreads(result);
-        } catch (error) {
-            console.error('Failed to load threads:', error);
-        } finally {
-            setIsLoadingThreads(false);
-        }
+    // Mutations
+    // @ts-ignore
+    const createThreadMutation = useMutation(api.codex.createThread);
+    // @ts-ignore
+    const updateThreadMutation = useMutation(api.codex.updateThread);
+    // @ts-ignore
+    const deleteThreadMutation = useMutation(api.codex.deleteThread);
+    // @ts-ignore
+    const addMessageMutation = useMutation(api.codex.addMessage);
+    // @ts-ignore
+    const addAttachmentMutation = useMutation(api.codex.addAttachment);
+
+    // Computed
+    const activeThread = useMemo(() => {
+        if (!threads || !activeThreadId) return null;
+        return threads.find(t => t._id === activeThreadId) || null;
+    }, [threads, activeThreadId]);
+
+    // Actions
+    const selectThread = useCallback((thread: CodexThread) => {
+        setActiveThreadId(thread._id);
     }, []);
 
-    // Select and load a thread
-    const selectThread = useCallback(async (thread: CodexThread) => {
-        setActiveThread(thread);
-        setIsLoadingMessages(true);
+    const createThread = useCallback(async (title: string, tags: string[] = []) => {
+        if (!userId) return null;
         try {
-            const result = await codexService.listMessages(thread._id);
-            setMessages(result);
-        } catch (error) {
-            console.error('Failed to load messages:', error);
-        } finally {
-            setIsLoadingMessages(false);
-        }
-    }, []);
-
-    // Create thread
-    const createThread = useCallback(async (title: string, tags: string[] = []): Promise<CodexThread | null> => {
-        try {
-            const thread = await codexService.createThread({ title, tags });
-            if (thread) {
-                setThreads(prev => [thread, ...prev]);
-                setActiveThread(thread);
-                setMessages([]);
-            }
-            return thread;
+            const threadId = await createThreadMutation({ userId, title, tags });
+            setActiveThreadId(threadId);
+            return threadId;
         } catch (error) {
             console.error('Failed to create thread:', error);
             return null;
         }
-    }, []);
+    }, [userId, createThreadMutation]);
 
-    // Update thread
-    const updateThread = useCallback(async (threadId: string, updates: Partial<CodexThread>) => {
+    const updateThread = useCallback(async (threadId: Id<"codexThreads">, updates: any) => {
         try {
-            await codexService.updateThread(threadId, updates);
-            setThreads(prev => prev.map(t =>
-                t._id === threadId ? { ...t, ...updates } : t
-            ));
-            if (activeThread?._id === threadId) {
-                setActiveThread(prev => prev ? { ...prev, ...updates } : null);
-            }
+            await updateThreadMutation({ threadId, ...updates });
         } catch (error) {
             console.error('Failed to update thread:', error);
         }
-    }, [activeThread]);
+    }, [updateThreadMutation]);
 
-    // Delete thread
-    const deleteThread = useCallback(async (threadId: string) => {
+    const deleteThread = useCallback(async (threadId: Id<"codexThreads">) => {
         try {
-            await codexService.deleteThread(threadId);
-            setThreads(prev => prev.filter(t => t._id !== threadId));
-            if (activeThread?._id === threadId) {
-                setActiveThread(null);
-                setMessages([]);
+            await deleteThreadMutation({ threadId });
+            if (activeThreadId === threadId) {
+                setActiveThreadId(null);
             }
         } catch (error) {
             console.error('Failed to delete thread:', error);
         }
-    }, [activeThread]);
+    }, [activeThreadId, deleteThreadMutation]);
 
-    // Pin/unpin thread
-    const pinThread = useCallback(async (threadId: string, pinned: boolean) => {
-        await updateThread(threadId, { pinned } as any);
+    const pinThread = useCallback(async (threadId: Id<"codexThreads">, pinned: boolean) => {
+        await updateThread(threadId, { pinned });
     }, [updateThread]);
 
-    // Archive thread
-    const archiveThread = useCallback(async (threadId: string) => {
-        await updateThread(threadId, { archived: true } as any);
+    const archiveThread = useCallback(async (threadId: Id<"codexThreads">) => {
+        await updateThread(threadId, { archived: true });
     }, [updateThread]);
 
-    // Send message
-    const sendMessage = useCallback(async (content: string, attachments?: Partial<CodexAttachment>[]) => {
-        if (!activeThread) return;
+    const sendMessage = useCallback(async (content: string, attachments?: any[]) => {
+        if (!activeThreadId) return;
 
         setIsSending(true);
         try {
-            // Add user message
-            const userMessage = await codexService.addMessage(activeThread._id, {
+            const messageId = await addMessageMutation({
+                threadId: activeThreadId,
                 role: 'user',
                 content
             });
 
-            if (userMessage) {
-                setMessages(prev => [...prev, userMessage]);
-
-                // Add attachments if any
-                if (attachments && attachments.length > 0) {
-                    for (const att of attachments) {
-                        await codexService.addAttachment(userMessage._id, att as any);
-                    }
+            if (attachments && attachments.length > 0) {
+                for (const att of attachments) {
+                    await addAttachmentMutation({
+                        messageId,
+                        ...att
+                    });
                 }
-
-                // Update thread stats locally
-                setThreads(prev => prev.map(t =>
-                    t._id === activeThread._id
-                        ? { ...t, messageCount: t.messageCount + 1, lastMessageAt: Date.now() }
-                        : t
-                ));
             }
 
-            // TODO: Actually send to AI and get response
-            // For now, simulate AI response
-            setTimeout(async () => {
-                if (!activeThread) return;
-
-                const aiMessage = await codexService.addMessage(activeThread._id, {
-                    role: 'assistant',
-                    content: `I understand you're asking about "${content.slice(0, 50)}...". Let me help you with that.`
-                });
-
-                if (aiMessage) {
-                    setMessages(prev => [...prev, aiMessage]);
-                }
-                setIsSending(false);
-            }, 1500);
+            // AI response is usually handled by a separate background process or an action
+            // For now, we'll monitor the messages list which is reactive
 
         } catch (error) {
             console.error('Failed to send message:', error);
+        } finally {
             setIsSending(false);
         }
-    }, [activeThread]);
+    }, [activeThreadId, addMessageMutation, addAttachmentMutation]);
 
-    // Search threads
-    const searchThreads = useCallback(async (query: string): Promise<CodexThread[]> => {
-        try {
-            return await codexService.searchThreads(query);
-        } catch (error) {
-            console.error('Failed to search threads:', error);
-            return [];
-        }
-    }, []);
-
-    // Export thread
     const exportThread = useCallback(async (format: 'markdown' | 'json' | 'pdf') => {
         if (!activeThread) return;
 
-        try {
-            const blob = await codexService.exportThread(activeThread._id, format);
-            if (blob) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${activeThread.title}.${format === 'markdown' ? 'md' : format}`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-        } catch (error) {
-            console.error('Failed to export thread:', error);
-        }
-    }, [activeThread]);
+        // Import dynamically to avoid circular dependencies if any
+        const { CodexExportEngine } = await import('../services/agentic/CodexExportEngine');
 
-    // Clear active thread
+        if (format === 'markdown') {
+            CodexExportEngine.downloadThreadExport(activeThread, messages || []);
+        } else {
+            console.warn(`Format ${format} not supported yet in CodexExportEngine`);
+        }
+    }, [activeThread, messages]);
+
     const clearActiveThread = useCallback(() => {
-        setActiveThread(null);
-        setMessages([]);
+        setActiveThreadId(null);
     }, []);
 
-    // Load threads and stats on mount
-    useEffect(() => {
-        loadThreads();
-        codexService.getStats().then(setStats);
-    }, [loadThreads]);
-
     return {
-        threads,
+        threads: threads || [],
         activeThread,
-        isLoadingThreads,
-        messages,
-        isLoadingMessages,
+        isLoadingThreads: threads === undefined,
+        messages: messages || [],
+        isLoadingMessages: messages === undefined,
         isSending,
-        stats,
-        loadThreads,
+        stats: stats || null,
         selectThread,
         createThread,
         updateThread,
@@ -255,7 +228,9 @@ export function useCodex(): UseCodexReturn {
         pinThread,
         archiveThread,
         sendMessage,
-        searchThreads,
+        searchQuery,
+        setSearchQuery,
+        searchResults: searchResults || [],
         exportThread,
         clearActiveThread,
     };

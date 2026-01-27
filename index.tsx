@@ -5,7 +5,9 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { WorkspaceProvider } from './context/WorkspaceContext';
 import './index.css';
+import { ConvexProvider, ConvexReactClient } from "convex/react";
 
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,10 +17,12 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <HashRouter>
-      <WorkspaceProvider>
-        <App />
-      </WorkspaceProvider>
-    </HashRouter>
+    <ConvexProvider client={convex}>
+      <HashRouter>
+        <WorkspaceProvider>
+          <App />
+        </WorkspaceProvider>
+      </HashRouter>
+    </ConvexProvider>
   </React.StrictMode>
 );

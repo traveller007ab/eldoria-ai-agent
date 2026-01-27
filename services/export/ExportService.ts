@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { MechBlueprint, MechComponent, Connection } from '../../types.ts';
+import type { MechBlueprint, MechComponentInstance, MechConnection, MechComponent } from '../../types.ts';
 import type { SAFBlueprintV1, ExportedComponent, ExportedConnection } from './schema.ts';
 
 export class ExportService {
@@ -24,20 +24,20 @@ export class ExportService {
 
         const exportedConnections: ExportedConnection[] = blueprint.connections.map(c => ({
             id: c.id,
-            sourceId: c.source,
-            targetId: c.target,
-            sourceHandle: c.sourceHandle,
-            targetHandle: c.targetHandle,
-            type: c.type
+            sourceId: c.sourceComponentId,
+            targetId: c.targetComponentId,
+            sourceHandle: c.sourcePortId,
+            targetHandle: c.targetPortId,
+            type: (c.type as any) || 'fluid'
         }));
 
         return {
             schemaVersion: '1.0',
             metadata: {
                 id: blueprint.id || uuidv4(),
-                name: blueprint.project_name || 'Untitled Project',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
+                name: blueprint.name || 'Untitled Project',
+                createdAt: (blueprint.createdAt || new Date()).toISOString(),
+                updatedAt: (blueprint.updatedAt || new Date()).toISOString(),
                 appVersion: 'SAF-Lab-2.0'
             },
             components: exportedComponents,
@@ -67,25 +67,34 @@ export class ExportService {
             name: c.label,
             componentDefinitionId: c.definitionId,
             position: c.position,
-            parameterValues: c.parameters
-        }));
+            parameterValues: c.parameters,
+            rotation: 0,
+            isSelected: false,
+            groupIds: []
+        } as MechComponentInstance));
 
         // Hydrate connections
-        const connections: Connection[] = data.connections.map(c => ({
+        const connections: MechConnection[] = data.connections.map(c => ({
             id: c.id,
-            source: c.sourceId,
-            target: c.targetId,
-            sourceHandle: c.sourceHandle,
-            targetHandle: c.targetHandle,
-            type: c.type
+            sourceComponentId: c.sourceId,
+            targetComponentId: c.targetId,
+            sourcePortId: c.sourceHandle,
+            targetPortId: c.targetHandle,
+            type: c.type,
+            isSelected: false
         }));
 
         return {
             id: data.metadata.id,
-            project_name: data.metadata.name,
-            updated_at: data.metadata.updatedAt,
+            name: data.metadata.name,
+            updatedAt: new Date(data.metadata.updatedAt),
+            createdAt: new Date(data.metadata.createdAt),
             components,
-            connections
+            connections,
+            author: data.metadata.author || 'Anonymous',
+            domain: 'industrial',
+            version: '1.0',
+            tags: []
         };
     }
 

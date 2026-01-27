@@ -426,11 +426,40 @@ export const bridgeClient = {
         try {
             const url = await getBridgeUrl();
             const response = await fetch(`${url}/architect/templates`);
-            if (!response.ok) return { templates: [] };
             return await response.json();
         } catch (e) {
             console.error('[BRIDGE] getArchitectTemplates failed:', e);
             return { templates: [] };
+        }
+    },
+
+    get: async (path: string) => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}${path.startsWith('/') ? '' : '/'}${path}`);
+            if (!response.ok) throw new Error(`Bridge GET failed: ${response.statusText}`);
+            const data = await response.json();
+            return { data };
+        } catch (e) {
+            console.error(`[BRIDGE] GET ${path} failed:`, e);
+            throw e;
+        }
+    },
+
+    post: async (path: string, payload: any) => {
+        try {
+            const url = await getBridgeUrl();
+            const response = await fetch(`${url}${path.startsWith('/') ? '' : '/'}${path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`Bridge POST failed: ${response.statusText}`);
+            const data = await response.json();
+            return { data };
+        } catch (e) {
+            console.error(`[BRIDGE] POST ${path} failed:`, e);
+            throw e;
         }
     }
 };

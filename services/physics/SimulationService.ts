@@ -119,9 +119,8 @@ export class SimulationService {
                 'Overall System Efficiency',
                 overallEfficiency,
                 '%',
-                { latex: '\\eta = \\frac{P_{out}}{P_{in}} \\times 100', plain: 'η = P_out / P_in × 100' },
-                ['sim_power_in', 'sim_power_out'],
-                { explanation: 'System efficiency is the ratio of useful output power to total input power' }
+                { latex: '\\eta = \\frac{P_{out}}{P_{in}} \\times 100', plain: 'η = P_out / P_in × 100' } as any,
+                ['sim_power_in', 'sim_power_out']
             );
 
             globalTracer.recordInput('sim_flow', 'Q_total', 'Total Flow Rate', fluidResult.metrics?.totalFlowRate || 0, 'kg/s');

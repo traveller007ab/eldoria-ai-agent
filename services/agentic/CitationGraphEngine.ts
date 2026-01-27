@@ -75,8 +75,10 @@ export class CitationGraphEngine {
       const node: CitationNode = {
         paperId: ref.id,
         title: ref.title,
-        authors: typeof ref.authors === 'string' ? ref.authors.split(/[,;&]/).map(a => a.trim()).filter(Boolean) : [],
-        year: parseInt(ref.year) || new Date().getFullYear(),
+        authors: Array.isArray(ref.authors)
+          ? ref.authors.map(a => `${a.firstName} ${a.lastName}`).filter(Boolean)
+          : [],
+        year: ref.year || new Date().getFullYear(),
         citations: 0,
         referencedBy: [],
         references: [],

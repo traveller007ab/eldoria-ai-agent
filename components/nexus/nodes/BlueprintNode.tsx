@@ -105,7 +105,7 @@ export const BlueprintNode: React.FC<NodeProps<BlueprintNodeData>> = memo(({ id,
 
                     {/* Status Badge */}
                     <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/5 ${status.bg}`}>
-                        <StatusIcon className={`w-2.5 h-2.5 ${status.color} ${status.animate ? 'animate-spin' : ''}`} />
+                        <StatusIcon className={`w-2.5 h-2.5 ${status.color} ${(status as any).animate ? 'animate-spin' : ''}`} />
                     </div>
                 </div>
 

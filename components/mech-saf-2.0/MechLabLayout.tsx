@@ -169,7 +169,12 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
                 currentBlueprint,
                 60,
                 0.5,
-                activeScenario || undefined,
+                activeScenario ? {
+                    ...activeScenario,
+                    name: activeScenario.title,
+                    duration: activeScenario.timeLimitSeconds || 60,
+                    events: (activeScenario as any).events || []
+                } : undefined,
                 (progress, currentTime) => {
                     // Log progress every 20%
                     if (progress % 20 === 0 || progress === 100) {
@@ -311,7 +316,7 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
             setBlueprint({
                 ...template.blueprint,
                 id: crypto.randomUUID(), // New instance
-                updated_at: new Date().toISOString()
+                updatedAt: new Date()
             });
             setLastSimulationResult(null);
             addLog(`Loaded template: ${template.name}`, 'info');

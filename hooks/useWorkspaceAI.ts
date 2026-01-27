@@ -50,7 +50,7 @@ export const useWorkspaceAI = ({
         if (name === 'deconstruct_system') {
             // SAF System Deconstruction Tool
             const safBlueprint = {
-                project_name: args.system_name,
+                name: args.system_name,
                 modification_goal: args.modification_goal || 'Analysis only',
                 components: [
                     { id: 'core', name: `${args.system_name} Core`, type: 'core', dependencies: [] },

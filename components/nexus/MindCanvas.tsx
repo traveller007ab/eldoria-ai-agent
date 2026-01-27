@@ -156,9 +156,9 @@ export const MindCanvas: React.FC = () => {
                             data: {
                                 type: 'blueprint',
                                 name: data.name,
-                                id: data.id,
-                                description: 'Imported from workspace'
-                            }
+                                blueprintId: data.id,
+                                status: 'idle'
+                            } as any
                         });
                         return;
                     }
@@ -371,7 +371,7 @@ const AddNodeFAB: React.FC = () => {
                 addNode({ ...baseNode, data: { type: 'architect', title: 'New Workspace', status: 'draft' } });
                 break;
             case 'observatory': // Phase 8
-                addNode({ ...baseNode, data: { type: 'observatory', title: 'Observatory', url: 'https://google.com' } });
+                addNode({ ...baseNode, data: { type: 'observatory', title: 'Observatory', url: 'https://google.com' } as any });
                 break;
         }
         setIsOpen(false);

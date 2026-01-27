@@ -141,17 +141,17 @@ export class ExportEngine {
     const pageSize = options.pageSize === 'a4' ? 'a4paper' : 'letterpaper';
     const fontSize = `${options.fontSize}pt`;
     const lineSpacing = options.lineSpacing === 'double' ? 'double' :
-                        options.lineSpacing === '1.5' ? 'onehalf' : 'single';
+      options.lineSpacing === '1.5' ? 'onehalf' : 'single';
 
     return {
       preamble: `\\documentclass[${fontSize},${pageSize}]{report}\n` +
-                `\\usepackage[utf8]{inputenc}\n` +
-                `\\usepackage{amsmath,amssymb}\n` +
-                `\\usepackage{graphicx}\n` +
-                `\\usepackage{hyperref}\n` +
-                `\\usepackage{natbib}\n` +
-                `\\usepackage{setspace}\n` +
-                `\\singlespacing\n`,
+        `\\usepackage[utf8]{inputenc}\n` +
+        `\\usepackage{amsmath,amssymb}\n` +
+        `\\usepackage{graphicx}\n` +
+        `\\usepackage{hyperref}\n` +
+        `\\usepackage{natbib}\n` +
+        `\\usepackage{setspace}\n` +
+        `\\singlespacing\n`,
       documentBegin: `\\begin{document}\n\\m\n`,
       documentEnd: `\\end{document}`,
       chapterFormat: '',
@@ -376,7 +376,9 @@ export class ExportEngine {
   }
 
   private formatMarkdownCitation(ref: Reference, style: string): string {
-    const authors = ref.authors || 'Unknown';
+    const authors = Array.isArray(ref.authors)
+      ? ref.authors.map(a => `${a.lastName}, ${a.firstName.charAt(0)}.`).join(', ')
+      : 'Unknown';
     const title = ref.title || 'Untitled';
     const year = ref.year || 'n.d.';
     const journal = ref.journal || '';
@@ -394,8 +396,11 @@ export class ExportEngine {
   }
 
   private formatHTMLCitation(ref: Reference, style: string): string {
-    const link = ref.link ? `<a href="${ref.link}">${ref.title}</a>` : this.escapeHTML(ref.title || 'Untitled');
-    const authors = ref.authors || 'Unknown';
+    const url = ref.url || '#';
+    const link = ref.url ? `<a href="${url}">${ref.title}</a>` : this.escapeHTML(ref.title || 'Untitled');
+    const authors = Array.isArray(ref.authors)
+      ? ref.authors.map(a => `${a.lastName}, ${a.firstName.charAt(0)}.`).join(', ')
+      : 'Unknown';
     const year = ref.year || 'n.d.';
     const journal = ref.journal || '';
 

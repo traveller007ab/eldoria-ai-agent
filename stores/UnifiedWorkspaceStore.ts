@@ -19,7 +19,7 @@ import { Node, Edge } from 'reactflow';
 // Cross-Store Event Bus
 // ============================================================================
 
-type StoreEventType = 
+type StoreEventType =
     | 'blueprint:loaded'
     | 'blueprint:saved'
     | 'component:selected'
@@ -110,6 +110,7 @@ interface Notification {
     message: string;
     timestamp: number;
     duration?: number;
+    action?: () => void;
 }
 
 interface QuickAction {
@@ -193,9 +194,9 @@ export const useUnifiedStore = create<UnifiedWorkspaceState>()(
 
         // Quick Actions
         quickActions: [
-            { id: 'new-canvas', label: 'New Canvas', icon: 'Plus', action: () => {}, shortcut: 'Ctrl+N' },
-            { id: 'new-blueprint', label: 'New Blueprint', icon: 'Box', action: () => {}, shortcut: 'Ctrl+Shift+B' },
-            { id: 'search', label: 'Search', icon: 'Search', action: () => {}, shortcut: 'Ctrl+K' }
+            { id: 'new-canvas', label: 'New Canvas', icon: 'Plus', action: () => { }, shortcut: 'Ctrl+N' },
+            { id: 'new-blueprint', label: 'New Blueprint', icon: 'Box', action: () => { }, shortcut: 'Ctrl+Shift+B' },
+            { id: 'search', label: 'Search', icon: 'Search', action: () => { }, shortcut: 'Ctrl+K' }
         ],
         addQuickAction: (action) => set((state) => ({
             quickActions: [...state.quickActions, action]

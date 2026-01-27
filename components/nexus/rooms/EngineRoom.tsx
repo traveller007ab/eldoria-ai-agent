@@ -25,13 +25,13 @@ export const EngineRoom: React.FC<EngineRoomProps> = ({ nodeId }) => {
     const { isDarkMode } = useNexusStore();
 
     React.useEffect(() => {
-        if (node?.data?.id) {
-            const blueprint = ProjectService.loadBlueprint(node.data.id as string);
+        if (node?.data?.type === 'blueprint' && node.data.blueprintId) {
+            const blueprint = ProjectService.loadBlueprint(node.data.blueprintId);
             if (blueprint) {
                 setBlueprint(blueprint);
             }
         }
-    }, [node?.data?.id, setBlueprint]);
+    }, [node, setBlueprint]);
 
     if (!node) return null;
 

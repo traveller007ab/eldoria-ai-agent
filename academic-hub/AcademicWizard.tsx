@@ -106,20 +106,33 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
         const { ReferenceParser } = require('../services/ReferenceParser');
         const parsed = ReferenceParser.parseSearchResult(res);
 
-        const authorString = parsed.authors.map((a: any) => a.fullName || a.lastName).join(', ') || 'Unknown Author';
-        const yearString = parsed.year?.toString() || new Date().getFullYear().toString();
-
         const newRef: any = {
             id: parsed.id,
+            type: 'journal', // Default type
             title: parsed.title,
-            authors: authorString,
-            year: yearString,
+            authors: parsed.authors.map((a: any) => ({
+                firstName: a.firstName,
+                lastName: a.lastName,
+                initials: a.firstName ? a.firstName.charAt(0) : '',
+                orcid: a.orcid
+            })),
+            year: parsed.year || new Date().getFullYear(),
+            month: undefined,
+            day: undefined,
+            journal: parsed.journal || 'Scholarly Source',
+            volume: parsed.volume || undefined,
+            issue: parsed.issue || undefined,
+            pages: parsed.pages || '',
             snippet: parsed.abstract || res.snippet,
             link: parsed.url || res.link,
-            journal: parsed.journal || 'Scholarly Source',
-            doi: parsed.doi,
+            doi: parsed.doi || undefined,
+            url: parsed.url || res.link || undefined,
             confidence: parsed.confidence,
-            formattedApa: ReferenceParser.formatAPA(parsed)
+            formattedApa: ReferenceParser.formatAPA(parsed),
+            source: 'tavily',
+            addedAt: new Date(),
+            notes: '',
+            tags: []
         };
 
         const updatedRefs = [...(project.references || []), newRef];
@@ -324,7 +337,7 @@ export const AcademicWizard: React.FC<AcademicWizardProps> = ({ project, onClose
                                                         <BookOpen className="w-3 h-3 text-emerald-400/50" />
                                                         <div className="text-xs font-bold text-emerald-200 truncate">{ref.title}</div>
                                                     </div>
-                                                    <div className="text-[9px] text-emerald-500/60 mt-0.5 uppercase tracking-tighter line-clamp-1">APA: {ref.authors} ({ref.year})</div>
+                                                    <div className="text-[9px] text-emerald-500/60 mt-0.5 uppercase tracking-tighter line-clamp-1">APA: {ref.formattedApa || ref.title}</div>
                                                 </div>
                                                 <button
                                                     onClick={() => {

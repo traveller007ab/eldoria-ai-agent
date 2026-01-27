@@ -280,7 +280,7 @@ export interface ExtractedEquation {
 
 // --- MECHANICAL SAF LAB v2.0 TYPES ---
 
-export type MechanicalDomain = 'fluid' | 'thermal' | 'mechanical' | 'control' | 'material';
+export type MechanicalDomain = 'fluid' | 'thermal' | 'mechanical' | 'control' | 'material' | 'industrial' | 'mixed';
 
 export type MechSubDomain =
   | 'turbomachinery' | 'piping' | 'hydraulic' // fluid
@@ -353,7 +353,11 @@ export interface MechComponentInstance {
   parameterValues: Record<string, number | string>;
   isSelected: boolean;
   groupIds: string[];
+  childBlueprintId?: string;
+  customEquations?: string;
 }
+export type MechComponent = MechComponentInstance;
+
 
 export interface MechConnection {
   id: string;
@@ -369,16 +373,16 @@ export interface MechConnection {
 export interface MechBlueprint {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   domain: MechanicalDomain;
   version: string;
   components: MechComponentInstance[];
   connections: MechConnection[];
-  simulations: MechSimulationResult[];
-  createdAt: Date;
-  updatedAt: Date;
-  author: string;
-  tags: string[];
+  simulations?: MechSimulationResult[];
+  createdAt?: Date;
+  updatedAt?: Date;
+  author?: string;
+  tags?: string[];
   fluidId?: string;
 }
 
@@ -410,6 +414,7 @@ export interface MechSimulationResult {
   issues?: DiagnosticIssue[];
   dynamicMetrics?: Record<string, any>;
   isDynamic?: boolean;
+  system_vars?: Record<string, any>;
 }
 
 export interface MechSimulationMetrics {
@@ -450,15 +455,57 @@ export interface DiagnosticIssue {
 
 // Global Types for Electron
 declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      webview: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
-        src?: string;
-        allowpopups?: string;
-        webpreferences?: string;
-        nodeintegration?: string;
-        partition?: string;
-      };
-    }
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+
+  class SpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    maxAlternatives: number;
+    onaudiostart: (this: SpeechRecognition, ev: Event) => any;
+    onsoundstart: (this: SpeechRecognition, ev: Event) => any;
+    onspeechstart: (this: SpeechRecognition, ev: Event) => any;
+    onspeechend: (this: SpeechRecognition, ev: Event) => any;
+    onsoundend: (this: SpeechRecognition, ev: Event) => any;
+    onaudioend: (this: SpeechRecognition, ev: Event) => any;
+    onresult: (this: SpeechRecognition, ev: SpeechRecognitionEvent) => any;
+    onnomatch: (this: SpeechRecognition, ev: SpeechRecognitionEvent) => any;
+    onerror: (this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any;
+    onstart: (this: SpeechRecognition, ev: Event) => any;
+    onend: (this: SpeechRecognition, ev: Event) => any;
+    start(): void;
+    stop(): void;
+    abort(): void;
+  }
+
+  interface SpeechRecognitionEvent extends Event {
+    readonly resultIndex: number;
+    readonly results: SpeechRecognitionResultList;
+  }
+
+  interface SpeechRecognitionErrorEvent extends Event {
+    readonly error: string;
+    readonly message: string;
+  }
+
+  interface SpeechRecognitionResultList {
+    readonly length: number;
+    item(index: number): SpeechRecognitionResult;
+    [index: number]: SpeechRecognitionResult;
+  }
+
+  interface SpeechRecognitionResult {
+    readonly length: number;
+    item(index: number): SpeechRecognitionAlternative;
+    [index: number]: SpeechRecognitionAlternative;
+    readonly isFinal: boolean;
+  }
+
+  interface SpeechRecognitionAlternative {
+    readonly transcript: string;
+    readonly confidence: number;
   }
 }
