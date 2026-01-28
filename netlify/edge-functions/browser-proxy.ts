@@ -237,7 +237,6 @@ export default async (request: Request) => {
   } catch (error) {
     return new Response(createErrorPage(error instanceof Error ? error.message : 'Network failure'), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'text/html' } });
   }
-}
 };
 
 export const config = {
