@@ -103,21 +103,28 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   useEffect(() => {
     if (!proxyUrl || isElectron) return;
 
+    console.log('[WebFrame] 🚀 Starting load for:', proxyUrl);
     setIsLoading(true);
     setError(null);
     onLoadStart?.();
 
-    // Timeout after 30 seconds
     const timeout = setTimeout(() => {
+      console.log('[WebFrame] ⏰ TIMEOUT FIRED - 30 seconds elapsed');
+      console.log('[WebFrame] isLoadingRef.current:', isLoadingRef.current);
       if (isLoadingRef.current) {
-        console.log('[WebFrame] Load timeout - forcing stop');
+        console.log('[WebFrame] ❌ Still loading after timeout, forcing stop');
         setIsLoading(false);
         setError('Page load timed out after 30 seconds. The target site may be blocking recursive framing or the proxy might be overloaded.');
         onLoadStop?.();
+      } else {
+        console.log('[WebFrame] ✅ Already stopped loading, timeout is a no-op');
       }
     }, 30000);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      console.log('[WebFrame] 🧹 Cleanup - clearing timeout for:', proxyUrl);
+      clearTimeout(timeout);
+    };
   }, [proxyUrl, isElectron, onLoadStart, onLoadStop]);
 
   useEffect(() => {
@@ -144,18 +151,29 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   }, [onTitleChange, onMetadataChange, onScrollChange, onSelectionChange]);
 
   const handleLoad = () => {
-    console.log('[WebFrame] onLoad fired');
+    console.log('[WebFrame] ✅ iframe onLoad event fired');
+    console.log('[WebFrame] Current error state:', error);
+    console.log('[WebFrame] Current loading state:', isLoadingRef.current);
+
+    // CRITICAL: Always stop loading when iframe fires onLoad, even if there's an error
     setIsLoading(false);
-    setError(null);
     onLoadStop?.();
+
+    // Don't clear error state if one exists - let the error UI show
+    if (!error) {
+      console.log('[WebFrame] ✅ Load successful, no errors');
+    } else {
+      console.log('[WebFrame] ⚠️ Load completed but error state exists:', error);
+    }
   };
 
-  const handleIframeError = (e: React.SyntheticEvent<HTMLIFrameElement>) => {
-    console.log('[WebFrame] iframe error:', e);
+  const handleIframeError = (e: any) => {
+    console.error('[WebFrame] ❌ iframe error event:', e);
+    console.log('[WebFrame] Error type:', e?.type);
+    console.log('[WebFrame] Error target:', e?.target);
     setIsLoading(false);
-    setError('Failed to load page - check console for details');
+    setError('Failed to load page in iframe');
     onLoadStop?.();
-    onError?.(new Error('Load failed'));
   };
 
   useImperativeHandle(ref, () => ({
