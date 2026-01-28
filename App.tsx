@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY } from './config';
+console.log('[WORKSPACE_PROVIDER] Loading WorkspaceContext.tsx');
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ConfigErrorOverlay } from './components/ConfigErrorOverlay';
 import { FileExplorerPanel } from './components/FileExplorerPanel';
@@ -172,12 +174,15 @@ const AppContent: React.FC = () => {
     }
   }, [onboarding_completed, onboardingPhase]);
 
-  if (!API_KEY && !GROQ_API_KEY && !OPENROUTER_API_KEY) {
+  console.log('[APP] Rendering AppContent. Keys:', { hasApiKey: !!API_KEY, hasGroq: !!GROQ_API_KEY, hasOpenRouter: !!OPENROUTER_API_KEY });
+
+  if (!API_KEY && !GROQ_API_KEY && !OPENROUTER_API_KEY || API_KEY === "undefined") {
+    console.warn('[APP] Missing all AI keys. Showing ConfigErrorOverlay.');
     return <ConfigErrorOverlay />;
   }
 
   return (
-    <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50 pt-8">
+    <div className="relative h-screen w-screen flex flex-col font-sans text-cyan-50 pt-8 shadow-inner">
       <button
         onClick={toggleTheme}
         className="fixed top-20 right-16 z-50 p-2 rounded-lg bg-gray-800/90 backdrop-blur-sm border border-gray-700 hover:border-cyan-500/50 transition-all shadow-lg"

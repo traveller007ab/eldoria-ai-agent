@@ -283,14 +283,17 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
 
   // Initial Load
   useEffect(() => {
+    console.log('[WORKSPACE_PROVIDER] Initial Load Effect starting...');
     const savedCanvasId = localStorage.getItem('activeCanvasId');
 
     // We only want to run this once on mount
+    console.log('[WORKSPACE_PROVIDER] Fetching canvases...');
     canvasOps.refreshCanvases().then(() => {
+      console.log('[WORKSPACE_PROVIDER] Canvases fetched.');
       if (savedCanvasId) {
         dispatch({ type: 'SET_ACTIVE_CANVAS', payload: savedCanvasId });
       }
-    });
+    }).catch(err => console.error('[WORKSPACE_PROVIDER] Failed to fetch canvases:', err));
 
     console.log('Indexing Project...');
     CodebaseService.indexProject();

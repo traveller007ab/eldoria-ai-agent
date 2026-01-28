@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* Eldoria AI IDE - Production CSS */
 /* This file contains all the custom styles for the IDE */
