@@ -80,37 +80,41 @@ const BLOCKED_PATTERNS = [
   /^fe80:/,
 ];
 
-// Inject base tag
-html = html.replace(/<head>/i, `<head>${baseTag}`);
+function transformHTML(html: string, baseUrl: string): string {
+  const baseUrlObj = new URL(baseUrl);
+  const baseTag = `<base href="${baseUrl}">`;
 
-// Try to rewrite links to stay in proxy (experimental)
-// We look for internal links and wrap them in the proxy URL
-const proxyPrefix = `/api/browser-proxy?url=`;
+  // Inject base tag
+  html = html.replace(/<head>/i, `<head>${baseTag}`);
 
-// Rewrite relative links starting with /
-html = html.replace(/(href=")\/([^"]*")/gi, (match, p1, p2) => {
-  const fullUrl = `${baseUrlObj.origin}/${p2.replace(/"$/, '')}`;
-  return `${p1}${proxyPrefix}${encodeURIComponent(fullUrl)}"`;
-});
+  // Try to rewrite links to stay in proxy (experimental)
+  // We look for internal links and wrap them in the proxy URL
+  const proxyPrefix = `/api/browser-proxy?url=`;
 
-// Rewrite absolute links to whitelisted domains
-ALLOWED_DOMAINS.forEach(domain => {
-  const domainRegex = new RegExp(`(href="https?:\\/\\/([^"\\/]*\\.)?${domain.replace('.', '\\.')}[^"]*")`, 'gi');
-  html = html.replace(domainRegex, (match) => {
-    const url = match.match(/href="([^"]*)"/)?.[1];
-    if (url) {
-      return `href="${proxyPrefix}${encodeURIComponent(url)}"`;
-    }
-    return match;
+  // Rewrite relative links starting with /
+  html = html.replace(/(href=")\/([^"]*")/gi, (match, p1, p2) => {
+    const fullUrl = `${baseUrlObj.origin}/${p2.replace(/"$/, '')}`;
+    return `${p1}${proxyPrefix}${encodeURIComponent(fullUrl)}"`;
   });
-});
 
-// Fix relative src for images/scripts (these should load directly via base tag, or absolute)
-html = html.replace(/(src=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
-// Fix CSS @import
-html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
+  // Rewrite absolute links to whitelisted domains
+  ALLOWED_DOMAINS.forEach(domain => {
+    const domainRegex = new RegExp(`(href="https?:\\/\\/([^"\\/]*\\.)?${domain.replace('.', '\\.')}[^"]*")`, 'gi');
+    html = html.replace(domainRegex, (match) => {
+      const url = match.match(/href="([^"]*)"/)?.[1];
+      if (url) {
+        return `href="${proxyPrefix}${encodeURIComponent(url)}"`;
+      }
+      return match;
+    });
+  });
 
-const integrationScript = `
+  // Fix relative src for images/scripts (these should load directly via base tag, or absolute)
+  html = html.replace(/(src=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
+  // Fix CSS @import
+  html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
+
+  const integrationScript = `
     <script>
       (function() {
         if (window.top !== window.self) {
@@ -195,14 +199,14 @@ const integrationScript = `
       })();
     </script>
   `;
-html = html.replace(/<\/body>/i, `${integrationScript}</body>`);
+  html = html.replace(/<\/body>/i, `${integrationScript}</body>`);
 
-html = html.replace(/if\s*\(\s*(?:window\.)?top\s*!==?\s*(?:window\.)?self/gi, 'if (false');
-html = html.replace(/if\s*\(\s*(?:window\.)?self\s*!==?\s*(?:window\.)?top/gi, 'if (false');
-html = html.replace(/top\.location\s*=/gi, 'self.location =');
-html = html.replace(/window\.top\.location/gi, 'window.self.location');
+  html = html.replace(/if\s*\(\s*(?:window\.)?top\s*!==?\s*(?:window\.)?self/gi, 'if (false');
+  html = html.replace(/if\s*\(\s*(?:window\.)?self\s*!==?\s*(?:window\.)?top/gi, 'if (false');
+  html = html.replace(/top\.location\s*=/gi, 'self.location =');
+  html = html.replace(/window\.top\.location/gi, 'window.self.location');
 
-return html;
+  return html;
 }
 
 function createErrorPage(message: string): string {
