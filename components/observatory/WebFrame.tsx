@@ -66,7 +66,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   const [error, setError] = useState<string | null>(null);
   const [proxyUrl, setProxyUrl] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
-  const lastLoadedUrlRef = useRef<string>('');  // Track last loaded URL to prevent loops
+  const lastLoadedUrlRef = useRef<string>('');
 
   // Compute normalized URL as a simple value, not a function
   const normalizedUrl = useMemo(() => {
@@ -81,23 +81,18 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
     return getBrowserProxyUrl(inputUrl, getUserId());
   }, []);
 
-  // Only update proxyUrl when the actual URL changes
   useEffect(() => {
     if (normalizedUrl) {
       const proxy = computeProxyUrl(normalizedUrl);
-      // Only update if URL actually changed
       if (proxy !== proxyUrl) {
-        console.log('[WebFrame] URL changed:', normalizedUrl);
-        console.log('[WebFrame] New Proxy URL:', proxy);
         setProxyUrl(proxy);
         setError(null);
         setRetryCount(0);
       }
     } else if (proxyUrl !== '') {
-      console.log('[WebFrame] Empty URL, clearing proxy');
       setProxyUrl('');
     }
-  }, [normalizedUrl, computeProxyUrl]);  // Note: proxyUrl intentionally excluded to prevent loops
+  }, [normalizedUrl, computeProxyUrl]);
 
   const isLoadingRef = useRef(false);
 
@@ -107,33 +102,22 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
 
   useEffect(() => {
     if (!proxyUrl || isElectron) return;
-
-    // CRITICAL: Prevent infinite loops by checking if we already loaded this URL
-    if (lastLoadedUrlRef.current === proxyUrl) {
-      console.log('[WebFrame] 🔁 Skipping duplicate load for:', proxyUrl);
-      return;
-    }
+    if (lastLoadedUrlRef.current === proxyUrl) return;
 
     lastLoadedUrlRef.current = proxyUrl;
-    console.log('[WebFrame] 🚀 Starting load for:', proxyUrl);
     setIsLoading(true);
     setError(null);
     onLoadStart?.();
 
     const timeout = setTimeout(() => {
-      console.log('[WebFrame] ⏰ TIMEOUT FIRED - 30 seconds elapsed');
       if (isLoadingRef.current) {
-        console.log('[WebFrame] ❌ Still loading after timeout, forcing stop');
         setIsLoading(false);
         setError('Page load timed out after 30 seconds.');
         onLoadStop?.();
       }
     }, 30000);
 
-    return () => {
-      console.log('[WebFrame] 🧹 Cleanup - clearing timeout');
-      clearTimeout(timeout);
-    };
+    return () => clearTimeout(timeout);
   }, [proxyUrl, isElectron, onLoadStart, onLoadStop]);
 
   useEffect(() => {
@@ -160,28 +144,13 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   }, [onTitleChange, onMetadataChange, onScrollChange, onSelectionChange]);
 
   const handleLoad = () => {
-    console.log('[WebFrame] ✅ iframe onLoad event fired');
-    console.log('[WebFrame] Current error state:', error);
-    console.log('[WebFrame] Current loading state:', isLoadingRef.current);
-
-    // CRITICAL: Always stop loading when iframe fires onLoad, even if there's an error
     setIsLoading(false);
     onLoadStop?.();
-
-    // Don't clear error state if one exists - let the error UI show
-    if (!error) {
-      console.log('[WebFrame] ✅ Load successful, no errors');
-    } else {
-      console.log('[WebFrame] ⚠️ Load completed but error state exists:', error);
-    }
   };
 
-  const handleIframeError = (e: any) => {
-    console.error('[WebFrame] ❌ iframe error event:', e);
-    console.log('[WebFrame] Error type:', e?.type);
-    console.log('[WebFrame] Error target:', e?.target);
+  const handleIframeError = () => {
     setIsLoading(false);
-    setError('Failed to load page in iframe');
+    setError('Failed to load page');
     onLoadStop?.();
   };
 
