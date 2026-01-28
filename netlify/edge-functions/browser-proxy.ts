@@ -114,6 +114,12 @@ function transformHTML(html: string, baseUrl: string): string {
   // Fix CSS @import
   html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
 
+  // Remove integrity attributes (they will fail because we modified the HTML)
+  html = html.replace(/\sintegrity="[^"]*"/gi, '');
+
+  // Fix protocol-relative URLs (e.g. //bits.wikimedia.org)
+  html = html.replace(/(src="|href=")\/\/([^"]*")/gi, `$1https://$2"`);
+
   const integrationScript = `
     <script>
       (function() {
@@ -331,9 +337,14 @@ export default async (request: Request) => {
     const responseHeaders = new Headers(corsHeaders);
     responseHeaders.set('Content-Type', 'text/html; charset=utf-8');
     responseHeaders.set('X-Proxied-By', 'Eldoria-Neural-Bridge/2.0');
-    // Remove X-Frame-Options to allow display in Eldoria's iframe
+    // Remove headers that block framing or cause security issues in the proxy
     responseHeaders.delete('X-Frame-Options');
     responseHeaders.delete('Content-Security-Policy');
+    responseHeaders.delete('X-Content-Security-Policy');
+    responseHeaders.delete('Content-Security-Policy-Report-Only');
+    responseHeaders.delete('Cross-Origin-Opener-Policy');
+    responseHeaders.delete('Cross-Origin-Resource-Policy');
+    responseHeaders.delete('Cross-Origin-Embedder-Policy');
     responseHeaders.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     responseHeaders.set('Pragma', 'no-cache');
     responseHeaders.set('Expires', '0');
