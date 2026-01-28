@@ -14,6 +14,7 @@ interface BrowserOmniboxProps {
   isLoading?: boolean;
   onNavigate: (url: string) => void;
   onReload: () => void;
+  onStop: () => void;
   onBack: () => void;
   onForward: () => void;
   canGoBack?: boolean;
@@ -32,6 +33,7 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
   isLoading,
   onNavigate,
   onReload,
+  onStop,
   onBack,
   onForward,
   canGoBack = false,
@@ -131,19 +133,19 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
 
   const handleSubmit = (e: React.FormEvent, suggestion?: Suggestion) => {
     e.preventDefault();
-    
+
     let target: string;
-    
+
     if (suggestion?.url) {
       target = suggestion.url;
     } else if (!inputVal.trim()) {
       return;
     } else {
       target = inputVal.trim();
-      
+
       const hasProtocol = target.startsWith('http://') || target.startsWith('https://');
       const hasDot = target.includes('.') && !target.includes(' ');
-      
+
       if (hasProtocol) {
         target = target;
       } else if (hasDot) {
@@ -161,7 +163,7 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const total = suggestions.length;
-    
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => (prev < total - 1 ? prev + 1 : -1));
@@ -203,33 +205,44 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
   return (
     <div className="flex items-center gap-2 p-2 bg-slate-950 border-b border-slate-800 text-slate-200">
       <div className="flex items-center gap-1">
-        <button 
-          onClick={onBack} 
+        <button
+          onClick={onBack}
           disabled={!canGoBack}
           className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <button 
-          onClick={onForward} 
+        <button
+          onClick={onForward}
           disabled={!canGoForward}
           className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <ArrowRight className="w-4 h-4" />
         </button>
-        <button 
-          onClick={onReload} 
-          className={`p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors ${isLoading ? 'animate-spin' : ''}`}
-        >
-          <RotateCw className="w-4 h-4" />
-        </button>
+        {isLoading ? (
+          <button
+            onClick={onStop}
+            className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-red-400 transition-colors"
+            title="Stop loading"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={onReload}
+            className="p-1.5 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors"
+            title="Reload page"
+          >
+            <RotateCw className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="flex-1 max-w-4xl mx-auto relative">
         <div className={`
           flex items-center bg-slate-900 border rounded-full px-4 py-1.5 transition-all
-          ${isFocused 
-            ? 'border-cyan-500 ring-2 ring-cyan-500/20 shadow-lg shadow-cyan-500/10' 
+          ${isFocused
+            ? 'border-cyan-500 ring-2 ring-cyan-500/20 shadow-lg shadow-cyan-500/10'
             : 'border-slate-800 hover:border-slate-700'
           }
         `}>
@@ -263,7 +276,7 @@ export const BrowserOmnibox: React.FC<BrowserOmniboxProps> = ({
         </div>
 
         {isFocused && suggestions.length > 0 && (
-          <div 
+          <div
             ref={listRef}
             className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50"
           >

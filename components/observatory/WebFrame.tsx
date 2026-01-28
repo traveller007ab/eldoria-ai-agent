@@ -31,6 +31,7 @@ interface WebFrameProps {
 
 export interface WebFrameHandle {
   reload: () => void;
+  stop: () => void;
   goBack: () => void;
   goForward: () => void;
   extractText: () => Promise<string>;
@@ -165,6 +166,10 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
         const cacheBuster = Date.now();
         iframeRef.current.src = `${proxyUrl}&_cb=${cacheBuster}`;
       }
+    },
+    stop: () => {
+      setIsLoading(false);
+      setError('Navigation stopped by user');
     },
     goBack: () => {
       if (isElectron && webviewRef.current && webviewRef.current.canGoBack()) {

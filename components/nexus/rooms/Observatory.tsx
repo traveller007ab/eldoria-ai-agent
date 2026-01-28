@@ -73,6 +73,10 @@ export const Observatory: React.FC = () => {
     frameRef.current?.reload();
   };
 
+  const handleStop = () => {
+    frameRef.current?.stop();
+  };
+
   const handleMetadataChange = (metadata: PageMetadata) => {
     setActiveMetadata(metadata);
     if (activeTabId) {
@@ -124,6 +128,7 @@ export const Observatory: React.FC = () => {
         onBack={handleBack}
         onForward={handleForward}
         onReload={handleReload}
+        onStop={handleStop}
         canGoBack={storeCanGoBack(activeTabId || '')}
         canGoForward={storeCanGoForward(activeTabId || '')}
       />

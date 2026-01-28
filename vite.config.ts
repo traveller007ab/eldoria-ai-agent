@@ -35,7 +35,13 @@ export default defineConfig(({ mode }) => {
           skipWaiting: true,
           clientsClaim: true,
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
-          navigateFallbackDenylist: [/^\/api\//]
+          navigateFallbackDenylist: [/^\/api\//],
+          runtimeCaching: [
+            {
+              urlPattern: /^\/api\//,
+              handler: 'NetworkOnly',
+            }
+          ]
         }
       })
     ],
