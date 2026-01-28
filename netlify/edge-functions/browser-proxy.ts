@@ -88,7 +88,6 @@ function transformHTML(html: string, baseUrl: string): string {
   html = html.replace(/<head>/i, `<head>${baseTag}`);
 
   // Try to rewrite links to stay in proxy (experimental)
-  // We look for internal links and wrap them in the proxy URL
   const proxyPrefix = `/api/browser-proxy?url=`;
 
   // Rewrite relative links starting with /
@@ -97,28 +96,24 @@ function transformHTML(html: string, baseUrl: string): string {
     return `${p1}${proxyPrefix}${encodeURIComponent(fullUrl)}"`;
   });
 
-  // Rewrite absolute links to whitelisted domains
-  ALLOWED_DOMAINS.forEach(domain => {
-    const domainRegex = new RegExp(`(href="https?:\\/\\/([^"\\/]*\\.)?${domain.replace('.', '\\.')}[^"]*")`, 'gi');
-    html = html.replace(domainRegex, (match) => {
-      const url = match.match(/href="([^"]*)"/)?.[1];
-      if (url) {
-        return `href="${proxyPrefix}${encodeURIComponent(url)}"`;
-      }
-      return match;
-    });
+  // Consolidated regex for absolute links to whitelisted domains
+  // This is MUCH faster than looping over 60 domains
+  const domainPattern = ALLOWED_DOMAINS.map(d => d.replace(/\./g, '\\.')).join('|');
+  const linkRegex = new RegExp(`href="(https?:\\/\\/([^"\\/]*\\.)?(${domainPattern})[^"]*)"`, 'gi');
+  html = html.replace(linkRegex, (match, url) => {
+    return `href="${proxyPrefix}${encodeURIComponent(url)}"`;
   });
 
-  // Fix relative src for images/scripts (these should load directly via base tag, or absolute)
-  html = html.replace(/(src=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
-  // Fix CSS @import
-  html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
-
-  // Remove integrity attributes (they will fail because we modified the HTML)
-  html = html.replace(/\sintegrity="[^"]*"/gi, '');
+  // Remove integrity and crossorigin attributes (SRI will fail due to our modifications)
+  html = html.replace(/\s(integrity|crossorigin)="[^"]*"/gi, '');
 
   // Fix protocol-relative URLs (e.g. //bits.wikimedia.org)
   html = html.replace(/(src="|href=")\/\/([^"]*")/gi, `$1https://$2"`);
+
+  // Fix relative src for images/scripts
+  html = html.replace(/(src=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
+  // Fix CSS @import
+  html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
 
   const integrationScript = `
     <script>

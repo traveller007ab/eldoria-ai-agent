@@ -93,25 +93,31 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
     }
   }, [normalizedUrl, computeProxyUrl]);
 
+  const isLoadingRef = useRef(false);
+
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
   useEffect(() => {
     if (!proxyUrl || isElectron) return;
-    
+
     setIsLoading(true);
     setError(null);
     onLoadStart?.();
-    
+
     // Timeout after 30 seconds
     const timeout = setTimeout(() => {
-      if (isLoading) {
+      if (isLoadingRef.current) {
         console.log('[WebFrame] Load timeout - forcing stop');
         setIsLoading(false);
-        setError('Page load timed out after 30 seconds');
+        setError('Page load timed out after 30 seconds. The target site may be blocking recursive framing or the proxy might be overloaded.');
         onLoadStop?.();
       }
     }, 30000);
-    
+
     return () => clearTimeout(timeout);
-  }, [proxyUrl, isElectron, onLoadStart, isLoading, onLoadStop]);
+  }, [proxyUrl, isElectron, onLoadStart, onLoadStop]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<EldoriaMessage>) => {
@@ -332,7 +338,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
           </div>
         </div>
       )}
-      
+
       {proxyUrl && (proxyUrl.startsWith('/api/') || proxyUrl.startsWith('http')) ? (
         <iframe
           ref={iframeRef}
@@ -362,7 +368,7 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
           </div>
         </div>
       )}
-      
+
       <a
         href={url}
         target="_blank"
