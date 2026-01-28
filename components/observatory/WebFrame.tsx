@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { Loader2, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
 import { getBrowserProxyUrl } from '../../config';
 
@@ -66,8 +66,10 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   const [error, setError] = useState<string | null>(null);
   const [proxyUrl, setProxyUrl] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
+  const lastLoadedUrlRef = useRef<string>('');  // Track last loaded URL to prevent loops
 
-  const normalizedUrl = useCallback(() => {
+  // Compute normalized URL as a simple value, not a function
+  const normalizedUrl = useMemo(() => {
     if (!url || url.trim() === '') return '';
     let u = url.trim();
     if (!u.startsWith('http')) u = 'https://' + u;
@@ -79,20 +81,23 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
     return getBrowserProxyUrl(inputUrl, getUserId());
   }, []);
 
+  // Only update proxyUrl when the actual URL changes
   useEffect(() => {
-    const norm = normalizedUrl();
-    if (norm) {
-      const proxy = computeProxyUrl(norm);
-      console.log('[WebFrame] URL:', norm);
-      console.log('[WebFrame] Proxy URL:', proxy);
-      setProxyUrl(proxy);
-      setError(null);
-      setRetryCount(0);
-    } else {
-      console.log('[WebFrame] Empty URL, not setting proxy');
+    if (normalizedUrl) {
+      const proxy = computeProxyUrl(normalizedUrl);
+      // Only update if URL actually changed
+      if (proxy !== proxyUrl) {
+        console.log('[WebFrame] URL changed:', normalizedUrl);
+        console.log('[WebFrame] New Proxy URL:', proxy);
+        setProxyUrl(proxy);
+        setError(null);
+        setRetryCount(0);
+      }
+    } else if (proxyUrl !== '') {
+      console.log('[WebFrame] Empty URL, clearing proxy');
       setProxyUrl('');
     }
-  }, [normalizedUrl, computeProxyUrl]);
+  }, [normalizedUrl, computeProxyUrl]);  // Note: proxyUrl intentionally excluded to prevent loops
 
   const isLoadingRef = useRef(false);
 
@@ -103,6 +108,13 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
   useEffect(() => {
     if (!proxyUrl || isElectron) return;
 
+    // CRITICAL: Prevent infinite loops by checking if we already loaded this URL
+    if (lastLoadedUrlRef.current === proxyUrl) {
+      console.log('[WebFrame] 🔁 Skipping duplicate load for:', proxyUrl);
+      return;
+    }
+
+    lastLoadedUrlRef.current = proxyUrl;
     console.log('[WebFrame] 🚀 Starting load for:', proxyUrl);
     setIsLoading(true);
     setError(null);
@@ -110,19 +122,16 @@ export const WebFrame = forwardRef<WebFrameHandle, WebFrameProps>(({
 
     const timeout = setTimeout(() => {
       console.log('[WebFrame] ⏰ TIMEOUT FIRED - 30 seconds elapsed');
-      console.log('[WebFrame] isLoadingRef.current:', isLoadingRef.current);
       if (isLoadingRef.current) {
         console.log('[WebFrame] ❌ Still loading after timeout, forcing stop');
         setIsLoading(false);
-        setError('Page load timed out after 30 seconds. The target site may be blocking recursive framing or the proxy might be overloaded.');
+        setError('Page load timed out after 30 seconds.');
         onLoadStop?.();
-      } else {
-        console.log('[WebFrame] ✅ Already stopped loading, timeout is a no-op');
       }
     }, 30000);
 
     return () => {
-      console.log('[WebFrame] 🧹 Cleanup - clearing timeout for:', proxyUrl);
+      console.log('[WebFrame] 🧹 Cleanup - clearing timeout');
       clearTimeout(timeout);
     };
   }, [proxyUrl, isElectron, onLoadStart, onLoadStop]);
