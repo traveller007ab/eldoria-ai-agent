@@ -7,13 +7,18 @@ const ALLOWED_DOMAINS = [
   // Research & Reference
   'wikipedia.org',
   'en.wikipedia.org',
+  'wikimedia.org',
+  'wikidata.org',
   'wiktionary.org',
   'github.com',
+  'githubusercontent.com',
   'stackoverflow.com',
   'docs.python.org',
   'developer.mozilla.org',
   'arxiv.org',
   'scholar.google.com',
+  'gstatic.com',
+  'googleusercontent.com',
   'pubmed.ncbi.nlm.nih.gov',
   'nature.com',
   'science.org',
@@ -58,8 +63,6 @@ const ALLOWED_DOMAINS = [
   // Shopping & Other
   'amazon.com',
   'ebay.com',
-  'wikipedia.org',
-  'wikidata.org',
   'openstreetmap.org',
   'archive.org',
   // Testing
@@ -77,24 +80,37 @@ const BLOCKED_PATTERNS = [
   /^fe80:/,
 ];
 
-function transformHTML(html: string, baseUrl: string): string {
-  const baseUrlObj = new URL(baseUrl);
-  const baseTag = `<base href="${baseUrl}" target="_blank">`;
-  
-  // Inject base tag FIRST to handle all relative URLs
-  html = html.replace(/<head>/i, `<head>${baseTag}`);
+// Inject base tag
+html = html.replace(/<head>/i, `<head>${baseTag}`);
 
-  // Fix any existing base tags
-  html = html.replace(/<base[^>]*>/gi, baseTag);
+// Try to rewrite links to stay in proxy (experimental)
+// We look for internal links and wrap them in the proxy URL
+const proxyPrefix = `/api/browser-proxy?url=`;
 
-  // Fix relative URLs in href (links)
-  html = html.replace(/(href=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
-  // Fix relative URLs in src (scripts, images, styles)
-  html = html.replace(/(src=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
-  // Fix CSS @import
-  html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
+// Rewrite relative links starting with /
+html = html.replace(/(href=")\/([^"]*")/gi, (match, p1, p2) => {
+  const fullUrl = `${baseUrlObj.origin}/${p2.replace(/"$/, '')}`;
+  return `${p1}${proxyPrefix}${encodeURIComponent(fullUrl)}"`;
+});
 
-  const integrationScript = `
+// Rewrite absolute links to whitelisted domains
+ALLOWED_DOMAINS.forEach(domain => {
+  const domainRegex = new RegExp(`(href="https?:\\/\\/([^"\\/]*\\.)?${domain.replace('.', '\\.')}[^"]*")`, 'gi');
+  html = html.replace(domainRegex, (match) => {
+    const url = match.match(/href="([^"]*)"/)?.[1];
+    if (url) {
+      return `href="${proxyPrefix}${encodeURIComponent(url)}"`;
+    }
+    return match;
+  });
+});
+
+// Fix relative src for images/scripts (these should load directly via base tag, or absolute)
+html = html.replace(/(src=")\/([^"]*")/gi, `$1${baseUrlObj.origin}/$2`);
+// Fix CSS @import
+html = html.replace(/(@import\s+["'])\/([^"']*["'])/gi, `$1${baseUrlObj.origin}/$2`);
+
+const integrationScript = `
     <script>
       (function() {
         if (window.top !== window.self) {
@@ -179,14 +195,14 @@ function transformHTML(html: string, baseUrl: string): string {
       })();
     </script>
   `;
-  html = html.replace(/<\/body>/i, `${integrationScript}</body>`);
+html = html.replace(/<\/body>/i, `${integrationScript}</body>`);
 
-  html = html.replace(/if\s*\(\s*(?:window\.)?top\s*!==?\s*(?:window\.)?self/gi, 'if (false');
-  html = html.replace(/if\s*\(\s*(?:window\.)?self\s*!==?\s*(?:window\.)?top/gi, 'if (false');
-  html = html.replace(/top\.location\s*=/gi, 'self.location =');
-  html = html.replace(/window\.top\.location/gi, 'window.self.location');
+html = html.replace(/if\s*\(\s*(?:window\.)?top\s*!==?\s*(?:window\.)?self/gi, 'if (false');
+html = html.replace(/if\s*\(\s*(?:window\.)?self\s*!==?\s*(?:window\.)?top/gi, 'if (false');
+html = html.replace(/top\.location\s*=/gi, 'self.location =');
+html = html.replace(/window\.top\.location/gi, 'window.self.location');
 
-  return html;
+return html;
 }
 
 function createErrorPage(message: string): string {
@@ -231,10 +247,10 @@ function createErrorPage(message: string): string {
 export default async (request: Request) => {
   const url = new URL(request.url);
   const targetUrl = url.searchParams.get('url');
-  
+
   console.log('[proxy] Request URL:', request.url);
   console.log('[proxy] targetUrl param:', targetUrl);
-  
+
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -250,9 +266,9 @@ export default async (request: Request) => {
 
   try {
     if (!targetUrl) {
-      return new Response('Missing url parameter', { 
-        status: 400, 
-        headers: corsHeaders 
+      return new Response('Missing url parameter', {
+        status: 400,
+        headers: corsHeaders
       });
     }
 
@@ -266,20 +282,20 @@ export default async (request: Request) => {
     const hostname = parsedTarget.hostname.toLowerCase();
     console.log('[proxy] Fetching:', parsedTarget.href);
 
-    const isAllowed = ALLOWED_DOMAINS.some(domain => 
+    const isAllowed = ALLOWED_DOMAINS.some(domain =>
       hostname === domain || hostname.endsWith(`.${domain}`)
     );
 
     if (!isAllowed) {
       console.log(`[proxy] Domain not allowed: ${hostname}`);
       return new Response(
-        `Domain ${hostname} not whitelisted.`, 
+        `Domain ${hostname} not whitelisted.`,
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'text/plain' } }
       );
     }
 
     console.log(`[proxy] Fetching: ${parsedTarget.href}`);
-    
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
 
@@ -298,9 +314,9 @@ export default async (request: Request) => {
 
     const contentType = response.headers.get('Content-Type') || '';
     if (!contentType.includes('text/html')) {
-      return new Response('Only HTML content can be proxied', { 
-        status: 400, 
-        headers: corsHeaders 
+      return new Response('Only HTML content can be proxied', {
+        status: 400,
+        headers: corsHeaders
       });
     }
 
@@ -311,7 +327,9 @@ export default async (request: Request) => {
     const responseHeaders = new Headers(corsHeaders);
     responseHeaders.set('Content-Type', 'text/html; charset=utf-8');
     responseHeaders.set('X-Proxied-By', 'Eldoria-Neural-Bridge/2.0');
-    responseHeaders.set('X-Frame-Options', 'ALLOWALL');
+    // Remove X-Frame-Options to allow display in Eldoria's iframe
+    responseHeaders.delete('X-Frame-Options');
+    responseHeaders.delete('Content-Security-Policy');
     responseHeaders.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     responseHeaders.set('Pragma', 'no-cache');
     responseHeaders.set('Expires', '0');
@@ -323,10 +341,10 @@ export default async (request: Request) => {
 
   } catch (error) {
     console.error('[proxy] Error:', error);
-    
+
     return new Response(
       createErrorPage(error instanceof Error ? error.message : 'Unknown error'),
-      { 
+      {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'text/html' }
       }
