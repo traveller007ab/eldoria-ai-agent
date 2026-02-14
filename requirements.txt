@@ -39,3 +39,9 @@ pint>=0.23  # Unit consistency (Phase 83)
 # Authentication
 bcrypt>=4.2.0
 PyJWT>=2.9.0
+
+# Phase 1: Security & Rate Limiting
+slowapi>=0.1.9
+python-multipart>=0.0.9
+redis>=5.0.0
+limits>=3.7.0

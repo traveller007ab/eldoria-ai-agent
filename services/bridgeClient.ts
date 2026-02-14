@@ -461,5 +461,69 @@ export const bridgeClient = {
             console.error(`[BRIDGE] POST ${path} failed:`, e);
             throw e;
         }
+    },
+
+    // Phase 1: WebSocket connection with JWT authentication
+    connectAgentWebSocket: async (
+        projectId: string,
+        token: string,
+        onMessage: (data: any) => void,
+        onConnect?: () => void,
+        onDisconnect?: () => void,
+        onError?: (error: any) => void
+    ): Promise<WebSocket> => {
+        const bridgeUrl = await getBridgeUrl();
+        // Convert http/https to ws/wss
+        const wsUrl = bridgeUrl.replace(/^http/, 'ws');
+        
+        // Include JWT token as query parameter for authentication
+        const ws = new WebSocket(`${wsUrl}/ws/projects/${projectId}/agents?token=${encodeURIComponent(token)}`);
+        
+        ws.onopen = () => {
+            console.log('[WebSocket] Connected to agent orchestrator');
+            if (onConnect) onConnect();
+        };
+        
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                onMessage(data);
+            } catch (e) {
+                console.error('[WebSocket] Failed to parse message:', e);
+            }
+        };
+        
+        ws.onerror = (error) => {
+            console.error('[WebSocket] Error:', error);
+            if (onError) onError(error);
+        };
+        
+        ws.onclose = (event) => {
+            console.log(`[WebSocket] Closed: ${event.code} - ${event.reason}`);
+            if (onDisconnect) onDisconnect();
+        };
+        
+        return ws;
     }
 };
+
+// Phase 1: Standalone WebSocket helper for external use
+export async function connectAgentWebSocket(
+    projectId: string,
+    token: string,
+    handlers: {
+        onMessage: (data: any) => void;
+        onConnect?: () => void;
+        onDisconnect?: () => void;
+        onError?: (error: any) => void;
+    }
+): Promise<WebSocket> {
+    return bridgeClient.connectAgentWebSocket(
+        projectId,
+        token,
+        handlers.onMessage,
+        handlers.onConnect,
+        handlers.onDisconnect,
+        handlers.onError
+    );
+}
