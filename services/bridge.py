@@ -249,14 +249,14 @@ try:
 
     @app.post("/test/integration/run")
     @limiter.limit("10/minute")
-    async def run_integration_tests():
+    async def run_integration_tests(request: Request):
         """Run end-to-end integration tests"""
         suite = IntegrationTestSuite()
         results = await suite.run_all()
         return results
 
     @app.get("/test/integration/report")
-    async def get_integration_report():
+    async def get_integration_report(request: Request):
         """Get latest integration test report"""
         suite = IntegrationTestSuite()
         # This would return cached results in production
@@ -277,7 +277,7 @@ try:
 
     @app.get("/optimization/status")
     @limiter.limit("60/minute")
-    async def get_optimization_status():
+    async def get_optimization_status(request: Request):
         """Get Railway free tier optimization status"""
         return {
             "cold_start": cold_start_handler.get_status(),
@@ -287,14 +287,14 @@ try:
 
     @app.post("/optimization/clear-caches")
     @limiter.limit("10/minute")
-    async def clear_caches():
+    async def clear_caches(request: Request):
         """Manually clear caches to free memory"""
         memory_optimizer.clear_caches()
         return {"message": "Caches cleared", "timestamp": datetime.now().isoformat()}
 
     @app.get("/optimization/memory-report")
     @limiter.limit("60/minute")
-    async def get_memory_report():
+    async def get_memory_report(request: Request):
         """Get detailed memory optimization report"""
         return {"report": memory_optimizer.get_optimization_report()}
 
@@ -308,7 +308,7 @@ try:
 
     @app.get("/admin/api-keys/status")
     @limiter.limit("30/minute")
-    async def get_api_keys_status():
+    async def get_api_keys_status(request: Request):
         """
         Get status of all API keys (format validation only, no live testing)
         Shows which keys are configured and their format validity
@@ -332,7 +332,7 @@ try:
 
     @app.post("/admin/api-keys/validate")
     @limiter.limit("10/minute")
-    async def validate_api_keys_live():
+    async def validate_api_keys_live(request: Request):
         """
         Validate all API keys with live API calls
         This actually tests if keys work by making real requests
@@ -370,7 +370,7 @@ try:
 
     @app.post("/admin/api-keys/validate/{provider}")
     @limiter.limit("10/minute")
-    async def validate_single_key(provider: str):
+    async def validate_single_key(request: Request, provider: str):
         """
         Validate a specific API key with live testing
         """
@@ -415,7 +415,7 @@ try:
 
     @app.post("/admin/api-keys/clear-cache")
     @limiter.limit("60/minute")
-    async def clear_key_validation_cache():
+    async def clear_key_validation_cache(request: Request):
         """Clear the API key validation cache"""
         api_key_manager.clear_cache()
         return {
@@ -424,7 +424,7 @@ try:
         }
 
     @app.get("/admin/api-keys/instructions")
-    async def get_api_key_instructions():
+    async def get_api_key_instructions(request: Request):
         """Get instructions on how to add/update API keys"""
         return {
             "title": "How to Add or Update API Keys",

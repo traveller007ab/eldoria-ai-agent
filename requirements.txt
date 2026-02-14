@@ -45,3 +45,6 @@ slowapi>=0.1.9
 python-multipart>=0.0.9
 redis>=5.0.0
 limits>=3.7.0
+
+# Phase 4+5: Free Tier Optimization
+psutil>=5.9.0  # Memory and CPU monitoring
