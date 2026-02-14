@@ -1319,7 +1319,7 @@ async def execute_command(request: CommandRequest):
 
 @app.get("/dialog/file")
 @limiter.limit("30/minute")
-async def open_file_dialog():
+async def open_file_dialog(request: Request):
     """
     Open native file dialog.
     Phase 1: Disabled on Railway (desktop feature only)
@@ -1354,7 +1354,7 @@ async def open_file_dialog():
 
 @app.get("/dialog/folder")
 @limiter.limit("30/minute")
-async def open_folder_dialog():
+async def open_folder_dialog(request: Request):
     """
     Open native folder dialog.
     Phase 1: Disabled on Railway (desktop feature only)
