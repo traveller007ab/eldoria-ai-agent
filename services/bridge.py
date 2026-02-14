@@ -16,6 +16,8 @@ from fastapi import (
     Header,
     WebSocket,
     WebSocketDisconnect,
+    Query,
+    Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
