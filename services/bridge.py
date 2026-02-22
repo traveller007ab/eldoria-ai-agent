@@ -1018,79 +1018,81 @@ class ChatMessageRequest(BaseModel):
 
 
 @app.get("/health")
-@limiter.limit(RATE_LIMITS["health"])
 async def health_check(request: Request):
     """
     Health check with comprehensive system status
     Includes environment info, AI provider status, security configuration,
     and Railway free tier optimization metrics
     """
-    convex_configured = bool(
-        os.environ.get("CONVEX_URL") and os.environ.get("CONVEX_ADMIN_KEY")
-    )
-
-    # Phase 1: Security & Demo Mode Checks
-    demo_mode = DemoModeChecker.is_demo_mode()
-    providers = DemoModeChecker.get_available_providers()
-    railway_env = is_railway_environment()
-    rate_limiting = is_rate_limit_enabled()
-
-    # Phase 4+5: Free Tier Optimization Status
-    optimization_status = {}
     try:
-        from services.free_tier_optimization import (
-            cold_start_handler,
-            memory_optimizer,
-            performance_monitor,
-            get_enhanced_health_status,
+        convex_configured = bool(
+            os.environ.get("CONVEX_URL") and os.environ.get("CONVEX_ADMIN_KEY")
         )
 
-        optimization_status = get_enhanced_health_status()
-    except ImportError:
-        optimization_status = {"optimization_available": False}
+        # Phase 1: Security & Demo Mode Checks
+        demo_mode = DemoModeChecker.is_demo_mode()
+        providers = DemoModeChecker.get_available_providers()
+        railway_env = is_railway_environment()
+        rate_limiting = is_rate_limit_enabled()
 
-    return {
-        "status": "ready",
-        "version": "2.0.0-optimized",
-        "engine": "Python/FastAPI",
-        "environment": {
-            "platform": "railway" if railway_env else "local",
-            "demo_mode": demo_mode,
-            "rate_limiting_enabled": rate_limiting,
-        },
-        "ai_providers": providers,
-        "services": [
-            "shell",
-            "vault",
-            "synthesis",
-            "codebase",
-            "auth",
-            "projects",
-            "chat",
-            "agents",
-            "simulation",
-            "research",
-        ],
-        "database": "convex" if convex_configured else "demo",
-        "convex_configured": convex_configured,
-        "features": {
-            "desktop_browser": not railway_env,
-            "native_dialogs": not railway_env,
-            "file_system_secure": True,  # Phase 1: Now requires auth
-            "websocket_auth": True,  # Phase 1: JWT required
-            "cold_start_handling": True,  # Phase 4+5: Free tier optimization
-            "memory_optimization": True,  # Phase 4+5: Memory management
-        },
-        "security": {
-            "rate_limiting": rate_limiting,
-            "cors_enabled": True,
-            "file_access_restricted": True,
-            "websocket_authenticated": True,
-        },
-        "optimization": optimization_status,
-        "timestamp": datetime.now().isoformat(),
-        "demo_indicator": DEMO_INDICATOR if demo_mode else None,
-    }
+        # Phase 4+5: Free Tier Optimization Status
+        optimization_status = {}
+        try:
+            from services.free_tier_optimization import get_enhanced_health_status
+
+            optimization_status = get_enhanced_health_status()
+        except Exception:
+            optimization_status = {"optimization_available": False}
+
+        return {
+            "status": "ready",
+            "version": "2.0.0-optimized",
+            "engine": "Python/FastAPI",
+            "environment": {
+                "platform": "railway" if railway_env else "local",
+                "demo_mode": demo_mode,
+                "rate_limiting_enabled": rate_limiting,
+            },
+            "ai_providers": providers,
+            "services": [
+                "shell",
+                "vault",
+                "synthesis",
+                "codebase",
+                "auth",
+                "projects",
+                "chat",
+                "agents",
+                "simulation",
+                "research",
+            ],
+            "database": "convex" if convex_configured else "demo",
+            "convex_configured": convex_configured,
+            "features": {
+                "desktop_browser": not railway_env,
+                "native_dialogs": not railway_env,
+                "file_system_secure": True,
+                "websocket_auth": True,
+                "cold_start_handling": True,
+                "memory_optimization": True,
+            },
+            "security": {
+                "rate_limiting": rate_limiting,
+                "cors_enabled": True,
+                "file_access_restricted": True,
+                "websocket_authenticated": True,
+            },
+            "optimization": optimization_status,
+            "timestamp": datetime.now().isoformat(),
+            "demo_indicator": DEMO_INDICATOR if demo_mode else None,
+        }
+    except Exception as e:
+        return {
+            "status": "degraded",
+            "error": str(e),
+            "version": "2.0.0-optimized",
+            "timestamp": datetime.now().isoformat(),
+        }
 
 
 @app.get("/")
