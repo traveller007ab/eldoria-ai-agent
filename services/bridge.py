@@ -304,22 +304,34 @@ try:
     @app.get("/optimization/status")
     async def get_optimization_status(request: Request):
         """Get Railway free tier optimization status"""
-        return {
-            "cold_start": cold_start_handler.get_status(),
-            "memory": memory_optimizer.check_memory(),
-            "performance": performance_monitor.get_stats(),
-        }
+        try:
+            return {
+                "cold_start": cold_start_handler.get_status(),
+                "memory": memory_optimizer.check_memory(),
+                "performance": performance_monitor.get_stats(),
+            }
+        except Exception as e:
+            return {"error": str(e), "status": "error"}
 
     @app.post("/optimization/clear-caches")
     async def clear_caches(request: Request):
         """Manually clear caches to free memory"""
-        memory_optimizer.clear_caches()
-        return {"message": "Caches cleared", "timestamp": datetime.now().isoformat()}
+        try:
+            memory_optimizer.clear_caches()
+            return {
+                "message": "Caches cleared",
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            return {"error": str(e), "status": "error"}
 
     @app.get("/optimization/memory-report")
     async def get_memory_report(request: Request):
         """Get detailed memory optimization report"""
-        return {"report": memory_optimizer.get_optimization_report()}
+        try:
+            return {"report": memory_optimizer.get_optimization_report()}
+        except Exception as e:
+            return {"error": str(e), "status": "error"}
 
     print("[BRIDGE] Phase 4+5 Free Tier Optimization endpoints loaded")
 except ImportError as e:
