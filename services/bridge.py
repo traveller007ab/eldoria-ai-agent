@@ -302,7 +302,6 @@ try:
     )
 
     @app.get("/optimization/status")
-    @limiter.limit("60/minute")
     async def get_optimization_status(request: Request):
         """Get Railway free tier optimization status"""
         return {
@@ -312,14 +311,12 @@ try:
         }
 
     @app.post("/optimization/clear-caches")
-    @limiter.limit("10/minute")
     async def clear_caches(request: Request):
         """Manually clear caches to free memory"""
         memory_optimizer.clear_caches()
         return {"message": "Caches cleared", "timestamp": datetime.now().isoformat()}
 
     @app.get("/optimization/memory-report")
-    @limiter.limit("60/minute")
     async def get_memory_report(request: Request):
         """Get detailed memory optimization report"""
         return {"report": memory_optimizer.get_optimization_report()}
