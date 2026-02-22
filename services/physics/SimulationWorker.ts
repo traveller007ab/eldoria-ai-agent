@@ -5,10 +5,23 @@ import { SimulationKernel } from './SimulationKernel';
 
 console.log('SAF Lab Physics Worker Started');
 
+const activeCancelTokens = new Map<string, { cancelled: boolean }>();
+
 self.onmessage = async (e: MessageEvent) => {
     const { id, type, payload } = e.data;
 
+    if (type === 'cancel') {
+        const token = activeCancelTokens.get(id);
+        if (token) {
+            token.cancelled = true;
+        }
+        return;
+    }
+
     if (type === 'simulate') {
+        const cancelToken = { cancelled: false };
+        activeCancelTokens.set(id, cancelToken);
+
         try {
             const { blueprint, duration, timeStep, scenario, options } = payload;
 
@@ -16,33 +29,26 @@ self.onmessage = async (e: MessageEvent) => {
             
             // Check if we should report progress
             const reportProgress = options?.enableProgressReporting || false;
-            const reportInterval = options?.reportInterval || 10;
+            const onProgress = reportProgress
+                ? (progress: number, currentTime: number) => {
+                    self.postMessage({
+                        id,
+                        type: 'tick',
+                        progress,
+                        currentTime
+                    });
+                }
+                : undefined;
 
-            // Monkey-patch the SimulationKernel to add progress reporting
-            // This is a simple approach - for production, we'd want a cleaner integration
-            if (reportProgress) {
-                const originalPostMessage = self.postMessage.bind(self);
-                let tickCount = 0;
-                
-                self.postMessage = (msg: any) => {
-                    if (msg.type === 'success') {
-                        // Don't override the final success message
-                        originalPostMessage(msg);
-                    } else {
-                        // Add tick progress
-                        tickCount++;
-                        if (tickCount % reportInterval === 0) {
-                            originalPostMessage({
-                                ...msg,
-                                type: 'tick',
-                                currentTime: tickCount * timeStep
-                            });
-                        }
-                    }
-                };
-            }
-
-            const result = await SimulationKernel.simulate(blueprint, duration, timeStep, scenario);
+            const result = await SimulationKernel.simulate(
+                blueprint,
+                duration,
+                timeStep,
+                scenario,
+                onProgress,
+                cancelToken,
+                options ? { useFixedStep: options.useFixedStep } : undefined
+            );
 
             self.postMessage({
                 id,
@@ -56,6 +62,8 @@ self.onmessage = async (e: MessageEvent) => {
                 type: 'error',
                 error: error.message
             });
+        } finally {
+            activeCancelTokens.delete(id);
         }
     }
 };

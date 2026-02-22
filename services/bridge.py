@@ -785,6 +785,7 @@ async def get_agent_insights_rest(project_id: str):
 class SAFAskRequest(BaseModel):
     question: str
     system_context: Optional[Dict[str, Any]] = None
+    context: Optional[str] = None
     component_count: Optional[int] = 0
     has_simulation_results: Optional[bool] = False
 
@@ -796,10 +797,22 @@ async def saf_ask_system(request: SAFAskRequest):
     Answers physics-aware questions about the user's engineering model.
     """
     groq_key = os.environ.get("GROQ_API_KEY")
+    context_str = (request.context or "").strip()
+
+    if not context_str and request.system_context:
+        try:
+            context_str = json.dumps(request.system_context, ensure_ascii=False)
+        except Exception:
+            context_str = str(request.system_context)
+
+    if context_str and len(context_str) > 2000:
+        context_str = context_str[:2000].rstrip() + "... [truncated]"
+    if not context_str:
+        context_str = "No system context provided."
 
     if not groq_key or groq_key.startswith("your_"):
         # Fallback to demo responses if no API key
-        return generate_demo_saf_response(request.question)
+        return generate_demo_saf_response(request.question, context_str)
 
     try:
         # Build a context-aware system prompt
@@ -816,9 +829,11 @@ When answering questions:
 Context about the user's system:
 - Components loaded: {component_count}
 - Has simulation results: {has_results}
+- Context summary (JSON): {context_summary}
 """.format(
             component_count=request.component_count,
             has_results="Yes" if request.has_simulation_results else "No",
+            context_summary=context_str,
         )
 
         # Call Groq API
@@ -842,7 +857,7 @@ Context about the user's system:
 
         if not response.ok:
             print(f"[SAF ASK] Groq error: {response.status_code}")
-            return generate_demo_saf_response(request.question)
+            return generate_demo_saf_response(request.question, context_str)
 
         data = response.json()
         answer = data.get("choices", [{}])[0].get("message", {}).get("content", "")
@@ -855,10 +870,12 @@ Context about the user's system:
 
     except Exception as e:
         print(f"[SAF ASK] Error: {e}")
-        return generate_demo_saf_response(request.question)
+        return generate_demo_saf_response(request.question, context_str)
 
 
-def generate_demo_saf_response(question: str) -> Dict[str, Any]:
+def generate_demo_saf_response(
+    question: str, context: Optional[str] = None
+) -> Dict[str, Any]:
     """Generate demo responses when AI is unavailable."""
     q = question.lower()
 

@@ -16,6 +16,8 @@ export interface AdaptiveConfig {
     safetyFactor: number;         // Safety factor for step adjustment (0.8-0.95)
     increaseFactor: number;       // Factor to increase step when stable (1.1-1.5)
     maxConsecutiveFailures: number; // Max failed steps before reducing step
+    /** When false, use fixed time step without Richardson extrapolation (faster, ~3x fewer solver calls). */
+    useRichardson?: boolean;
 }
 
 /**
@@ -26,6 +28,10 @@ export interface StiffSolverConfig {
     maxNewtonIterations: number;  // Max iterations for Newton-Raphson
     newtonTolerance: number;      // Convergence tolerance for Newton
     regularization: number;       // Tikhonov regularization parameter
+}
+
+export interface SimulationCancelToken {
+    cancelled: boolean;
 }
 
 /**
@@ -81,8 +87,11 @@ export class SimulationKernel {
         duration: number = 60,
         scenario?: ScenarioDefinition,
         adaptiveConfig: Partial<AdaptiveConfig> = {},
-        stiffConfig: Partial<StiffSolverConfig> = {}
+        stiffConfig: Partial<StiffSolverConfig> = {},
+        onProgress?: (percent: number, currentTime: number) => void,
+        cancelToken?: SimulationCancelToken
     ): Promise<MechDynamicSimulationResult> {
+        const workingBlueprint: MechBlueprint = JSON.parse(JSON.stringify(blueprint));
         const config = { ...this.DEFAULT_ADAPTIVE_CONFIG, ...adaptiveConfig };
         const stiff = { ...this.DEFAULT_STIFF_CONFIG, ...stiffConfig };
 
@@ -97,9 +106,10 @@ export class SimulationKernel {
         let t = 0;
         let stepCount = 0;
         let consecutiveFailures = 0;
+        let lastReportedPercent = -5;
 
         // Time constant analysis
-        const timeConstants = await this.analyzeTimeConstants(blueprint, state);
+        const timeConstants = await this.analyzeTimeConstants(workingBlueprint, state);
 
         // Adjust initial step based on system dynamics
         if (timeConstants.suggestedStep < timeStep) {
@@ -107,53 +117,71 @@ export class SimulationKernel {
         }
 
         // Initialize state
-        await this.initializeState(blueprint, state, registry);
+        await this.initializeState(workingBlueprint, state, registry);
+        onProgress?.(0, 0);
 
         const { SimulationService } = await import('./SimulationService.ts');
 
         // Adaptive time stepping loop
         while (t < duration) {
+            if (cancelToken?.cancelled) {
+                return this.compileResults(
+                    workingBlueprint, startTime, t, stepCount, timeStep, duration,
+                    timeSeriesBuffer, timeConstants, 'cancelled'
+                );
+            }
+
             // Check for scenario events
             if (scenario) {
-                this.applyScenarioEvents(scenario, blueprint, t);
+                this.applyScenarioEvents(scenario, workingBlueprint, t);
             }
 
             // Map state to parameters
-            this.mapStateToParameters(blueprint, state);
+            this.mapStateToParameters(workingBlueprint, state);
 
-            // Richardson extrapolation for error estimation
-            // Use two half-steps and compare with one full step
-            const stateCopy = this.copyState(state);
+            const useRichardson = config.useRichardson !== false;
+            let acceptStep = false;
+            let stateFull: Record<string, any>;
+            let error = 0;
 
-            // Full step
-            const stateFull = await this.stepSimulation(blueprint, t, stateCopy, timeStep, SimulationService);
+            if (useRichardson) {
+                const stateCopy = this.copyState(state);
+                stateFull = await this.stepSimulation(workingBlueprint, t, stateCopy, timeStep, SimulationService);
+                const stateHalf1 = this.copyState(state);
+                const stateHalfIntermediate = await this.stepSimulation(workingBlueprint, t, stateHalf1, timeStep / 2, SimulationService);
+                const stateHalf2 = this.copyState(state);
+                const stateHalfFinal = await this.stepSimulation(workingBlueprint, t + timeStep / 2, stateHalfIntermediate, timeStep / 2, SimulationService);
+                error = this.estimateLocalError(stateFull, stateHalfFinal);
+                acceptStep = error < config.tolerance;
+                if (acceptStep) {
+                    consecutiveFailures = 0;
+                    if (error < config.tolerance * 0.1 && timeStep < config.maxStep) {
+                        timeStep = Math.min(config.maxStep, timeStep * config.increaseFactor);
+                    }
+                } else {
+                    consecutiveFailures++;
+                    timeStep = Math.max(config.minStep, timeStep * config.safetyFactor);
+                    if (consecutiveFailures > config.maxConsecutiveFailures) {
+                        console.warn(`[SimulationKernel] Multiple failed steps at t=${t.toFixed(2)}s, dt=${timeStep.toExponential(2)}`);
+                    }
+                }
+            } else {
+                const stateCopy = this.copyState(state);
+                stateFull = await this.stepSimulation(workingBlueprint, t, stateCopy, timeStep, SimulationService);
+                acceptStep = true;
+                consecutiveFailures = 0;
+            }
 
-            // Two half steps
-            const stateHalf1 = this.copyState(state);
-            const stateHalfIntermediate = await this.stepSimulation(blueprint, t, stateHalf1, timeStep / 2, SimulationService);
-
-            const stateHalf2 = this.copyState(state);
-            const stateHalfFinal = await this.stepSimulation(blueprint, t + timeStep / 2, stateHalfIntermediate, timeStep / 2, SimulationService);
-
-            // Calculate local error using Richardson extrapolation
-            const error = this.estimateLocalError(stateFull, stateHalfFinal);
-
-            // Accept or reject step
-            if (error < config.tolerance) {
-                // Accept step
+            if (acceptStep) {
                 Object.assign(state, stateFull);
                 t += timeStep;
                 stepCount++;
-                consecutiveFailures = 0;
 
-                // Store in time series
-                const snapshotResult = await SimulationService.run(blueprint, true);
+                const snapshotResult = await SimulationService.run(workingBlueprint, true);
                 const snapshotValues: Record<string, number> = {};
                 Object.entries(snapshotResult.variables).forEach(([key, val]) => {
                     snapshotValues[key] = val;
                 });
-
-                // Add state variables (tank levels, temperatures)
                 for (const compId of Object.keys(state)) {
                     const compState = state[compId];
                     for (const [varName, value] of Object.entries(compState)) {
@@ -162,42 +190,49 @@ export class SimulationKernel {
                         }
                     }
                 }
-
                 timeSeriesBuffer.push(t, snapshotValues);
 
-                // Increase step size (with limit)
-                if (error < config.tolerance * 0.1 && timeStep < config.maxStep) {
-                    timeStep = Math.min(config.maxStep, timeStep * config.increaseFactor);
-                }
-            } else {
-                // Reject step and reduce time step
-                consecutiveFailures++;
-                timeStep = Math.max(config.minStep, timeStep * config.safetyFactor);
-
-                if (consecutiveFailures > config.maxConsecutiveFailures) {
-                    console.warn(`[SimulationKernel] Multiple failed steps at t=${t.toFixed(2)}s, dt=${timeStep.toExponential(2)}`);
+                const percent = duration > 0 ? Math.min(100, (t / duration) * 100) : 100;
+                if (onProgress && (stepCount % 10 === 0 || percent - lastReportedPercent >= 5 || percent >= 100)) {
+                    lastReportedPercent = percent;
+                    onProgress(percent, t);
                 }
             }
         }
 
         // Compile results
+        onProgress?.(100, duration);
         return this.compileResults(
-            blueprint, startTime, t, stepCount, timeStep, duration,
-            timeSeriesBuffer, timeConstants
+            workingBlueprint, startTime, t, stepCount, timeStep, duration,
+            timeSeriesBuffer, timeConstants, 'completed'
         );
     }
 
+    /** Options for simulate() */
+    static readonly SIMULATE_OPTIONS = {
+        /** Use fixed time step without Richardson extrapolation (faster, ~3x fewer solver calls). */
+        useFixedStep: 'useFixedStep' as const
+    };
+
     /**
-     * Original RK4 simulation (preserved for compatibility)
+     * Original RK4 simulation (preserved for compatibility).
+     * Pass options.useFixedStep: true for faster fixed-step mode (no Richardson).
      */
     static async simulate(
         blueprint: MechBlueprint,
         duration: number = 60,
         timeStep: number = 0.5,
-        scenario?: ScenarioDefinition
+        scenario?: ScenarioDefinition,
+        onProgress?: (percent: number, currentTime: number) => void,
+        cancelToken?: SimulationCancelToken,
+        options?: { useFixedStep?: boolean }
     ): Promise<MechDynamicSimulationResult> {
-        const config = { ...this.DEFAULT_ADAPTIVE_CONFIG, initialStep: timeStep };
-        return this.simulateAdaptive(blueprint, duration, scenario, config);
+        const config = {
+            ...this.DEFAULT_ADAPTIVE_CONFIG,
+            initialStep: timeStep,
+            useRichardson: options?.useFixedStep === true ? false : true
+        };
+        return this.simulateAdaptive(blueprint, duration, scenario, config, {}, onProgress, cancelToken);
     }
 
     /**
@@ -587,7 +622,8 @@ export class SimulationKernel {
         finalStep: number,
         duration: number,
         timeSeriesBuffer: TimeSeriesRingBuffer,
-        timeConstants: TimeConstantAnalysis
+        timeConstants: TimeConstantAnalysis,
+        status: 'completed' | 'cancelled' = 'completed'
     ): MechDynamicSimulationResult {
         const finalVariables: Record<string, number> = {};
         const allSeries = timeSeriesBuffer.getAllSeries();
@@ -615,7 +651,7 @@ export class SimulationKernel {
         return {
             id: crypto.randomUUID(),
             blueprintId: blueprint.id,
-            status: 'completed',
+            status,
             completedAt: new Date(),
             duration: Date.now() - startTime,
             configuration: {
@@ -633,7 +669,7 @@ export class SimulationKernel {
                 convergence: {
                     iterations: stepCount,
                     residual: timeConstants.stiffnessRatio,
-                    converged: true
+                    converged: status === 'completed'
                 }
             },
             constraintViolations: [],

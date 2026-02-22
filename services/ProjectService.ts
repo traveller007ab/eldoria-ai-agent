@@ -1,4 +1,4 @@
-import { MechBlueprint } from '../types';
+import type { MechBlueprint, MechSimulationResult } from '../types';
 
 const STORAGE_KEY = 'mechlab_blueprints';
 const CURRENT_PROJECT_KEY = 'mechlab_current_project';
@@ -178,6 +178,68 @@ export class ProjectService {
         const a = document.createElement('a');
         a.href = url;
         a.download = `${filename}_results.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    /** Escape LaTeX special characters */
+    private static escapeLaTeX(s: string | number): string {
+        const str = String(s);
+        return str
+            .replace(/\\/g, '\\textbackslash{}')
+            .replace(/[&%$#_{}]/g, '\\$&')
+            .replace(/~/g, '\\textasciitilde{}')
+            .replace(/\^/g, '\\textasciicircum{}');
+    }
+
+    /**
+     * Export simulation results as LaTeX (tables for report/thesis)
+     */
+    static exportResultsAsLaTeX(blueprint: MechBlueprint, result: MechSimulationResult): void {
+        const name = this.escapeLaTeX(blueprint.name.replace(/\s+/g, '_'));
+        const date = new Date().toISOString().slice(0, 10);
+
+        let tex = `% SAF Lab simulation results -- ${name}\n`;
+        tex += `% Generated ${date}\n\n`;
+        tex += `\\section{Simulation Results: ${this.escapeLaTeX(blueprint.name)}}\n\n`;
+
+        if (result.metrics) {
+            tex += `\\subsection{System Metrics}\n`;
+            tex += `\\begin{tabular}{ll}\n`;
+            tex += `\\hline\n\\textbf{Metric} & \\textbf{Value} \\\\\n\\hline\n`;
+            const m = result.metrics;
+            if (m.overallEfficiency != null) tex += `Overall efficiency & ${this.escapeLaTeX(m.overallEfficiency.toFixed(2))}\\% \\\\\n`;
+            if (m.totalPowerInput != null) tex += `Total power input & ${this.escapeLaTeX(m.totalPowerInput.toFixed(2))} kW \\\\\n`;
+            if (m.totalPowerOutput != null) tex += `Total power output & ${this.escapeLaTeX(m.totalPowerOutput.toFixed(2))} kW \\\\\n`;
+            if (m.totalFlowRate != null) tex += `Total flow rate & ${this.escapeLaTeX(m.totalFlowRate.toFixed(2))} \\\\\n`;
+            if (m.maxPressure != null) tex += `Max pressure & ${this.escapeLaTeX(m.maxPressure.toFixed(2))} \\\\\n`;
+            if (m.pressureDrop != null) tex += `Pressure drop & ${this.escapeLaTeX(m.pressureDrop.toFixed(2))} \\\\\n`;
+            if (m.totalHeatInput != null) tex += `Total heat input & ${this.escapeLaTeX(m.totalHeatInput.toFixed(2))} \\\\\n`;
+            if (m.totalHeatOutput != null) tex += `Total heat output & ${this.escapeLaTeX(m.totalHeatOutput.toFixed(2))} \\\\\n`;
+            tex += `\\hline\n\\end{tabular}\n\n`;
+        }
+
+        if (result.diagnostics?.convergence) {
+            tex += `Converged: ${result.diagnostics.convergence.converged ? 'yes' : 'no'}; iterations: ${this.escapeLaTeX(String(result.diagnostics.convergence.iterations ?? 0))}.\n\n`;
+        }
+
+        if (result.variables && Object.keys(result.variables).length > 0) {
+            tex += `\\subsection{Key Variables (sample)}\n`;
+            tex += `\\begin{tabular}{ll}\n\\hline\n\\textbf{Variable} & \\textbf{Value} \\\\\n\\hline\n`;
+            const entries = Object.entries(result.variables).slice(0, 25);
+            entries.forEach(([k, v]) => {
+                tex += `${this.escapeLaTeX(k)} & ${this.escapeLaTeX(Number(v).toFixed(4))} \\\\\n`;
+            });
+            tex += `\\hline\n\\end{tabular}\n`;
+        }
+
+        tex += `\n`;
+
+        const blob = new Blob([tex], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${blueprint.name.replace(/\s+/g, '_')}_results.tex`;
         a.click();
         URL.revokeObjectURL(url);
     }

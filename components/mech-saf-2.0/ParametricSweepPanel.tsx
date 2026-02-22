@@ -43,6 +43,7 @@ export const ParametricSweepPanel: React.FC = () => {
     const [steps, setSteps] = useState(11);
     const [result, setResult] = useState<ParametricSweepResult | null>(null);
     const [isRunning, setIsRunning] = useState(false);
+    const [sweepProgress, setSweepProgress] = useState<{ current: number; total: number } | null>(null);
     const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
 
     const preset = SWEEP_PRESETS[selectedPreset];
@@ -51,6 +52,7 @@ export const ParametricSweepPanel: React.FC = () => {
         if (!currentBlueprint) return;
 
         setIsRunning(true);
+        setSweepProgress(null);
         try {
             const service = new ParametricSweepService(currentBlueprint);
             const config: ParametricSweepConfig = {
@@ -60,11 +62,14 @@ export const ParametricSweepPanel: React.FC = () => {
                 label: preset.label
             };
 
-            const sweepResult = await service.runSweep(config);
+            const sweepResult = await service.runSweep(config, (current, total) => {
+                setSweepProgress({ current, total });
+            });
             setResult(sweepResult);
             setSelectedPoint(sweepResult.bestEfficiencyPoint.value);
         } finally {
             setIsRunning(false);
+            setSweepProgress(null);
         }
     };
 
@@ -114,7 +119,9 @@ export const ParametricSweepPanel: React.FC = () => {
                         ) : (
                             <Play className="w-4 h-4" />
                         )}
-                        {isRunning ? 'Running...' : 'Run Sweep'}
+                        {isRunning
+                            ? `Running${sweepProgress ? ` ${sweepProgress.current}/${sweepProgress.total}` : '...'}`
+                            : 'Run Sweep'}
                     </button>
                 </div>
 

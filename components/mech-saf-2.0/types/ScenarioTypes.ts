@@ -16,5 +16,5 @@ export interface ScenarioDefinition {
     description: string;
     duration: number; // Total simulation duration override
     timeLimitSeconds?: number;
-    events: any[];
+    events: ScenarioEvent[];
 }

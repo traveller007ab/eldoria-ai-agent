@@ -1,4 +1,5 @@
 import type { MechBlueprint, MechSimulationResult } from '../../types';
+import { SimulationService } from '../physics/SimulationService';
 
 export interface MonteCarloConfig {
     samples: number;
@@ -14,6 +15,8 @@ export interface MonteCarloParameter {
     componentId: string;
     nominalValue: number;
     uncertainty: number;
+    paramName?: string;
+    path?: string;
     distributionType?: 'normal' | 'uniform' | 'lognormal' | 'triangular';
     min?: number;
     max?: number;
@@ -162,6 +165,24 @@ export class MonteCarloService {
         };
     }
 
+    async runMonteCarloWithSimulations(
+        config: MonteCarloConfig,
+        onProgress?: ProgressCallback
+    ): Promise<MonteCarloResult> {
+        const originalEvaluator = this.evaluateSimulation;
+        this.evaluateSimulation = async (sampledParams: Record<string, number>) => {
+            const sampledBlueprint = this.cloneBlueprint(this.blueprint);
+            this.applySampledParameters(sampledBlueprint, config.parameters, sampledParams);
+            return SimulationService.run(sampledBlueprint, true);
+        };
+
+        try {
+            return await this.runMonteCarlo(config, onProgress);
+        } finally {
+            this.evaluateSimulation = originalEvaluator;
+        }
+    }
+
     private generateSample(param: MonteCarloParameter, seedOffset: number): number {
         const seed = this.seed + seedOffset;
         const rng = this.seededRandom(seed);
@@ -197,6 +218,68 @@ export class MonteCarloService {
             default:
                 return param.nominalValue;
         }
+    }
+
+    private cloneBlueprint(blueprint: MechBlueprint): MechBlueprint {
+        return JSON.parse(JSON.stringify(blueprint)) as MechBlueprint;
+    }
+
+    private applySampledParameters(
+        blueprint: MechBlueprint,
+        parameters: MonteCarloParameter[],
+        sampledParams: Record<string, number>
+    ): void {
+        for (const parameter of parameters) {
+            const resolved = this.resolveParameterPath(blueprint, parameter);
+            if (!resolved) continue;
+            const sampledValue = sampledParams[parameter.id];
+            if (!Number.isFinite(sampledValue)) continue;
+            resolved.component.parameterValues[resolved.paramName] = sampledValue;
+        }
+    }
+
+    private resolveParameterPath(
+        blueprint: MechBlueprint,
+        parameter: MonteCarloParameter
+    ): { component: MechBlueprint['components'][number]; paramName: string } | null {
+        const explicitPath = parameter.path || (parameter.paramName ? `${parameter.componentId}.${parameter.paramName}` : '');
+        const [componentHintFromPath, paramFromPath] = explicitPath.includes('.')
+            ? explicitPath.split('.', 2)
+            : ['', ''];
+        const componentHint = (componentHintFromPath || parameter.componentId || '').toLowerCase();
+        const candidateParamNames = Array.from(new Set([
+            paramFromPath,
+            parameter.paramName,
+            parameter.id,
+            parameter.id.split('_').slice(1).join('_'),
+            parameter.id.split('_').pop()
+        ].filter(Boolean) as string[]));
+
+        let component = blueprint.components.find((comp) =>
+            comp.id.toLowerCase() === componentHint ||
+            comp.name.toLowerCase().includes(componentHint) ||
+            comp.componentDefinitionId.toLowerCase().includes(componentHint)
+        );
+        if (!component && componentHint) {
+            component = blueprint.components.find((comp) =>
+                comp.id.toLowerCase().includes(componentHint) ||
+                comp.name.toLowerCase().includes(componentHint) ||
+                comp.componentDefinitionId.toLowerCase().includes(componentHint)
+            );
+        }
+        if (!component) {
+            component = blueprint.components.find((comp) =>
+                candidateParamNames.some((candidate) => Object.prototype.hasOwnProperty.call(comp.parameterValues, candidate))
+            );
+        }
+        if (!component) return null;
+
+        const paramName = candidateParamNames.find((candidate) =>
+            Object.prototype.hasOwnProperty.call(component!.parameterValues, candidate)
+        );
+        if (!paramName) return null;
+
+        return { component, paramName };
     }
 
     private seededRandom(seed: number): () => number {

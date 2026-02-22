@@ -61,6 +61,7 @@ export const SensitivityAnalysisPanel: React.FC = () => {
     const [useCustom, setUseCustom] = useState(false);
     const [result, setResult] = useState<SensitivityResult | null>(null);
     const [isRunning, setIsRunning] = useState(false);
+    const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number } | null>(null);
     const [showDetails, setShowDetails] = useState(false);
 
     const preset = SENSITIVITY_PRESETS[selectedPreset];
@@ -69,13 +70,17 @@ export const SensitivityAnalysisPanel: React.FC = () => {
         if (!currentBlueprint) return;
 
         setIsRunning(true);
+        setAnalysisProgress(null);
         try {
             const service = new SensitivityAnalysisService(currentBlueprint);
             const inputs = useCustom ? customInputs : preset.inputs;
-            const analysisResult = service.analyze(inputs, preset.outputs);
+            const analysisResult = await service.analyze(inputs, preset.outputs, (current, total) => {
+                setAnalysisProgress({ current, total });
+            });
             setResult(analysisResult);
         } finally {
             setIsRunning(false);
+            setAnalysisProgress(null);
         }
     };
 
@@ -125,7 +130,9 @@ export const SensitivityAnalysisPanel: React.FC = () => {
                         ) : (
                             <Play className="w-4 h-4" />
                         )}
-                        {isRunning ? 'Analyzing...' : 'Run Analysis'}
+                        {isRunning
+                            ? `Analyzing${analysisProgress ? ` ${analysisProgress.current}/${analysisProgress.total}` : '...'}`
+                            : 'Run Analysis'}
                     </button>
                 </div>
 

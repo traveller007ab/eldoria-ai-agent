@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     PanelLeft, Play, Loader2, CheckCircle2, AlertTriangle, Settings2, Activity,
-    Download, FileJson, Upload, Save, ChevronDown, FileCode, Table, BarChart3, Undo2, Redo2, HelpCircle, ArrowLeft, ChevronRight, Layers, MessageSquare, FlaskConical
+    Download, FileJson, Upload, Save, ChevronDown, FileCode, Table, BarChart3, Undo2, Redo2, HelpCircle, ArrowLeft, ChevronRight, Layers, MessageSquare, FlaskConical, Square
 } from 'lucide-react';
 import { useMechStore } from '../../stores/useMechStore';
 import { ComponentPalette } from './ComponentPalette';
@@ -27,6 +27,8 @@ import { TEMPLATE_REGISTRY } from '../../data/template-library';
 import { AIDesignModal } from './AIDesignModal';
 import { AskSystemPanel } from './AskSystemPanel';
 import { FluidComposerDialog } from './FluidComposerDialog';
+import type { MechBlueprint, MechSimulationResult } from '../../types';
+import { validateConnections } from '../../services/physics/ConnectionValidationService';
 
 type RightPanelTab = 'properties' | 'results' | 'analysis' | 'diagnostics';
 
@@ -67,6 +69,9 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
     const [isAIDesignModalOpen, setIsAIDesignModalOpen] = useState(false);
     const [isAskSystemOpen, setIsAskSystemOpen] = useState(false);
     const [isFluidComposerOpen, setIsFluidComposerOpen] = useState(false);
+    const [isDynamicRunning, setIsDynamicRunning] = useState(false);
+    const [useFastDynamic, setUseFastDynamic] = useState(false);
+    const dynamicCancelRef = useRef<(() => void) | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Keyboard shortcuts
@@ -102,8 +107,105 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
         }
     ]);
 
+    const createFailureResult = (
+        blueprint: MechBlueprint,
+        message: string,
+        issues: MechSimulationResult['issues'] = []
+    ): MechSimulationResult => ({
+        id: crypto.randomUUID(),
+        blueprintId: blueprint.id,
+        status: 'failed',
+        completedAt: new Date(),
+        duration: 0,
+        configuration: { method: 'nonlin_newton', tolerance: 0, maxIterations: 0, outputLevel: 'quiet', initialGuess: 'design' },
+        variables: {},
+        metrics: { totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0, maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {} },
+        diagnostics: {
+            massBalance: { status: 'error', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
+            energyBalance: { status: 'error', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
+            convergence: { iterations: 0, residual: 0, converged: false }
+        },
+        constraintViolations: [],
+        issues: issues.length > 0
+            ? issues
+            : [{ id: 'sim-error', componentId: 'system', severity: 'critical', message, ruleId: 'SIM_ERROR' }]
+    });
+
+    const buildAskContext = (): string => {
+        const findVariableValue = (hints: string[]): number | undefined => {
+            if (!lastSimulationResult?.variables) return undefined;
+            const keys = Object.keys(lastSimulationResult.variables);
+            const matchedKey = keys.find((key) =>
+                hints.some((hint) => key.toLowerCase().includes(hint.toLowerCase()))
+            );
+            return matchedKey ? Number(lastSimulationResult.variables[matchedKey]) : undefined;
+        };
+
+        const summary: Record<string, any> = {};
+        if (currentBlueprint) {
+            summary.systemSummary = {
+                componentNames: currentBlueprint.components.map((c) => c.name).slice(0, 30),
+                connectionCount: currentBlueprint.connections.length,
+                fluidId: currentBlueprint.fluidId || 'water'
+            };
+        }
+
+        if (lastSimulationResult) {
+            summary.lastResultSummary = {
+                metrics: {
+                    efficiency: lastSimulationResult.metrics?.overallEfficiency ?? findVariableValue(['efficiency']),
+                    totalFlow: lastSimulationResult.metrics?.totalFlowRate ?? findVariableValue(['flow_rate', 'flow']),
+                    maxPressure: lastSimulationResult.metrics?.maxPressure ?? findVariableValue(['pressure'])
+                },
+                converged: lastSimulationResult.diagnostics?.convergence?.converged ?? false
+            };
+        }
+
+        if (lastSimulationResult?.issues?.length) {
+            summary.topIssues = lastSimulationResult.issues.slice(0, 5).map((issue) => issue.message);
+        }
+
+        let context = JSON.stringify(summary);
+        if (context.length > 2000) {
+            if (summary.systemSummary?.componentNames) {
+                summary.systemSummary.componentNames = summary.systemSummary.componentNames.slice(0, 15);
+            }
+            if (summary.topIssues) {
+                summary.topIssues = summary.topIssues.slice(0, 3);
+            }
+            context = JSON.stringify(summary);
+        }
+
+        if (context.length > 2000) {
+            context = JSON.stringify({
+                truncated: true,
+                excerpt: context.slice(0, 1800)
+            });
+        }
+
+        return context;
+    };
+
     const handleRunSimulation = async () => {
         if (!currentBlueprint) return;
+        const validationIssues = validateConnections(currentBlueprint);
+        if (validationIssues.length > 0) {
+            addLog(`Connection validation reported ${validationIssues.length} issue(s).`, 'warning');
+            validationIssues.slice(0, 5).forEach((issue) => addLog(`[${issue.severity}] ${issue.message}`, issue.severity === 'critical' ? 'error' : 'warning'));
+        }
+
+        const criticalValidationIssues = validationIssues.filter((issue) => issue.severity === 'critical');
+        if (criticalValidationIssues.length > 0) {
+            setLastSimulationResult(
+                createFailureResult(
+                    currentBlueprint,
+                    'Simulation blocked by connection validation errors.',
+                    validationIssues
+                )
+            );
+            return;
+        }
+
         setIsSimulating(true);
         const { setSimulationProgress } = useMechStore.getState();
         setSimulationProgress(0);
@@ -115,40 +217,28 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
                 setSimulationProgress(progress);
                 addLog(`[${progress}%] ${stage}`, 'info');
             });
-            setLastSimulationResult(result);
+            const mergedResult = {
+                ...result,
+                issues: [...(result.issues || []), ...validationIssues]
+            };
+            setLastSimulationResult(mergedResult);
 
-            if (result.status === 'completed') {
+            if (mergedResult.status === 'completed') {
                 setSimulationProgress(100);
-                addLog(`Simulation completed in ${result.duration}ms.`, 'success');
-                if (result.diagnostics.convergence.converged) {
+                addLog(`Simulation completed in ${mergedResult.duration}ms.`, 'success');
+                if (mergedResult.diagnostics.convergence.converged) {
                     setRightPanelTab('results');
                 }
             } else {
                 setSimulationProgress(0);
                 addLog(`Simulation failed to converge.`, 'error');
-                result.issues.forEach(i => addLog(`[${i.severity}] ${i.message}`, i.severity === 'critical' ? 'error' : 'warning'));
+                mergedResult.issues?.forEach(i => addLog(`[${i.severity}] ${i.message}`, i.severity === 'critical' ? 'error' : 'warning'));
             }
         } catch (error) {
             console.error(error);
             setSimulationProgress(0);
             addLog(`Simulation error: ${error}`, 'error');
-            setLastSimulationResult({
-                id: crypto.randomUUID(),
-                blueprintId: currentBlueprint.id,
-                status: 'failed',
-                completedAt: new Date(),
-                duration: 0,
-                configuration: { method: 'nonlin_newton', tolerance: 0, maxIterations: 0, outputLevel: 'quiet', initialGuess: 'design' },
-                variables: {},
-                metrics: { totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0, maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {} },
-                diagnostics: {
-                    massBalance: { status: 'error', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
-                    energyBalance: { status: 'error', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
-                    convergence: { iterations: 0, residual: 0, converged: false }
-                },
-                constraintViolations: [],
-                issues: [{ id: 'sim-error', componentId: 'system', severity: 'critical', message: String(error), ruleId: 'SIM_ERROR' }]
-            });
+            setLastSimulationResult(createFailureResult(currentBlueprint, String(error)));
         } finally {
             setIsSimulating(false);
         }
@@ -156,69 +246,87 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
 
     const handleRunDynamic = async () => {
         if (!currentBlueprint) return;
+        const validationIssues = validateConnections(currentBlueprint);
+        if (validationIssues.length > 0) {
+            addLog(`Connection validation reported ${validationIssues.length} issue(s).`, 'warning');
+            validationIssues.slice(0, 5).forEach((issue) => addLog(`[${issue.severity}] ${issue.message}`, issue.severity === 'critical' ? 'error' : 'warning'));
+        }
+
+        const criticalValidationIssues = validationIssues.filter((issue) => issue.severity === 'critical');
+        if (criticalValidationIssues.length > 0) {
+            setLastSimulationResult(
+                createFailureResult(
+                    currentBlueprint,
+                    'Dynamic simulation blocked by connection validation errors.',
+                    validationIssues
+                )
+            );
+            return;
+        }
+
         setIsSimulating(true);
+        setIsDynamicRunning(true);
         setLastSimulationResult(null);
         addLog('Starting dynamic simulation (60s)...', 'info');
 
-        try {
-            // Get active scenario for event tracking
-            const activeScenario = scenarioService.getCurrentScenario();
+        const { setSimulationProgress } = useMechStore.getState();
+        const activeScenario = scenarioService.getCurrentScenario();
 
-            // Run 60s simulation with 0.5s step
-            const result = await DynamicSimulationService.simulate(
-                currentBlueprint,
-                60,
-                0.5,
-                activeScenario ? {
-                    ...activeScenario,
-                    name: activeScenario.title,
-                    duration: activeScenario.timeLimitSeconds || 60,
-                    events: (activeScenario as any).events || []
-                } : undefined,
-                (progress, currentTime) => {
-                    // Log progress every 20%
-                    if (progress % 20 === 0 || progress === 100) {
-                        addLog(`Simulation Progress: ${Math.round(progress)}% (t=${currentTime.toFixed(1)}s)`, 'info');
-                    }
+        const { result, cancel } = DynamicSimulationService.simulateWithCancellation(
+            currentBlueprint,
+            60,
+            0.5,
+            activeScenario ? {
+                ...activeScenario,
+                name: activeScenario.title,
+                duration: activeScenario.timeLimitSeconds || 60,
+                events: (activeScenario as any).events || []
+            } : undefined,
+            (progress, currentTime) => {
+                setSimulationProgress(progress);
+                if (progress % 20 === 0 || progress === 100) {
+                    addLog(`Simulation Progress: ${Math.round(progress)}% (t=${currentTime.toFixed(1)}s)`, 'info');
                 }
-            );
+            },
+            { useFixedStep: useFastDynamic }
+        );
+        dynamicCancelRef.current = cancel;
 
-            if (!result) {
+        try {
+            const resolvedResult = await result;
+
+            if (!resolvedResult) {
                 throw new Error('Simulation returned no results');
             }
 
-            setLastSimulationResult(result);
+            const mergedResult = {
+                ...resolvedResult,
+                issues: [...(resolvedResult.issues || []), ...validationIssues]
+            };
+            setLastSimulationResult(mergedResult);
 
-            if (result.status === 'completed') {
-                addLog(`Dynamic simulation completed. Generated ${result.timePoints?.length || 0} time steps.`, 'success');
+            if (mergedResult.status === 'completed') {
+                addLog(`Dynamic simulation completed. Generated ${mergedResult.timePoints?.length || 0} time steps.`, 'success');
                 setIsPlaying(true); // Auto-play
                 setRightPanelTab('results');
+            } else if (mergedResult.status === 'cancelled') {
+                addLog(`Dynamic simulation cancelled at t=${(mergedResult.timePoints?.[mergedResult.timePoints.length - 1] || 0).toFixed(1)}s.`, 'warning');
             } else {
-                addLog('Dynamic simulation failed or was cancelled.', 'error');
+                addLog('Dynamic simulation failed.', 'error');
             }
         } catch (error) {
             console.error(error);
             addLog(`Dynamic simulation error: ${error}`, 'error');
-            setLastSimulationResult({
-                id: crypto.randomUUID(),
-                blueprintId: currentBlueprint.id,
-                status: 'failed',
-                completedAt: new Date(),
-                duration: 0,
-                configuration: { method: 'nonlin_newton', tolerance: 0, maxIterations: 0, outputLevel: 'quiet', initialGuess: 'design' },
-                variables: {},
-                metrics: { totalPowerInput: 0, totalPowerOutput: 0, overallEfficiency: 0, totalFlowRate: 0, maxPressure: 0, pressureDrop: 0, totalHeatInput: 0, totalHeatOutput: 0, componentMetrics: {} },
-                diagnostics: {
-                    massBalance: { status: 'error', inlet: 0, outlet: 0, imbalance: 0, imbalancePercent: 0 },
-                    energyBalance: { status: 'error', input: 0, output: 0, imbalance: 0, imbalancePercent: 0 },
-                    convergence: { iterations: 0, residual: 0, converged: false }
-                },
-                constraintViolations: [],
-                issues: [{ id: 'sim-error', componentId: 'system', severity: 'critical', message: String(error), ruleId: 'SIM_ERROR' }]
-            });
+            setLastSimulationResult(createFailureResult(currentBlueprint, String(error)));
         } finally {
             setIsSimulating(false);
+            setIsDynamicRunning(false);
+            dynamicCancelRef.current = null;
         }
+    };
+
+    const handleCancelDynamic = () => {
+        dynamicCancelRef.current?.();
     };
 
     const handleSaveProject = () => {
@@ -247,6 +355,12 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
     const handleExportResultsCSV = () => {
         if (!lastSimulationResult || !currentBlueprint) return;
         ProjectService.exportResultsAsCSV(lastSimulationResult.variables, currentBlueprint.name);
+        setShowExportMenu(false);
+    };
+
+    const handleExportResultsLaTeX = () => {
+        if (!lastSimulationResult || !currentBlueprint) return;
+        ProjectService.exportResultsAsLaTeX(currentBlueprint, lastSimulationResult);
         setShowExportMenu(false);
     };
 
@@ -287,6 +401,9 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
         }
         if (lastSimulationResult?.status === 'failed') {
             return <><AlertTriangle className="w-3 h-3 text-red-400" /> Failed</>;
+        }
+        if (lastSimulationResult?.status === 'cancelled') {
+            return <><AlertTriangle className="w-3 h-3 text-amber-400" /> Cancelled</>;
         }
         return 'Ready';
     };
@@ -361,13 +478,15 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
                 onQuerySubmit={async (question) => {
                     try {
                         const bridgeUrl = (window as any).BRIDGE_URL || 'http://localhost:3001';
+                        const context = buildAskContext();
                         const response = await fetch(`${bridgeUrl}/api/saf/ask`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 question,
                                 component_count: currentBlueprint?.components.length || 0,
-                                has_simulation_results: !!lastSimulationResult
+                                has_simulation_results: !!lastSimulationResult,
+                                context
                             })
                         });
                         if (!response.ok) throw new Error('API request failed');
@@ -432,6 +551,28 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
                             <span className="hidden xl:inline">Dynamic</span>
                         </button>
 
+                        <label className="flex items-center gap-1.5 px-2 py-1 text-xs text-slate-400 cursor-pointer select-none hover:text-slate-300" title="Faster run with fixed time step (no Richardson extrapolation)">
+                            <input
+                                type="checkbox"
+                                checked={useFastDynamic}
+                                onChange={(e) => setUseFastDynamic(e.target.checked)}
+                                className="rounded border-slate-600 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                            />
+                            <span className="hidden sm:inline">Fast</span>
+                        </label>
+
+                        {isDynamicRunning && (
+                            <button
+                                type="button"
+                                onClick={handleCancelDynamic}
+                                className="flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium border border-red-500/50 bg-red-900/30 text-red-400 hover:bg-red-800/40 hover:text-red-300 transition-colors"
+                                title="Cancel dynamic simulation"
+                            >
+                                <Square className="w-4 h-4" />
+                                <span className="hidden xl:inline">Cancel</span>
+                            </button>
+                        )}
+
                         <div className="h-6 w-px bg-slate-700 mx-2" />
 
                         <button
@@ -488,13 +629,22 @@ export const MechLabLayout: React.FC<MechLabLayoutProps> = ({ hideHeader }) => {
                                         Export as Modelica
                                     </button>
                                     {lastSimulationResult && (
-                                        <button
-                                            onClick={handleExportResultsCSV}
-                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
-                                        >
-                                            <Table className="w-4 h-4" />
-                                            Export Results (CSV)
-                                        </button>
+                                        <>
+                                            <button
+                                                onClick={handleExportResultsCSV}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
+                                            >
+                                                <Table className="w-4 h-4" />
+                                                Export Results (CSV)
+                                            </button>
+                                            <button
+                                                onClick={handleExportResultsLaTeX}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white"
+                                            >
+                                                <FileCode className="w-4 h-4" />
+                                                Export Results (LaTeX)
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             )}

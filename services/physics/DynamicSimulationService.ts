@@ -1,38 +1,64 @@
 import type { MechBlueprint, MechDynamicSimulationResult } from '../../types.ts';
 import type { ScenarioDefinition } from '../../components/mech-saf-2.0/types/ScenarioTypes.ts';
 
+export interface SimulationCancellationToken {
+    cancelled: boolean;
+}
+
+export interface DynamicSimulationHandle {
+    result: Promise<MechDynamicSimulationResult>;
+    cancel: () => void;
+    token: SimulationCancellationToken;
+}
+
 interface WorkerProgressMessage {
     id: string;
-    type: 'progress' | 'success' | 'error' | 'tick';
+    type: 'success' | 'error' | 'tick';
     payload?: any;
     progress?: number;
     currentTime?: number;
-    totalTime?: number;
     error?: string;
 }
 
 export class DynamicSimulationService {
     private static readonly WORKER_TIMEOUT_MS = 300000; // 5 minutes
-    private static readonly PROGRESS_REPORT_INTERVAL = 10; // Report every N ticks
+
+    /** Options for dynamic simulation */
+    static readonly SIMULATE_OPTIONS = { useFixedStep: 'useFixedStep' as const };
 
     static async simulate(
         blueprint: MechBlueprint, 
         duration: number = 60, 
         timeStep: number = 0.5, 
         scenario?: ScenarioDefinition,
-        onProgress?: (progress: number, currentTime: number) => void
+        onProgress?: (progress: number, currentTime: number) => void,
+        cancelToken?: SimulationCancellationToken,
+        options?: { useFixedStep?: boolean }
     ): Promise<MechDynamicSimulationResult> {
-        // V3.0: Hybrid Execution Strategy
-        // If in Browser (and Worker supported), offload to Web Worker to prevent UI freeze.
-        // If in Node/Test, use inline Kernel for simplicity and speed.
+        const workingBlueprint: MechBlueprint = JSON.parse(JSON.stringify(blueprint));
 
         if (typeof Worker !== 'undefined' && typeof window !== 'undefined') {
-            return this.simulateInWorker(blueprint, duration, timeStep, scenario, onProgress);
+            return this.simulateInWorker(
+                workingBlueprint,
+                duration,
+                timeStep,
+                scenario,
+                onProgress,
+                cancelToken,
+                options
+            );
         }
 
-        // Node.js / Fallback
         const { SimulationKernel } = await import('./SimulationKernel.ts');
-        return SimulationKernel.simulate(blueprint, duration, timeStep, scenario);
+        return SimulationKernel.simulate(
+            workingBlueprint,
+            duration,
+            timeStep,
+            scenario,
+            onProgress,
+            cancelToken,
+            options ? { useFixedStep: options.useFixedStep } : undefined
+        );
     }
 
     private static simulateInWorker(
@@ -40,24 +66,37 @@ export class DynamicSimulationService {
         duration: number, 
         timeStep: number, 
         scenario?: ScenarioDefinition,
-        onProgress?: (progress: number, currentTime: number) => void
+        onProgress?: (progress: number, currentTime: number) => void,
+        cancelToken?: SimulationCancellationToken,
+        options?: { useFixedStep?: boolean }
     ): Promise<MechDynamicSimulationResult> {
         return new Promise((resolve, reject) => {
-            const startTime = Date.now();
             let resolved = false;
-            let tickCount = 0;
+            let cancelSent = false;
 
             // Vite / Webpack compatible Worker instantiation
             const worker = new Worker(new URL('./SimulationWorker.ts', import.meta.url), { type: 'module' });
 
             const reqId = crypto.randomUUID();
-            const totalTicks = Math.ceil(duration / timeStep);
+            const cancelWatcher = cancelToken
+                ? setInterval(() => {
+                    if (resolved) return;
+                    if (cancelToken.cancelled && !cancelSent) {
+                        cancelSent = true;
+                        worker.postMessage({
+                            id: reqId,
+                            type: 'cancel'
+                        });
+                    }
+                }, 75)
+                : null;
 
             const cleanup = () => {
                 if (!resolved) {
                     resolved = true;
-                    worker.terminate();
                 }
+                if (cancelWatcher) clearInterval(cancelWatcher);
+                worker.terminate();
             };
 
             // Set timeout
@@ -75,37 +114,28 @@ export class DynamicSimulationService {
 
                 if (msg.type === 'success') {
                     clearTimeout(timeout);
-                    resolved = true;
-                    worker.terminate();
+                    cleanup();
                     resolve(msg.payload);
                 } 
                 else if (msg.type === 'error') {
                     clearTimeout(timeout);
-                    resolved = true;
-                    worker.terminate();
+                    cleanup();
                     reject(new Error(msg.error || 'Worker Simulation Failed'));
                 }
                 else if (msg.type === 'tick') {
-                    // Progress reporting from worker
-                    tickCount++;
-                    if (tickCount % this.PROGRESS_REPORT_INTERVAL === 0 && onProgress) {
-                        const progress = (tickCount / totalTicks) * 100;
-                        onProgress(progress, msg.currentTime || 0);
-                    }
+                    onProgress?.(msg.progress ?? 0, msg.currentTime ?? 0);
                 }
             };
 
             worker.onerror = (err: ErrorEvent) => {
                 clearTimeout(timeout);
                 if (!resolved) {
-                    resolved = true;
-                    worker.terminate();
+                    cleanup();
                     console.error('[DynamicSimulationService] Worker error:', err);
                     reject(new Error(`Worker error: ${err.message || 'Unknown error'}`));
                 }
             };
 
-            // Send simulation request
             worker.postMessage({
                 id: reqId,
                 type: 'simulate',
@@ -116,7 +146,7 @@ export class DynamicSimulationService {
                     scenario,
                     options: {
                         enableProgressReporting: true,
-                        reportInterval: this.PROGRESS_REPORT_INTERVAL
+                        useFixedStep: options?.useFixedStep
                     }
                 }
             });
@@ -126,30 +156,22 @@ export class DynamicSimulationService {
     /**
      * Run simulation with cancellation support
      */
-    static async simulateWithCancellation(
+    static simulateWithCancellation(
         blueprint: MechBlueprint,
         duration: number = 60,
         timeStep: number = 0.5,
-        scenario?: ScenarioDefinition
-    ): Promise<{ result: MechDynamicSimulationResult; cancel: () => void }> {
-        let cancelRequested = false;
+        scenario?: ScenarioDefinition,
+        onProgress?: (progress: number, currentTime: number) => void,
+        options?: { useFixedStep?: boolean }
+    ): DynamicSimulationHandle {
+        const token: SimulationCancellationToken = { cancelled: false };
 
         const cancel = () => {
-            cancelRequested = true;
+            token.cancelled = true;
         };
 
-        const result = await this.simulate(blueprint, duration, timeStep, scenario);
+        const result = this.simulate(blueprint, duration, timeStep, scenario, onProgress, token, options);
 
-        if (cancelRequested) {
-            return {
-                result: {
-                    ...result,
-                    status: 'cancelled' as const
-                },
-                cancel
-            };
-        }
-
-        return { result, cancel };
+        return { result, cancel, token };
     }
 }

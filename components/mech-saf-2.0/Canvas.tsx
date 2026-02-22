@@ -21,6 +21,7 @@ import { useMechStore } from '../../stores/useMechStore';
 import { MechComponentDefinition, MechComponentInstance, MechConnection } from '../../types';
 import { MechNode } from './MechNode';
 import { ComponentRegistry } from '../../services/ComponentRegistry';
+import { validateConnections } from '../../services/physics/ConnectionValidationService';
 import { Toolbar } from './Toolbar';
 import { AnimatedConnection } from './AnimatedConnection';
 
@@ -93,18 +94,30 @@ const CanvasContent: React.FC = () => {
                 };
             }));
 
-            setEdges(currentBlueprint.connections.map(c => ({
-                id: c.id,
-                source: c.sourceComponentId,
-                sourceHandle: c.sourcePortId,
-                target: c.targetComponentId,
-                targetHandle: c.targetPortId,
-                type: 'animated',
-                animated: true,
-                style: { stroke: '#64748b', strokeWidth: 2 }
-            })));
+            const validationIssues = validateConnections(currentBlueprint);
+            const invalidConnectionIds = new Set(
+                validationIssues.filter(i => i.connectionId).map(i => i.connectionId!)
+            );
+
+            setEdges(currentBlueprint.connections.map(c => {
+                const isInvalid = invalidConnectionIds.has(c.id);
+                const issue = validationIssues.find(i => i.connectionId === c.id);
+                return {
+                    id: c.id,
+                    source: c.sourceComponentId,
+                    sourceHandle: c.sourcePortId,
+                    target: c.targetComponentId,
+                    targetHandle: c.targetPortId,
+                    type: 'animated',
+                    animated: !isInvalid,
+                    style: isInvalid
+                        ? { stroke: '#ef4444', strokeWidth: 3 }
+                        : { stroke: '#64748b', strokeWidth: 2 },
+                    data: issue ? { validationMessage: issue.message } : undefined
+                };
+            }));
         }
-    }, [currentBlueprint?.components.length, currentBlueprint?.connections.length, selectedComponentIds.length, selectedComponentId, lastSimulationResult]); // Add lastSimulationResult dependency
+    }, [currentBlueprint?.components.length, currentBlueprint?.connections.length, selectedComponentIds.length, selectedComponentId, lastSimulationResult]);
 
     // Keyboard shortcuts
     useEffect(() => {

@@ -1,4 +1,5 @@
-import type { MechBlueprint } from '../../types';
+import type { MechBlueprint, MechSimulationResult } from '../../types';
+import { SimulationService } from '../physics/SimulationService';
 
 export interface ParametricSweepConfig {
     parameter: string;
@@ -37,6 +38,13 @@ export interface SweepResult {
     warnings: string[];
 }
 
+interface ResolvedParameterPath {
+    componentId: string;
+    paramName: string;
+}
+
+type SimulationRunner = (blueprint: MechBlueprint) => Promise<MechSimulationResult>;
+
 export class ParametricSweepService {
     private blueprint: MechBlueprint;
     private results: Map<number, SweepResult> = new Map();
@@ -45,107 +53,133 @@ export class ParametricSweepService {
         this.blueprint = blueprint;
     }
 
-    async runSweep(config: ParametricSweepConfig): Promise<ParametricSweepResult> {
+    async runSweep(
+        config: ParametricSweepConfig,
+        onProgress?: (current: number, total: number) => void
+    ): Promise<ParametricSweepResult> {
+        return this.runSweepWithSimulations(
+            config,
+            async (bp) => SimulationService.run(bp, true),
+            onProgress
+        );
+    }
+
+    async runSweepWithSimulations(
+        config: ParametricSweepConfig,
+        simulationRunner: SimulationRunner,
+        onProgress?: (current: number, total: number) => void
+    ): Promise<ParametricSweepResult> {
         this.results.clear();
+        const sweepResults: SweepResult[] = [];
 
-        // For now, simulate sweep results based on pump affinity laws
-        // In real implementation, would run actual simulation for each point
-        const baseResult = await this.getBaseResult();
-        
-        const sweepResults: SweepResult[] = config.values.map(value => {
-            const result = this.calculateSweepPoint(value, config.parameter, baseResult);
-            this.results.set(value, result);
-            return result;
-        });
+        const resolvedPath = this.resolveParameter(config.parameter);
+        if (!resolvedPath) {
+            for (const value of config.values) {
+                const failed: SweepResult = {
+                    parameterValue: value,
+                    flow: 0,
+                    head: 0,
+                    power: 0,
+                    efficiency: 0,
+                    npshAvailable: 0,
+                    npshRequired: 0,
+                    suctionEnergy: 0,
+                    dischargeEnergy: 0,
+                    flowVelocity: 0,
+                    reynoldsNumber: 0,
+                    frictionFactor: 0,
+                    headLoss: 0,
+                    status: 'error',
+                    warnings: [`Parameter "${config.parameter}" could not be resolved to any component parameter.`]
+                };
+                this.results.set(value, failed);
+                sweepResults.push(failed);
+            }
+            return this.buildSweepResult(config, sweepResults);
+        }
 
-        const bestEfficiency = this.findBestEfficiency(sweepResults);
-        const pumpCurve = this.generatePumpCurve(sweepResults);
+        const baseBlueprint = this.cloneBlueprint(this.blueprint);
+        const baseParamValue = this.getParameterValue(baseBlueprint, resolvedPath, 100);
+
+        for (let i = 0; i < config.values.length; i++) {
+            const parameterPercent = config.values[i];
+            const sweepBlueprint = this.cloneBlueprint(baseBlueprint);
+            const appliedValue = baseParamValue * (parameterPercent / 100);
+            this.setParameterValue(sweepBlueprint, resolvedPath, appliedValue);
+
+            let pointResult: SweepResult;
+            try {
+                const simulationResult = await simulationRunner(sweepBlueprint);
+                pointResult = this.toSweepPoint(parameterPercent, simulationResult);
+            } catch (error) {
+                pointResult = {
+                    parameterValue: parameterPercent,
+                    flow: 0,
+                    head: 0,
+                    power: 0,
+                    efficiency: 0,
+                    npshAvailable: 0,
+                    npshRequired: 0,
+                    suctionEnergy: 0,
+                    dischargeEnergy: 0,
+                    flowVelocity: 0,
+                    reynoldsNumber: 0,
+                    frictionFactor: 0,
+                    headLoss: 0,
+                    status: 'error',
+                    warnings: [error instanceof Error ? error.message : String(error)]
+                };
+            }
+
+            this.results.set(parameterPercent, pointResult);
+            sweepResults.push(pointResult);
+            onProgress?.(i + 1, config.values.length);
+        }
+
+        return this.buildSweepResult(config, sweepResults);
+    }
+
+    private buildSweepResult(config: ParametricSweepConfig, results: SweepResult[]): ParametricSweepResult {
+        const bestEfficiency = this.findBestEfficiency(results);
+        const pumpCurve = this.generatePumpCurve(results);
 
         return {
             config,
-            results: sweepResults,
+            results,
             bestEfficiencyPoint: bestEfficiency,
             pumpCurve
         };
     }
 
-    private async getBaseResult(): Promise<Record<string, number>> {
-        // Would run actual simulation in full implementation
-        return {
-            flow: 100,      // m³/h
-            head: 50,       // m
-            power: 25,      // kW
-            efficiency: 75, // %
-            npshAvailable: 15, // m
-            npshRequired: 3,   // m
-            suctionEnergy: 5,
-            dischargeEnergy: 50,
-            flowVelocity: 2.5, // m/s
-            reynoldsNumber: 500000,
-            frictionFactor: 0.02,
-            headLoss: 2.5
-        };
-    }
+    private toSweepPoint(parameterValue: number, result: MechSimulationResult): SweepResult {
+        const flow = this.getMetric(result, 'flow');
+        const head = this.getMetric(result, 'head');
+        const efficiency = this.getMetric(result, 'efficiency');
+        const power = this.getMetric(result, 'power');
+        const npshAvailable = this.getMetric(result, 'npsh_available');
+        const npshRequired = this.getMetric(result, 'npsh_required');
+        const suctionEnergy = this.getMetric(result, 'suction_energy');
+        const dischargeEnergy = this.getMetric(result, 'discharge_energy');
+        const flowVelocity = this.getMetric(result, 'flow_velocity');
+        const reynoldsNumber = this.getMetric(result, 'reynolds');
+        const frictionFactor = this.getMetric(result, 'friction_factor');
+        const headLoss = this.getMetric(result, 'head_loss');
 
-    private calculateSweepPoint(
-        value: number,
-        parameter: string,
-        base: Record<string, number>
-    ): SweepResult {
-        const ratio = value / 100; // Normalize to 100%
-
-        // Apply affinity laws
-        const flow = base.flow * ratio;
-        const head = base.head * (ratio * ratio);
-        const power = base.power * (ratio * ratio * ratio);
-
-        // Calculate efficiency (parabolic, peaks at 80-90% flow)
-        const efficiencyPeak = 0.85;
-        const efficiencyDrop = Math.pow(ratio - efficiencyPeak, 2) * 50;
-        const efficiency = Math.min(90, Math.max(40, base.efficiency - efficiencyDrop));
-
-        // Recalculate dependent parameters
-        const flowVelocity = flow / 60; // Simplified
-        const reynoldsNumber = base.reynoldsNumber * ratio;
-        const frictionFactor = 0.02 * (1 + 0.5 * (1 - ratio)); // Increases at low flow
-        const headLoss = base.headLoss * (ratio * ratio);
-
-        const npshRequired = 2 + 0.5 * (1 - ratio); // Higher at low flow
-        const suctionEnergy = base.suctionEnergy;
-        const dischargeEnergy = base.head * ratio;
-
-        // Determine status and warnings
-        const warnings: string[] = [];
-        let status: 'ok' | 'warning' | 'error' = 'ok';
-
-        if (efficiency < 50) {
-            warnings.push('Low efficiency region');
-            status = 'warning';
-        }
-        if (ratio < 0.5) {
-            warnings.push('Risk of surge at low flow');
-            status = 'warning';
-        }
-        if (npshRequired > base.npshAvailable) {
-            warnings.push('NPSH margin insufficient');
-            status = 'error';
-        }
-        if (flowVelocity > 3) {
-            warnings.push('High velocity - check erosion');
-            status = 'warning';
-        }
-        if (ratio < 0.3) {
-            warnings.push('Severe low flow - not recommended');
-            status = 'error';
-        }
+        const warningMessages = (result.issues || []).map((issue) => issue.message);
+        const status: 'ok' | 'warning' | 'error' =
+            result.status !== 'completed'
+                ? 'error'
+                : warningMessages.length > 0
+                    ? 'warning'
+                    : 'ok';
 
         return {
-            parameterValue: value,
+            parameterValue,
             flow,
             head,
             power,
             efficiency,
-            npshAvailable: base.npshAvailable,
+            npshAvailable,
             npshRequired,
             suctionEnergy,
             dischargeEnergy,
@@ -154,8 +188,140 @@ export class ParametricSweepService {
             frictionFactor,
             headLoss,
             status,
-            warnings
+            warnings: warningMessages
         };
+    }
+
+    private cloneBlueprint(blueprint: MechBlueprint): MechBlueprint {
+        return JSON.parse(JSON.stringify(blueprint)) as MechBlueprint;
+    }
+
+    private resolveParameter(parameter: string): ResolvedParameterPath | null {
+        const parts = parameter.split(/[.:]/).filter(Boolean);
+        const aliasMap: Record<string, string> = {
+            pump_speed: 'speed',
+            impeller_diameter: 'diameter',
+            design_flow: 'design_flow',
+            design_head: 'design_head',
+            throttle_opening: 'opening',
+            valve_cv: 'cv',
+            system_resistance: 'roughness'
+        };
+
+        const componentHint = parts.length > 1 ? parts[0].toLowerCase() : parameter.toLowerCase();
+        const directParam = parts.length > 1 ? parts[1] : parameter;
+        const paramCandidates = Array.from(new Set([
+            directParam,
+            aliasMap[parameter],
+            parameter.split('_').slice(1).join('_'),
+            parameter.split('_').pop()
+        ].filter(Boolean) as string[]));
+
+        for (const candidate of paramCandidates) {
+            const exactMatches = this.blueprint.components.filter((comp) => Object.prototype.hasOwnProperty.call(comp.parameterValues, candidate));
+            if (exactMatches.length > 0) {
+                const hinted = exactMatches.find((comp) =>
+                    comp.name.toLowerCase().includes(componentHint) ||
+                    comp.componentDefinitionId.toLowerCase().includes(componentHint)
+                );
+                return {
+                    componentId: (hinted || exactMatches[0]).id,
+                    paramName: candidate
+                };
+            }
+        }
+
+        for (const comp of this.blueprint.components) {
+            const keys = Object.keys(comp.parameterValues);
+            const fuzzyKey = keys.find((key) => paramCandidates.some((candidate) => key.toLowerCase().includes(candidate.toLowerCase())));
+            if (fuzzyKey) {
+                return { componentId: comp.id, paramName: fuzzyKey };
+            }
+        }
+
+        return null;
+    }
+
+    private getParameterValue(
+        blueprint: MechBlueprint,
+        path: ResolvedParameterPath,
+        fallbackValue: number
+    ): number {
+        const component = blueprint.components.find((comp) => comp.id === path.componentId);
+        if (!component) return fallbackValue;
+        const raw = component.parameterValues[path.paramName];
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : fallbackValue;
+    }
+
+    private setParameterValue(
+        blueprint: MechBlueprint,
+        path: ResolvedParameterPath,
+        value: number
+    ): void {
+        const component = blueprint.components.find((comp) => comp.id === path.componentId);
+        if (!component) return;
+        component.parameterValues[path.paramName] = value;
+    }
+
+    private getMetric(result: MechSimulationResult, key: string): number {
+        const metricKey = key.toLowerCase();
+        if (metricKey === 'flow') {
+            const flowMetric = Number(result.metrics?.totalFlowRate ?? 0);
+            return flowMetric !== 0 ? flowMetric : this.aggregateVariables(result.variables, ['flow_rate', 'flow'], 'sum_abs');
+        }
+        if (metricKey === 'head') {
+            return this.aggregateVariables(result.variables, ['head'], 'max');
+        }
+        if (metricKey === 'power') {
+            const output = Number(result.metrics?.totalPowerOutput ?? 0);
+            const input = Number(result.metrics?.totalPowerInput ?? 0);
+            return output > 0 ? output : input;
+        }
+        if (metricKey === 'efficiency') {
+            return Number(result.metrics?.overallEfficiency ?? 0);
+        }
+        if (metricKey === 'npsh_available') {
+            return this.aggregateVariables(result.variables, ['npsh_available', 'npsha'], 'first');
+        }
+        if (metricKey === 'npsh_required') {
+            return this.aggregateVariables(result.variables, ['npsh_required', 'npshr'], 'first');
+        }
+        if (metricKey === 'suction_energy') {
+            return this.aggregateVariables(result.variables, ['suction_energy', 'suction'], 'first');
+        }
+        if (metricKey === 'discharge_energy') {
+            return this.aggregateVariables(result.variables, ['discharge_energy', 'discharge'], 'first');
+        }
+        if (metricKey === 'flow_velocity') {
+            return this.aggregateVariables(result.variables, ['velocity'], 'max');
+        }
+        if (metricKey === 'reynolds') {
+            return this.aggregateVariables(result.variables, ['reynolds'], 'max');
+        }
+        if (metricKey === 'friction_factor') {
+            return this.aggregateVariables(result.variables, ['friction_factor', 'darcy_f'], 'first');
+        }
+        if (metricKey === 'head_loss') {
+            return this.aggregateVariables(result.variables, ['head_loss', 'loss'], 'sum_abs');
+        }
+        return 0;
+    }
+
+    private aggregateVariables(
+        variables: Record<string, number>,
+        hints: string[],
+        mode: 'sum_abs' | 'max' | 'first'
+    ): number {
+        const matches = Object.entries(variables)
+            .filter(([name]) => hints.some((hint) => name.toLowerCase().includes(hint.toLowerCase())))
+            .map(([, value]) => Number(value))
+            .filter((value) => Number.isFinite(value));
+
+        if (matches.length === 0) return 0;
+        if (mode === 'first') return matches[0];
+        if (mode === 'max') return Math.max(...matches);
+        return matches.reduce((sum, value) => sum + Math.abs(value), 0);
     }
 
     private findBestEfficiency(results: SweepResult[]): {
@@ -164,25 +330,25 @@ export class ParametricSweepService {
         flow: number;
         head: number;
     } {
-        let best = results[0];
-        for (const r of results) {
-            if (r.efficiency > best.efficiency) {
-                best = r;
-            }
-        }
+        const valid = results.filter((result) => result.status !== 'error');
+        const pool = valid.length > 0 ? valid : results;
+        const best = pool.reduce((winner, current) => {
+            return current.efficiency > winner.efficiency ? current : winner;
+        }, pool[0]);
+
         return {
-            value: best.parameterValue,
-            efficiency: best.efficiency,
-            flow: best.flow,
-            head: best.head
+            value: best?.parameterValue ?? 0,
+            efficiency: best?.efficiency ?? 0,
+            flow: best?.flow ?? 0,
+            head: best?.head ?? 0
         };
     }
 
     private generatePumpCurve(results: SweepResult[]): { flow: number; head: number }[] {
-        // Sort by flow and extract pump curve points
-        return results
+        return [...results]
+            .filter((result) => result.status !== 'error')
             .sort((a, b) => a.flow - b.flow)
-            .map(r => ({ flow: r.flow, head: r.head }));
+            .map((result) => ({ flow: result.flow, head: result.head }));
     }
 
     getResultsForValue(value: number): SweepResult | undefined {
