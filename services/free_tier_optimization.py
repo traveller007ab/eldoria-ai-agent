@@ -7,7 +7,7 @@ import os
 import time
 import asyncio
 import psutil
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 import functools
@@ -141,11 +141,32 @@ class MemoryOptimizer:
         self.max_memory_mb = max_memory_mb
         self.warning_threshold = max_memory_mb * 0.8  # 80%
         self.critical_threshold = max_memory_mb * 0.9  # 90%
-        self.process = psutil.Process()
         self.optimization_callbacks: List[Callable] = []
+        self._process = None
+        try:
+            self._process = psutil.Process()
+        except Exception:
+            self._process = None
+
+    @property
+    def process(self):
+        if self._process is None:
+            try:
+                self._process = psutil.Process()
+            except Exception:
+                pass
+        return self._process
 
     def get_memory_usage(self) -> Dict[str, float]:
         """Get current memory usage statistics"""
+        if self.process is None:
+            return {
+                "rss_mb": 0,
+                "vms_mb": 0,
+                "percent": 0,
+                "max_allowed_mb": self.max_memory_mb,
+                "available_mb": self.max_memory_mb,
+            }
         mem_info = self.process.memory_info()
 
         return {
