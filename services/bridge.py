@@ -142,6 +142,11 @@ app.add_middleware(
 # Phase 1: Initialize Rate Limiter
 app.state.limiter = limiter
 
+# Add SlowAPI middleware
+from slowapi import SlowAPIMiddleware
+
+app.add_middleware(SlowAPIMiddleware)
+
 
 # Custom rate limit exceeded handler - registered for RateLimitExceeded specifically
 from slowapi.errors import RateLimitExceeded
