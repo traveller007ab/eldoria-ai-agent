@@ -143,35 +143,33 @@ app.add_middleware(
 app.state.limiter = limiter
 
 
-# Custom rate limit exceeded handler
-@app.exception_handler(Exception)
-async def rate_limit_handler(request, exc):
-    """Handle rate limit exceeded with proper headers"""
-    from slowapi.errors import RateLimitExceeded
+# Custom rate limit exceeded handler - registered for RateLimitExceeded specifically
+from slowapi.errors import RateLimitExceeded
 
-    if isinstance(exc, RateLimitExceeded):
-        return JSONResponse(
-            status_code=429,
-            content={
-                "error": "Rate limit exceeded",
-                "detail": str(exc),
-                "message": "Too many requests. Please wait before trying again.",
-                "limits": {
-                    "proxy": "3/minute",
-                    "chat": "5/minute",
-                    "auth": "5/minute",
-                    "demo_mode": DemoModeChecker.is_demo_mode(),
-                },
-                "retry_after": "60 seconds",
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Handle rate limit exceeded with proper headers"""
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "Rate limit exceeded",
+            "detail": str(exc),
+            "message": "Too many requests. Please wait before trying again.",
+            "limits": {
+                "proxy": "3/minute",
+                "chat": "5/minute",
+                "auth": "5/minute",
+                "demo_mode": DemoModeChecker.is_demo_mode(),
             },
-            headers={
-                "Retry-After": "60",
-                "X-RateLimit-Limit": "3",
-                "X-RateLimit-Remaining": "0",
-            },
-        )
-    # Re-raise other exceptions
-    raise exc
+            "retry_after": "60 seconds",
+        },
+        headers={
+            "Retry-After": "60",
+            "X-RateLimit-Limit": "3",
+            "X-RateLimit-Remaining": "0",
+        },
+    )
 
 
 # Internal Service Imports
@@ -1420,6 +1418,7 @@ async def open_folder_dialog(request: Request):
 
 # Vault endpoints moved to thesis_vault.py router
 
+
 def _export_escape(value: Any) -> str:
     return html.escape(str(value or ""))
 
@@ -1492,15 +1491,17 @@ def _build_pdf_export_html(project: Dict[str, Any], options: Dict[str, Any]) -> 
         </section>
         """
 
-    chapters_html = "".join([
-        f"""
+    chapters_html = "".join(
+        [
+            f"""
         <section class=\"chapter\">
             <h2>{_export_escape(chapter_name)}</h2>
-            {_markdown_to_basic_html(str(content or 'Content pending...'))}
+            {_markdown_to_basic_html(str(content or "Content pending..."))}
         </section>
         """
-        for chapter_name, content in chapter_items
-    ])
+            for chapter_name, content in chapter_items
+        ]
+    )
 
     references_html = ""
     if include_refs and references:
@@ -1512,7 +1513,7 @@ def _build_pdf_export_html(project: Dict[str, Any], options: Dict[str, Any]) -> 
             references_html = f"""
             <section class=\"references chapter\">
                 <h2>References</h2>
-                <ol>{''.join(ref_items)}</ol>
+                <ol>{"".join(ref_items)}</ol>
             </section>
             """
 
@@ -1616,7 +1617,9 @@ async def export_pdf(request: Request):
             "Install with: pip install weasyprint>=62.0"
         )
         if WEASYPRINT_IMPORT_ERROR:
-            detail_message = f"{detail_message}. Import error: {WEASYPRINT_IMPORT_ERROR}"
+            detail_message = (
+                f"{detail_message}. Import error: {WEASYPRINT_IMPORT_ERROR}"
+            )
         raise HTTPException(
             status_code=501,
             detail=detail_message,
@@ -1628,17 +1631,21 @@ async def export_pdf(request: Request):
         options = payload.get("options", {}) if isinstance(payload, dict) else {}
 
         if not isinstance(project, dict):
-            raise HTTPException(status_code=400, detail="Invalid request payload: project must be an object.")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid request payload: project must be an object.",
+            )
 
-        html_content = _build_pdf_export_html(project, options if isinstance(options, dict) else {})
+        html_content = _build_pdf_export_html(
+            project, options if isinstance(options, dict) else {}
+        )
         pdf_bytes = WeasyHTML(string=html_content).write_pdf()
 
-        title = (
-            project.get("wizard_state", {})
-            .get("basics", {})
-            .get("title", "thesis")
+        title = project.get("wizard_state", {}).get("basics", {}).get("title", "thesis")
+        safe_name = (
+            "".join(c if str(c).isalnum() else "_" for c in str(title)).strip("_")
+            or "thesis"
         )
-        safe_name = "".join(c if str(c).isalnum() else "_" for c in str(title)).strip("_") or "thesis"
         filename = f"{safe_name}_{datetime.now().strftime('%Y-%m-%d')}.pdf"
 
         logger.info(
