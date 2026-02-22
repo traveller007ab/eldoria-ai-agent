@@ -139,13 +139,20 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
-# Phase 1: Initialize Rate Limiter
-app.state.limiter = limiter
+# Phase 1: Initialize Rate Limiter (optional - may fail on some platforms)
+RATE_LIMITING_ENABLED = False
+try:
+    app.state.limiter = limiter
+    from slowapi import SlowAPIMiddleware
 
-# Add SlowAPI middleware
-from slowapi import SlowAPIMiddleware
-
-app.add_middleware(SlowAPIMiddleware)
+    # SlowAPI middleware should be added BEFORE CORS middleware
+    # But since CORS is already added, we'll add it after and handle gracefully
+    app.add_middleware(SlowAPIMiddleware)
+    RATE_LIMITING_ENABLED = True
+    print("[BRIDGE] Rate limiting enabled via SlowAPI")
+except Exception as e:
+    print(f"[BRIDGE] WARNING: Rate limiting disabled: {e}")
+    RATE_LIMITING_ENABLED = False
 
 
 # Custom rate limit exceeded handler - registered for RateLimitExceeded specifically
