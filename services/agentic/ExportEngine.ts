@@ -1,4 +1,13 @@
 import type { AcademicProject, Reference } from '../../types';
+import html2pdf from 'html2pdf.js';
+import {
+  AlignmentType,
+  Document,
+  HeadingLevel,
+  Packer,
+  Paragraph,
+  TextRun
+} from 'docx';
 
 export type ExportFormat = 'pdf' | 'latex' | 'word' | 'html' | 'markdown';
 
@@ -68,13 +77,13 @@ export class ExportEngine {
         case 'latex':
           return this.exportToLaTeX(project, chapters, references, mergedOptions);
         case 'pdf':
-          return this.exportToPDF(project, chapters, references, mergedOptions);
+          return await this.exportToPDF(project, chapters, references, mergedOptions);
         case 'markdown':
           return this.exportToMarkdown(project, chapters, references, mergedOptions);
         case 'html':
           return this.exportToHTML(project, chapters, references, mergedOptions);
         case 'word':
-          return this.exportToWord(project, chapters, references, mergedOptions);
+          return await this.exportToWord(project, chapters, references, mergedOptions);
         default:
           return { success: false, filename: '', error: `Unsupported format: ${mergedOptions.format}` };
       }
@@ -85,6 +94,44 @@ export class ExportEngine {
         error: error instanceof Error ? error.message : 'Unknown export error'
       };
     }
+  }
+
+  private prepareAcademicPdfHtml(htmlContent: string): string {
+    const withAcademicStyle = htmlContent.replace('</head>', `
+  <style>
+    @page { size: A4; margin: 1in; }
+    body {
+      font-family: 'Times New Roman', serif !important;
+      font-size: 12pt !important;
+      line-height: 2 !important;
+      color: #000 !important;
+      background: #fff !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    h1, h2, h3 { font-family: 'Times New Roman', serif !important; color: #000 !important; }
+    .chapter-break { page-break-before: always; break-before: page; }
+    .chapter-break:first-of-type { page-break-before: auto; break-before: auto; }
+    p { text-align: justify; }
+  </style>
+</head>`);
+
+    return withAcademicStyle.replace(/<section id=\"/g, '<section class=\"chapter-break\" id=\"');
+  }
+
+  private markdownToParagraphs(markdown: string): string[] {
+    return markdown
+      .replace(/\r\n/g, '\n')
+      .split(/\n{2,}/)
+      .map((paragraph) => paragraph
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^\s*[-*]\s+/gm, '- ')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/`{1,3}/g, '')
+        .trim())
+      .filter(Boolean);
   }
 
   private exportToLaTeX(
@@ -208,24 +255,71 @@ export class ExportEngine {
     return bib;
   }
 
-  private exportToPDF(
+  private async exportToPDF(
     project: AcademicProject,
     chapters: { id: string; title: string; content: string }[],
     references: Reference[],
     options: ExportOptions
-  ): ExportResult {
-    const latexResult = this.exportToLaTeX(project, chapters, references, options);
-
-    if (!latexResult.success) {
-      return latexResult;
+  ): Promise<ExportResult> {
+    const htmlResult = this.exportToHTML(project, chapters, references, options);
+    if (!htmlResult.success || !htmlResult.content) {
+      return htmlResult;
     }
 
-    return {
-      success: true,
-      content: latexResult.content,
-      filename: latexResult.filename.replace('.tex', '.pdf'),
-      error: 'PDF export requires LaTeX compiler. Use the .tex file with pdflatex.'
-    };
+    const styledHtml = this.prepareAcademicPdfHtml(htmlResult.content);
+    let container: HTMLDivElement | null = null;
+
+    try {
+      container = document.createElement('div');
+      container.innerHTML = styledHtml;
+      container.style.position = 'fixed';
+      container.style.left = '-99999px';
+      container.style.top = '0';
+      container.style.width = '210mm';
+      container.style.background = '#ffffff';
+      document.body.appendChild(container);
+
+      const pdfBlob = await html2pdf()
+        .set({
+          margin: [1, 1, 1, 1],
+          filename: htmlResult.filename.replace('.html', '.pdf'),
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff'
+          },
+          jsPDF: {
+            unit: 'in',
+            format: 'a4',
+            orientation: 'portrait'
+          },
+          pagebreak: {
+            mode: ['css', 'legacy'],
+            before: '.chapter-break'
+          }
+        } as any)
+        .from(container)
+        .toPdf()
+        .outputPdf('blob');
+
+      return {
+        success: true,
+        content: htmlResult.content,
+        blob: pdfBlob,
+        filename: htmlResult.filename.replace('.html', '.pdf')
+      };
+    } catch (error) {
+      return {
+        success: false,
+        filename: htmlResult.filename.replace('.html', '.pdf'),
+        error: error instanceof Error ? error.message : 'Browser PDF export failed'
+      };
+    } finally {
+      if (container?.parentNode) {
+        container.parentNode.removeChild(container);
+      }
+    }
   }
 
   private exportToMarkdown(
@@ -355,24 +449,143 @@ export class ExportEngine {
     return html;
   }
 
-  private exportToWord(
+  private async exportToWord(
     project: AcademicProject,
     chapters: { id: string; title: string; content: string }[],
     references: Reference[],
     options: ExportOptions
-  ): ExportResult {
-    const htmlResult = this.exportToHTML(project, chapters, references, options);
+  ): Promise<ExportResult> {
+    const ws = project.wizard_state as any;
+    const basics = ws.basics || {};
+    const supervisor = basics.supervisor || 'N/A';
+    const institution = basics.institution || 'Institution';
+    const department = basics.department || 'Department';
+    const dateText = basics.year ? String(basics.year) : new Date().toLocaleDateString();
 
-    if (!htmlResult.success) {
-      return htmlResult;
+    const children: Paragraph[] = [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 320 },
+        children: [new TextRun({ text: basics.title || 'Untitled Thesis', size: 32, bold: true, font: 'Times New Roman' })]
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [new TextRun({ text: `Author: ${basics.author || 'Unknown'}`, size: 24, font: 'Times New Roman' })]
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [new TextRun({ text: `Institution: ${institution}`, size: 24, font: 'Times New Roman' })]
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [new TextRun({ text: `Department: ${department}`, size: 24, font: 'Times New Roman' })]
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+        children: [new TextRun({ text: `Supervisor: ${supervisor}`, size: 24, font: 'Times New Roman' })]
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 360 },
+        children: [new TextRun({ text: `Date: ${dateText}`, size: 24, font: 'Times New Roman' })]
+      })
+    ];
+
+    chapters.forEach((chapter, index) => {
+      children.push(
+        new Paragraph({
+          text: chapter.title,
+          heading: HeadingLevel.HEADING_1,
+          pageBreakBefore: index === 0,
+          spacing: { before: 240, after: 180, line: 480 }
+        })
+      );
+
+      this.markdownToParagraphs(chapter.content).forEach((paragraph) => {
+        children.push(
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { line: 480, after: 160 },
+            children: [new TextRun({ text: paragraph, size: 24, font: 'Times New Roman' })]
+          })
+        );
+      });
+    });
+
+    if (options.includeBibliography && references.length > 0) {
+      children.push(
+        new Paragraph({
+          text: 'References',
+          heading: HeadingLevel.HEADING_1,
+          pageBreakBefore: true,
+          spacing: { before: 240, after: 180, line: 480 }
+        })
+      );
+
+      references.forEach((ref, index) => {
+        children.push(
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { line: 480, after: 120 },
+            children: [new TextRun({ text: `${index + 1}. ${this.formatMarkdownCitation(ref, options.citationStyle)}`, size: 24, font: 'Times New Roman' })]
+          })
+        );
+      });
     }
 
-    return {
-      success: true,
-      blob: new Blob([htmlResult.content!], { type: 'application/msword' }),
-      filename: htmlResult.filename.replace('.html', '.doc'),
-      error: 'Word export provided as HTML-compatible .doc file. Open in Word and save as .docx.'
-    };
+    try {
+      const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: {
+                font: 'Times New Roman',
+                size: 24
+              },
+              paragraph: {
+                spacing: {
+                  line: 480,
+                  after: 160
+                }
+              }
+            }
+          }
+        },
+        sections: [
+          {
+            properties: {
+              page: {
+                margin: {
+                  top: 1440,
+                  right: 1440,
+                  bottom: 1440,
+                  left: 1440
+                }
+              }
+            },
+            children
+          }
+        ]
+      });
+
+      const blob = await Packer.toBlob(doc);
+      return {
+        success: true,
+        content: 'docx',
+        blob,
+        filename: `${this.sanitizeFilename(ws.basics?.title || 'thesis')}.docx`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        filename: `${this.sanitizeFilename(ws.basics?.title || 'thesis')}.docx`,
+        error: error instanceof Error ? error.message : 'DOCX export failed'
+      };
+    }
   }
 
   private formatMarkdownCitation(ref: Reference, style: string): string {
@@ -444,7 +657,7 @@ export class ExportEngine {
   }
 
   downloadExport(result: ExportResult): void {
-    if (!result.success || !result.content) {
+    if (!result.success || (!result.content && !result.blob)) {
       console.error('Export failed:', result.error);
       return;
     }
@@ -467,7 +680,8 @@ export class ExportEngine {
       tex: 'application/x-tex',
       md: 'text/markdown',
       html: 'text/html',
-      doc: 'application/msword'
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     };
     return mimeTypes[ext || ''] || 'text/plain';
   }
@@ -484,3 +698,4 @@ export class ExportEngine {
 }
 
 export const exportEngine = new ExportEngine();
+

@@ -24,6 +24,7 @@ RATE_LIMITS = {
     "proxy": "3/minute",
     "thesis": "1/minute",
     "research": "2/minute",
+    "pdf_export": "3/minute",
     # Tier 4: Critical/Connection operations
     "websocket": "10/minute",  # Connection attempts
     "auth": "5/minute",

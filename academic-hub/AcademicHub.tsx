@@ -6,7 +6,7 @@
  * - Enhanced UI throughout
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   BookOpen, GraduationCap, Plus, FileText, CheckCircle, ArrowRight,
@@ -14,8 +14,9 @@ import {
   Loader2, Cog, Printer, Brain, Sparkles, Settings, ChevronRight,
   Zap, Microscope, Mic, BarChart3, Users, Cloud, MessageSquare,
   LayoutDashboard, FileDiff, Search, Bell, Lightbulb, Wrench,
-  Download, WifiOff, Wifi, Target, TrendingUp, Clock, AlertTriangle
+  Download, WifiOff, Wifi, Target, TrendingUp, Clock, AlertTriangle, Network
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AcademicDashboard } from './AcademicDashboard';
 import { AcademicWizard } from './AcademicWizard';
 import { ComplianceSidebar } from './ComplianceSidebar';
@@ -24,7 +25,6 @@ import { useWorkspace } from '../context/WorkspaceContext';
 import { ResearchService, BibliographyStyle } from '../services/researchService';
 import { generateDefenseDeck } from '../services/DefenseDeckGenerator';
 import { DefenseDeckUI } from './DefenseDeckUI';
-import { ProjectResources } from './ProjectResources';
 import { bridgeClient } from '../services/bridgeClient';
 import { runGroqGenerate } from '../services/groqService';
 import { ModelCreator } from './ModelCreator';
@@ -67,6 +67,13 @@ interface ProgressMetrics {
   daysRemaining: number;
 }
 
+const LazyProjectResources = React.lazy(async () => {
+  const module = await import('./ProjectResources');
+  return { default: module.ProjectResources };
+});
+
+const LazyCitationGraphPanel = React.lazy(() => import('./components/CitationGraphPanel'));
+
 export const AcademicHub: React.FC = () => {
   const { addAcademicProject, updateAcademicProject } = useWorkspace();
   const [selectedProject, setSelectedProject] = useState<AcademicProject | null>(null);
@@ -87,6 +94,7 @@ export const AcademicHub: React.FC = () => {
   const [isPromptCustomizerOpen, setIsPromptCustomizerOpen] = useState(false);
   const [isCollaboratorOpen, setIsCollaboratorOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [standardSidePanel, setStandardSidePanel] = useState<'compliance' | 'resources' | 'citation-graph'>('compliance');
 
   const [mode, setMode] = useState<Mode>('standard');
   const [agentInsights, setAgentInsights] = useState<AgentInsight[]>([]);
@@ -469,7 +477,80 @@ export const AcademicHub: React.FC = () => {
 
             {/* Right Column: Compliance & Auditor */}
             <div className="w-80 shrink-0 flex flex-col overflow-hidden">
-              <ComplianceSidebar project={selectedProject} />
+              <div className="panel flex-grow flex flex-col overflow-hidden">
+                <div className="p-2 border-b border-cyan-500/10 bg-black/40 flex items-center gap-1">
+                  <button
+                    onClick={() => setStandardSidePanel('compliance')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${standardSidePanel === 'compliance'
+                      ? 'bg-cyan-500/20 text-cyan-200'
+                      : 'text-cyan-500/40 hover:text-cyan-300'
+                      }`}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Compliance
+                  </button>
+                  <button
+                    onClick={() => setStandardSidePanel('resources')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${standardSidePanel === 'resources'
+                      ? 'bg-emerald-500/20 text-emerald-200'
+                      : 'text-cyan-500/40 hover:text-emerald-300'
+                      }`}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Resources
+                  </button>
+                  <button
+                    onClick={() => setStandardSidePanel('citation-graph')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${standardSidePanel === 'citation-graph'
+                      ? 'bg-blue-500/20 text-blue-200'
+                      : 'text-cyan-500/40 hover:text-blue-300'
+                      }`}
+                  >
+                    <Network className="w-3.5 h-3.5" />
+                    Citation Graph
+                  </button>
+                </div>
+
+                <div className="flex-grow overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={standardSidePanel}
+                      className="h-full"
+                      initial={{ opacity: 0, x: 12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -12 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Suspense
+                        fallback={
+                          <div className="h-full flex items-center justify-center text-cyan-400/70 text-xs gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading panel...
+                          </div>
+                        }
+                      >
+                        {standardSidePanel === 'compliance' && (
+                          <ComplianceSidebar project={selectedProject} />
+                        )}
+
+                        {standardSidePanel === 'resources' && (
+                          selectedProject ? (
+                            <LazyProjectResources project={selectedProject} />
+                          ) : (
+                            <div className="h-full flex items-center justify-center text-cyan-500/30 text-[10px] uppercase tracking-widest p-6 text-center">
+                              Select a project to view resource vault.
+                            </div>
+                          )
+                        )}
+
+                        {standardSidePanel === 'citation-graph' && (
+                          <LazyCitationGraphPanel references={selectedProject?.references || []} />
+                        )}
+                      </Suspense>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -578,7 +659,80 @@ export const AcademicHub: React.FC = () => {
 
             {/* Right Column: Compliance & Auditor */}
             <div className="w-80 shrink-0 flex flex-col overflow-hidden">
-              <ComplianceSidebar project={selectedProject} />
+              <div className="panel flex-grow flex flex-col overflow-hidden">
+                <div className="p-2 border-b border-cyan-500/10 bg-black/40 flex items-center gap-1">
+                  <button
+                    onClick={() => setStandardSidePanel('compliance')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${standardSidePanel === 'compliance'
+                      ? 'bg-cyan-500/20 text-cyan-200'
+                      : 'text-cyan-500/40 hover:text-cyan-300'
+                      }`}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Compliance
+                  </button>
+                  <button
+                    onClick={() => setStandardSidePanel('resources')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${standardSidePanel === 'resources'
+                      ? 'bg-emerald-500/20 text-emerald-200'
+                      : 'text-cyan-500/40 hover:text-emerald-300'
+                      }`}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Resources
+                  </button>
+                  <button
+                    onClick={() => setStandardSidePanel('citation-graph')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${standardSidePanel === 'citation-graph'
+                      ? 'bg-blue-500/20 text-blue-200'
+                      : 'text-cyan-500/40 hover:text-blue-300'
+                      }`}
+                  >
+                    <Network className="w-3.5 h-3.5" />
+                    Citation Graph
+                  </button>
+                </div>
+
+                <div className="flex-grow overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={standardSidePanel}
+                      className="h-full"
+                      initial={{ opacity: 0, x: 12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -12 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Suspense
+                        fallback={
+                          <div className="h-full flex items-center justify-center text-cyan-400/70 text-xs gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Loading panel...
+                          </div>
+                        }
+                      >
+                        {standardSidePanel === 'compliance' && (
+                          <ComplianceSidebar project={selectedProject} />
+                        )}
+
+                        {standardSidePanel === 'resources' && (
+                          selectedProject ? (
+                            <LazyProjectResources project={selectedProject} />
+                          ) : (
+                            <div className="h-full flex items-center justify-center text-cyan-500/30 text-[10px] uppercase tracking-widest p-6 text-center">
+                              Select a project to view resource vault.
+                            </div>
+                          )
+                        )}
+
+                        {standardSidePanel === 'citation-graph' && (
+                          <LazyCitationGraphPanel references={selectedProject?.references || []} />
+                        )}
+                      </Suspense>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </div>
             </div>
           </div>
         </div>

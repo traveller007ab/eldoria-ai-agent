@@ -2,11 +2,14 @@ import os
 import sys
 import subprocess
 import json
+import html
+import logging
 import uvicorn
 import asyncio
 import socket
 import time
 import requests
+from io import BytesIO
 from fastapi import (
     FastAPI,
     HTTPException,
@@ -45,6 +48,16 @@ try:
     BROTLI_AVAILABLE = True
 except ImportError:
     BROTLI_AVAILABLE = False
+
+try:
+    from weasyprint import HTML as WeasyHTML
+
+    WEASYPRINT_AVAILABLE = True
+    WEASYPRINT_IMPORT_ERROR = None
+except Exception as weasyprint_error:
+    WEASYPRINT_AVAILABLE = False
+    WeasyHTML = None
+    WEASYPRINT_IMPORT_ERROR = str(weasyprint_error)
 
 from fastapi.responses import (
     StreamingResponse,
@@ -104,6 +117,7 @@ if project_root not in sys.path:
 
 # Create FastAPI app early (before decorators that use it)
 app = FastAPI(title="Eldoria Neural Bridge")
+logger = logging.getLogger("eldoria.bridge")
 
 # Add CORS middleware - SECURITY: Restrict to specific origins
 # Add your production domain(s) to this list
@@ -1388,6 +1402,243 @@ async def open_folder_dialog(request: Request):
 
 
 # Vault endpoints moved to thesis_vault.py router
+
+def _export_escape(value: Any) -> str:
+    return html.escape(str(value or ""))
+
+
+def _markdown_to_basic_html(markdown_text: str) -> str:
+    if not markdown_text:
+        return "<p>Content pending...</p>"
+
+    escaped = _export_escape(markdown_text)
+    escaped = escaped.replace("\r\n", "\n")
+    escaped = escaped.replace("\n\n", "</p><p>")
+    escaped = escaped.replace("\n", "<br/>")
+    escaped = escaped.replace("**", "")
+    escaped = escaped.replace("*", "")
+    escaped = escaped.replace("`", "")
+    return f"<p>{escaped}</p>"
+
+
+def _format_reference_for_pdf(ref: Dict[str, Any], index: int) -> str:
+    title = _export_escape(ref.get("title", "Untitled"))
+    year = _export_escape(ref.get("year", "n.d."))
+    journal = _export_escape(ref.get("journal", ""))
+    authors_raw = ref.get("authors", [])
+
+    if isinstance(authors_raw, list) and authors_raw:
+        author_names = []
+        for author in authors_raw:
+            if isinstance(author, dict):
+                first = author.get("firstName", "")
+                last = author.get("lastName", "")
+                full = f"{first} {last}".strip()
+                if full:
+                    author_names.append(_export_escape(full))
+            elif isinstance(author, str):
+                author_names.append(_export_escape(author))
+        authors = ", ".join(author_names) if author_names else "Unknown"
+    else:
+        authors = "Unknown"
+
+    return f"{index}. {authors} ({year}). {title}. {journal}".strip()
+
+
+def _build_pdf_export_html(project: Dict[str, Any], options: Dict[str, Any]) -> str:
+    wizard_state = project.get("wizard_state", {}) or {}
+    basics = wizard_state.get("basics", {}) or {}
+    draft_content = project.get("draft_content", {}) or {}
+    references = project.get("references", []) or []
+
+    title = _export_escape(basics.get("title", "Untitled Thesis"))
+    author = _export_escape(basics.get("author", "Unknown"))
+    supervisor = _export_escape(basics.get("supervisor", "N/A"))
+    institution = _export_escape(basics.get("institution", "Institution"))
+    department = _export_escape(basics.get("department", "Department"))
+    year = _export_escape(basics.get("year", datetime.now().year))
+
+    include_toc = options.get("includeTableOfContents", True)
+    include_refs = options.get("includeReferences", True)
+    include_cover = options.get("includeCoverPage", True)
+
+    chapter_items = list(draft_content.items())
+    chapter_titles = [_export_escape(chapter_name) for chapter_name, _ in chapter_items]
+
+    toc_html = ""
+    if include_toc and chapter_titles:
+        toc_items = "".join([f"<li>{chapter}</li>" for chapter in chapter_titles])
+        toc_html = f"""
+        <section class=\"toc\">
+            <h2>Table of Contents</h2>
+            <ol>{toc_items}</ol>
+        </section>
+        """
+
+    chapters_html = "".join([
+        f"""
+        <section class=\"chapter\">
+            <h2>{_export_escape(chapter_name)}</h2>
+            {_markdown_to_basic_html(str(content or 'Content pending...'))}
+        </section>
+        """
+        for chapter_name, content in chapter_items
+    ])
+
+    references_html = ""
+    if include_refs and references:
+        ref_items = []
+        for i, ref in enumerate(references, start=1):
+            if isinstance(ref, dict):
+                ref_items.append(f"<li>{_format_reference_for_pdf(ref, i)}</li>")
+        if ref_items:
+            references_html = f"""
+            <section class=\"references chapter\">
+                <h2>References</h2>
+                <ol>{''.join(ref_items)}</ol>
+            </section>
+            """
+
+    cover_html = ""
+    if include_cover:
+        cover_html = f"""
+        <section class=\"cover-page\">
+            <h1>{title}</h1>
+            <p><strong>Author:</strong> {author}</p>
+            <p><strong>Institution:</strong> {institution}</p>
+            <p><strong>Department:</strong> {department}</p>
+            <p><strong>Supervisor:</strong> {supervisor}</p>
+            <p><strong>Year:</strong> {year}</p>
+        </section>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>{title}</title>
+        <style>
+            @page {{
+                size: A4;
+                margin: 1in;
+                @bottom-center {{
+                    content: "Page " counter(page);
+                    font-family: "Times New Roman", serif;
+                    font-size: 10pt;
+                    color: #333;
+                }}
+            }}
+            body {{
+                font-family: "Times New Roman", serif;
+                font-size: 12pt;
+                line-height: 2;
+                color: #000;
+                margin: 0;
+                padding: 0;
+            }}
+            h1, h2 {{
+                font-family: "Times New Roman", serif;
+                font-weight: 700;
+                margin: 0 0 0.35in 0;
+            }}
+            p {{
+                margin: 0 0 0.16in 0;
+                text-align: justify;
+            }}
+            .cover-page {{
+                text-align: center;
+                page-break-after: always;
+                break-after: page;
+                margin-top: 1.4in;
+            }}
+            .cover-page p {{
+                text-align: center;
+            }}
+            .toc {{
+                page-break-after: always;
+                break-after: page;
+            }}
+            .chapter {{
+                page-break-before: always;
+                break-before: page;
+            }}
+            .chapter:first-of-type {{
+                page-break-before: auto;
+                break-before: auto;
+            }}
+            ol {{
+                margin: 0;
+                padding-left: 1.25rem;
+            }}
+            li {{
+                margin-bottom: 0.12in;
+            }}
+        </style>
+    </head>
+    <body>
+        {cover_html}
+        {toc_html}
+        {chapters_html}
+        {references_html}
+    </body>
+    </html>
+    """
+
+
+@app.post("/export/pdf")
+@limiter.limit(RATE_LIMITS["pdf_export"])
+async def export_pdf(request: Request):
+    """
+    Server-side PDF export for academic projects using WeasyPrint.
+    """
+    if not WEASYPRINT_AVAILABLE:
+        logger.warning("PDF export requested but weasyprint is unavailable")
+        detail_message = (
+            "PDF export is unavailable because weasyprint is not installed or missing system libraries. "
+            "Install with: pip install weasyprint>=62.0"
+        )
+        if WEASYPRINT_IMPORT_ERROR:
+            detail_message = f"{detail_message}. Import error: {WEASYPRINT_IMPORT_ERROR}"
+        raise HTTPException(
+            status_code=501,
+            detail=detail_message,
+        )
+
+    try:
+        payload = await request.json()
+        project = payload.get("project", {}) if isinstance(payload, dict) else {}
+        options = payload.get("options", {}) if isinstance(payload, dict) else {}
+
+        if not isinstance(project, dict):
+            raise HTTPException(status_code=400, detail="Invalid request payload: project must be an object.")
+
+        html_content = _build_pdf_export_html(project, options if isinstance(options, dict) else {})
+        pdf_bytes = WeasyHTML(string=html_content).write_pdf()
+
+        title = (
+            project.get("wizard_state", {})
+            .get("basics", {})
+            .get("title", "thesis")
+        )
+        safe_name = "".join(c if str(c).isalnum() else "_" for c in str(title)).strip("_") or "thesis"
+        filename = f"{safe_name}_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+
+        logger.info(
+            "PDF export generated successfully",
+            extra={"filename": filename, "size_bytes": len(pdf_bytes)},
+        )
+
+        return StreamingResponse(
+            BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("PDF export failed")
+        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}")
 
 
 def is_placeholder(key: Optional[str]) -> bool:

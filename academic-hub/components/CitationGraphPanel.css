@@ -1,0 +1,231 @@
+.citation-graph-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    height: 100%;
+    overflow-y: auto;
+    padding: 0.75rem;
+    background: linear-gradient(180deg, rgba(13, 17, 23, 0.65), rgba(13, 17, 23, 0.35));
+}
+
+.citation-graph-panel--empty {
+    align-items: center;
+    justify-content: center;
+    color: #8b949e;
+    text-align: center;
+    border: 1px solid rgba(88, 166, 255, 0.2);
+    border-radius: 14px;
+}
+
+.cg-empty-icon {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 0.5rem;
+    color: #58a6ff;
+    opacity: 0.75;
+}
+
+.cg-section {
+    border: 1px solid rgba(88, 166, 255, 0.2);
+    border-radius: 14px;
+    background: rgba(22, 27, 34, 0.65);
+    backdrop-filter: blur(8px);
+    padding: 0.75rem;
+}
+
+.cg-section__header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #58a6ff;
+    margin-bottom: 0.6rem;
+}
+
+.cg-section__header h3 {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.cg-graph-canvas {
+    height: 280px;
+    border: 1px solid rgba(201, 209, 217, 0.12);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d1117;
+}
+
+.cg-node-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    max-width: 100%;
+}
+
+.cg-node-title {
+    font-size: 8px;
+    line-height: 1.15;
+    font-weight: 700;
+    max-height: 2.4em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cg-node-meta {
+    font-size: 8px;
+    opacity: 0.8;
+}
+
+.cg-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+}
+
+.cg-stat-card {
+    border: 1px solid rgba(88, 166, 255, 0.2);
+    border-radius: 10px;
+    padding: 0.5rem;
+    background: rgba(13, 17, 23, 0.6);
+}
+
+.cg-stat-label {
+    color: #8b949e;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.cg-stat-value {
+    color: #c9d1d9;
+    margin-top: 0.2rem;
+    font-weight: 800;
+    font-size: 15px;
+}
+
+.cg-metrics-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+}
+
+.cg-card {
+    border: 1px solid rgba(88, 166, 255, 0.15);
+    border-radius: 10px;
+    padding: 0.55rem;
+    background: rgba(13, 17, 23, 0.45);
+}
+
+.cg-card__title {
+    color: #c9d1d9;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 0.45rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.cg-ranked-list {
+    margin: 0;
+    padding-left: 1rem;
+    color: #8b949e;
+    font-size: 11px;
+}
+
+.cg-ranked-list li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.4rem;
+    margin-bottom: 0.3rem;
+}
+
+.cg-ranked-title {
+    flex: 1;
+    color: #c9d1d9;
+    line-height: 1.3;
+}
+
+.cg-ranked-count {
+    color: #58a6ff;
+    font-weight: 700;
+}
+
+.cg-trend-chart {
+    width: 100%;
+    height: 155px;
+}
+
+.cg-opportunities {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.cg-empty-opportunity {
+    color: #8b949e;
+    font-size: 11px;
+    border: 1px dashed rgba(88, 166, 255, 0.25);
+    border-radius: 10px;
+    padding: 0.6rem;
+    text-align: center;
+}
+
+.cg-opportunity-card {
+    border: 1px solid rgba(88, 166, 255, 0.2);
+    border-radius: 10px;
+    background: rgba(13, 17, 23, 0.52);
+    padding: 0.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.cg-opportunity-text {
+    color: #c9d1d9;
+    font-size: 11px;
+    line-height: 1.3;
+}
+
+.cg-opportunity-text strong {
+    color: #58a6ff;
+}
+
+.cg-opportunity-btn {
+    border: 1px solid rgba(88, 166, 255, 0.35);
+    color: #58a6ff;
+    background: rgba(88, 166, 255, 0.12);
+    border-radius: 8px;
+    padding: 0.3rem 0.5rem;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.cg-opportunity-btn:hover {
+    background: rgba(88, 166, 255, 0.22);
+    border-color: rgba(88, 166, 255, 0.55);
+}
+
+.cg-opportunity-btn--added {
+    color: #3fb950;
+    border-color: rgba(63, 185, 80, 0.45);
+    background: rgba(63, 185, 80, 0.14);
+}
+
+@media (max-width: 1200px) {
+    .cg-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

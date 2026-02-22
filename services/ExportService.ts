@@ -9,6 +9,15 @@ import { AcademicProject } from '../types';
 import { getBridgeUrl } from './bridgeClient';
 import { ReferenceParser } from './ReferenceParser';
 import { getModelById, DEFAULT_MODELS } from '../models/AcademicModels';
+import html2pdf from 'html2pdf.js';
+import {
+    AlignmentType,
+    Document,
+    HeadingLevel,
+    Packer,
+    Paragraph,
+    TextRun
+} from 'docx';
 
 export type ExportFormat = 'pdf' | 'docx' | 'latex' | 'markdown' | 'html';
 
@@ -102,6 +111,209 @@ class ExportServiceClass {
         } catch (e: any) {
             return { success: false, filename, error: e.message || 'Export failed' };
         }
+    }
+
+    /**
+     * Build DOCX document for client-side fallback
+     */
+    private buildDocxDocument(project: AcademicProject, options: ExportOptions): Document {
+        const model = getModelById(project.modelId || project.format || '') || DEFAULT_MODELS['rsu-mech-eng'];
+        const basics = (project.wizard_state?.basics || {}) as any;
+        const supervisor = basics.supervisor || 'N/A';
+        const institution = basics.institution || model.institution || 'N/A';
+        const department = basics.department || model.department || 'N/A';
+        const dateText = basics.year ? String(basics.year) : new Date().toLocaleDateString();
+        const draftContent = project.draft_content || {};
+        const children: Paragraph[] = [];
+
+        // Title Page
+        children.push(
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 320 },
+                children: [
+                    new TextRun({
+                        text: basics.title || 'Untitled Thesis',
+                        bold: true,
+                        size: 32,
+                        font: 'Times New Roman'
+                    })
+                ]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+                children: [new TextRun({ text: `Author: ${basics.author || 'Unknown'}`, size: 24, font: 'Times New Roman' })]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+                children: [new TextRun({ text: `Institution: ${institution}`, size: 24, font: 'Times New Roman' })]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+                children: [new TextRun({ text: `Department: ${department}`, size: 24, font: 'Times New Roman' })]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+                children: [new TextRun({ text: `Supervisor: ${supervisor}`, size: 24, font: 'Times New Roman' })]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 360 },
+                children: [new TextRun({ text: `Date: ${dateText}`, size: 24, font: 'Times New Roman' })]
+            })
+        );
+
+        // Chapters
+        const chapters = Object.entries(draftContent);
+        chapters.forEach(([chapter, content], index) => {
+            children.push(
+                new Paragraph({
+                    text: chapter,
+                    heading: HeadingLevel.HEADING_1,
+                    pageBreakBefore: index === 0,
+                    spacing: { before: 240, after: 180, line: 480 },
+                    alignment: AlignmentType.LEFT
+                })
+            );
+
+            const contentParagraphs = this.markdownToDocxParagraphs(String(content || 'Content pending...'));
+            contentParagraphs.forEach((paragraphText) => {
+                children.push(
+                    new Paragraph({
+                        alignment: AlignmentType.JUSTIFIED,
+                        spacing: { line: 480, after: 160 },
+                        children: [
+                            new TextRun({
+                                text: paragraphText,
+                                size: 24,
+                                font: 'Times New Roman'
+                            })
+                        ]
+                    })
+                );
+            });
+        });
+
+        // References
+        if (options.includeReferences && project.references?.length) {
+            children.push(
+                new Paragraph({
+                    text: 'References',
+                    heading: HeadingLevel.HEADING_1,
+                    pageBreakBefore: true,
+                    spacing: { before: 240, after: 180, line: 480 }
+                })
+            );
+
+            project.references.forEach((ref, index) => {
+                let referenceText = '';
+                try {
+                    const parsed = ReferenceParser.parseSearchResult(ref as any);
+                    referenceText = `${index + 1}. ${ReferenceParser.format(parsed, options.citationStyle, index + 1)}`;
+                } catch {
+                    referenceText = `${index + 1}. ${ref.title || 'Untitled'} (${ref.year || 'n.d.'})`;
+                }
+
+                children.push(
+                    new Paragraph({
+                        alignment: AlignmentType.JUSTIFIED,
+                        spacing: { line: 480, after: 120 },
+                        children: [new TextRun({ text: referenceText, size: 24, font: 'Times New Roman' })]
+                    })
+                );
+            });
+        }
+
+        return new Document({
+            styles: {
+                default: {
+                    document: {
+                        run: {
+                            font: 'Times New Roman',
+                            size: 24
+                        },
+                        paragraph: {
+                            spacing: {
+                                line: 480,
+                                after: 160
+                            }
+                        }
+                    }
+                }
+            },
+            sections: [
+                {
+                    properties: {
+                        page: {
+                            margin: {
+                                top: 1440,
+                                right: 1440,
+                                bottom: 1440,
+                                left: 1440
+                            }
+                        }
+                    },
+                    children
+                }
+            ]
+        });
+    }
+
+    /**
+     * Prepare HTML for high-quality academic PDF rendering
+     */
+    private prepareAcademicPdfHtml(htmlContent: string): string {
+        const withAcademicStyle = htmlContent.replace('</head>', `
+  <style>
+    @page { size: A4; margin: 1in; }
+    body {
+      font-family: 'Times New Roman', serif !important;
+      font-size: 12pt !important;
+      line-height: 2 !important;
+      color: #000 !important;
+      background: #fff !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    h1, h2, h3, h4 {
+      font-family: 'Times New Roman', serif !important;
+      color: #000 !important;
+    }
+    section.chapter-break {
+      page-break-before: always;
+      break-before: page;
+    }
+    section.chapter-break:first-of-type {
+      page-break-before: auto;
+      break-before: auto;
+    }
+    p { text-align: justify; }
+  </style>
+</head>`);
+
+        return withAcademicStyle.replace(/<section id="/g, '<section class="chapter-break" id="');
+    }
+
+    /**
+     * Convert markdown-like chapter content to paragraph strings for DOCX
+     */
+    private markdownToDocxParagraphs(content: string): string[] {
+        return content
+            .replace(/\r\n/g, '\n')
+            .split(/\n{2,}/)
+            .map((paragraph) => paragraph
+                .replace(/^#{1,6}\s+/gm, '')
+                .replace(/^\s*[-*]\s+/gm, '- ')
+                .replace(/\*\*(.*?)\*\*/g, '$1')
+                .replace(/\*(.*?)\*/g, '$1')
+                .replace(/`{1,3}/g, '')
+                .trim())
+            .filter(Boolean);
     }
 
     /**
@@ -353,25 +565,60 @@ class ExportServiceClass {
         if (!htmlResult.success || !htmlResult.data) {
             return { success: false, filename, error: 'HTML generation failed' };
         }
+        let container: HTMLDivElement | null = null;
+        try {
+            const htmlContent = await (htmlResult.data as Blob).text();
+            const styledHtml = this.prepareAcademicPdfHtml(htmlContent);
+            container = document.createElement('div');
+            container.innerHTML = styledHtml;
+            container.style.position = 'fixed';
+            container.style.left = '-99999px';
+            container.style.top = '0';
+            container.style.width = '210mm';
+            container.style.background = '#ffffff';
+            document.body.appendChild(container);
 
-        // For browser-based PDF, we'll return HTML with print instructions
-        // In a real app, we'd use html2pdf.js here
-        const htmlContent = await (htmlResult.data as Blob).text();
-        const pdfHtml = htmlContent.replace('</head>', `
-      <script>
-        window.onload = function() {
-          window.print();
+            const pdfWorker = html2pdf()
+                .set({
+                    margin: [1, 1, 1, 1],
+                    filename,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: '#ffffff'
+                    },
+                    jsPDF: {
+                        unit: 'in',
+                        format: 'a4',
+                        orientation: 'portrait'
+                    },
+                    pagebreak: {
+                        mode: ['css', 'legacy'],
+                        before: '.chapter-break'
+                    }
+                } as any)
+                .from(container)
+                .toPdf();
+
+            const pdfBlob = await pdfWorker.outputPdf('blob');
+
+            return {
+                success: true,
+                data: pdfBlob,
+                filename
+            };
+        } catch (e: any) {
+            return {
+                success: false,
+                filename,
+                error: e?.message || 'PDF export failed in browser fallback'
+            };
+        } finally {
+            if (container?.parentNode) {
+                container.parentNode.removeChild(container);
+            }
         }
-      </script>
-    </head>`);
-
-        const blob = new Blob([pdfHtml], { type: 'text/html;charset=utf-8' });
-        return {
-            success: true,
-            data: blob,
-            filename: filename.replace('.pdf', '_print.html'),
-            error: 'PDF export requires Bridge. Opening print dialog instead.'
-        };
     }
 
     /**
@@ -383,31 +630,36 @@ class ExportServiceClass {
         filename: string
     ): Promise<ExportResult> {
         const bridgeAvailable = await this.checkBridgeAvailability();
+        if (bridgeAvailable) {
+            try {
+                const bridgeUrl = await getBridgeUrl();
+                const response = await fetch(`${bridgeUrl}/synthesize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(project)
+                });
 
-        if (!bridgeAvailable) {
-            return {
-                success: false,
-                filename,
-                error: 'DOCX export requires the Eldoria Bridge. Please download and run the bridge for Word document generation.'
-            };
+                if (response.ok) {
+                    const blob = await response.blob();
+                    return { success: true, data: blob, filename };
+                } else {
+                    return { success: false, filename, error: 'Bridge returned an error' };
+                }
+            } catch (e: any) {
+                return { success: false, filename, error: e.message || 'DOCX export failed' };
+            }
         }
 
         try {
-            const bridgeUrl = await getBridgeUrl();
-            const response = await fetch(`${bridgeUrl}/synthesize`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(project)
-            });
-
-            if (response.ok) {
-                const blob = await response.blob();
-                return { success: true, data: blob, filename };
-            } else {
-                return { success: false, filename, error: 'Bridge returned an error' };
-            }
+            const doc = this.buildDocxDocument(project, options);
+            const blob = await Packer.toBlob(doc);
+            return { success: true, data: blob, filename };
         } catch (e: any) {
-            return { success: false, filename, error: e.message || 'DOCX export failed' };
+            return {
+                success: false,
+                filename,
+                error: e?.message || 'Client-side DOCX export failed'
+            };
         }
     }
 
@@ -446,3 +698,4 @@ class ExportServiceClass {
 
 export const ExportService = new ExportServiceClass();
 export default ExportService;
+
