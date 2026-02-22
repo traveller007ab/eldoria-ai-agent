@@ -437,7 +437,6 @@ try:
         }
 
     @app.post("/admin/api-keys/clear-cache")
-    @limiter.limit("60/minute")
     async def clear_key_validation_cache(request: Request):
         """Clear the API key validation cache"""
         api_key_manager.clear_cache()

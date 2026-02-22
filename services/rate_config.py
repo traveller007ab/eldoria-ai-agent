@@ -44,20 +44,24 @@ def get_user_or_ip_key(request: Request) -> str:
     Use user ID if authenticated, fallback to IP
     This allows authenticated users higher limits
     """
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        try:
-            import services.db as db
+    try:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            try:
+                import services.db as db
 
-            token = auth_header.replace("Bearer ", "")
-            payload = db.decode_token(token)
-            if payload and payload.get("sub"):
-                return f"user:{payload.get('sub')}"
-        except Exception:
-            pass
+                token = auth_header.replace("Bearer ", "")
+                payload = db.decode_token(token)
+                if payload and payload.get("sub"):
+                    return f"user:{payload.get('sub')}"
+            except Exception:
+                pass
 
-    # Fallback to IP address
-    return f"ip:{get_remote_address(request)}"
+        # Fallback to IP address
+        return f"ip:{get_remote_address(request)}"
+    except Exception:
+        # Ultimate fallback - return a fixed key if everything fails
+        return "ip:unknown"
 
 
 def get_websocket_key(websocket) -> str:
