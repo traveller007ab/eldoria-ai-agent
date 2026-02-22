@@ -333,7 +333,6 @@ try:
     from services.api_key_manager import api_key_manager, KeyStatus
 
     @app.get("/admin/api-keys/status")
-    @limiter.limit("30/minute")
     async def get_api_keys_status(request: Request):
         """
         Get status of all API keys (format validation only, no live testing)
@@ -357,7 +356,6 @@ try:
         }
 
     @app.post("/admin/api-keys/validate")
-    @limiter.limit("10/minute")
     async def validate_api_keys_live(request: Request):
         """
         Validate all API keys with live API calls
@@ -395,7 +393,6 @@ try:
         }
 
     @app.post("/admin/api-keys/validate/{provider}")
-    @limiter.limit("10/minute")
     async def validate_single_key(request: Request, provider: str):
         """
         Validate a specific API key with live testing
